@@ -40,4 +40,26 @@ describe('validateIngestPayload', () => {
     expect(validateIngestPayload(null).ok).toBe(false);
     expect(validateIngestPayload('hello').ok).toBe(false);
   });
+
+  it('accepts a payload with hourly_tokens', () => {
+    const result = validateIngestPayload({ ...valid, hourly_tokens: { '9': 12000, '22': 8000 } });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.hourly_tokens).toEqual({ '9': 12000, '22': 8000 });
+  });
+
+  it('defaults hourly_tokens to {} when omitted', () => {
+    const result = validateIngestPayload(valid);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.hourly_tokens).toEqual({});
+  });
+
+  it('rejects a non-object hourly_tokens', () => {
+    const result = validateIngestPayload({ ...valid, hourly_tokens: 5 });
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects negative values in hourly_tokens', () => {
+    const result = validateIngestPayload({ ...valid, hourly_tokens: { '9': -1 } });
+    expect(result.ok).toBe(false);
+  });
 });

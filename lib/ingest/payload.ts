@@ -8,6 +8,7 @@ export type IngestPayload = {
   deep_work_minutes: number;
   projects_touched: Record<string, number>;
   ships: { commits: number; repos: number };
+  hourly_tokens: Record<string, number>;
 };
 
 export type ValidationResult =
@@ -64,6 +65,14 @@ export function validateIngestPayload(body: unknown): ValidationResult {
     return { ok: false, error: 'ships must be { commits, repos }' };
   }
 
+  let hourly_tokens: Record<string, number> = {};
+  if (body.hourly_tokens !== undefined) {
+    if (!isNumberRecord(body.hourly_tokens)) {
+      return { ok: false, error: 'hourly_tokens must be a record of non-negative numbers' };
+    }
+    hourly_tokens = body.hourly_tokens;
+  }
+
   return {
     ok: true,
     value: {
@@ -76,6 +85,7 @@ export function validateIngestPayload(body: unknown): ValidationResult {
       deep_work_minutes: body.deep_work_minutes,
       projects_touched: body.projects_touched,
       ships: { commits: body.ships.commits, repos: body.ships.repos },
+      hourly_tokens,
     },
   };
 }

@@ -37,6 +37,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       daily_stats: {
         Row: {
@@ -75,6 +76,7 @@ export type Database = {
           ships?: Json;
           source_synced_at?: string | null;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

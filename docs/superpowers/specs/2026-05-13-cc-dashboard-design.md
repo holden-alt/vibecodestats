@@ -209,7 +209,7 @@ friendships
 
 | Route                  | Purpose                                             | Auth        |
 | ---------------------- | --------------------------------------------------- | ----------- |
-| `/`                    | Marketing-light landing. "vibecoder profiles." CTA to sign in or view Holden | public |
+| `/`                    | v1: redirects to `/holden`. v2: marketing landing with pitch + preview + onboarding CTA | public |
 | `/holden`              | Holden's profile — the full TUI dashboard            | public      |
 | `/:handle`             | Any user's profile (just Holden in v1)               | public      |
 | `/:handle/vs/:handle`  | Head-to-head between two users                       | public      |
@@ -252,14 +252,18 @@ All public routes get full SSR with structured data (Person schema for profiles,
 - Deploy on Cloudflare Pages at `vibecoders.club`
 
 ### Out (v2+)
+- **Landing page at `/`** — v1 just redirects to `/holden`; the marketing slot is reserved
+- **Onboarding flow** — sign-in for non-Holden users, handle setup, install CLI, first-push verification
+- **`vibe init` CLI** — one-liner that writes the Stop hook to a new user's `~/.claude/settings.json` and registers their machine HMAC
 - Other real users signing up
-- `vibecoders push` CLI for non-Holden ingestion
-- Real group creation/management UI
-- Friend system real connections
+- Real group creation/management UI (the schema exists; the UI is v2)
+- Friend system real connections (schema exists; UI is v2)
 - LLM-based persona inference
 - Mobile-optimized layout (v1 is desktop-first; mobile reads but doesn't shine)
 - Race chart animation
 - Profile customization (palette, layout)
+
+**Architecture guarantee:** none of the above require rewriting v1. They're additive surfaces on top of the existing multi-user-ready data model, schema, routes, and auth.
 
 ## 12. Decisions (resolved 2026-05-13)
 

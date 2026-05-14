@@ -8,7 +8,7 @@ export function TokenTrendChart({ days }: TokenTrendChartProps) {
     <div
       className="flex items-end gap-[2px] h-[80px]"
       role="img"
-      aria-label="30-day daily token trend"
+      aria-label={`${days.length}-day daily token trend`}
     >
       {days.map((d) => {
         const pct = Math.round((d.tokens / max) * 100);

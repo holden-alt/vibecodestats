@@ -1,10 +1,14 @@
-type SegmentedControlProps = {
-  options: readonly { id: string; label: string }[];
-  value: string;
-  onChange: (id: string) => void;
+type SegmentedControlProps<T extends string> = {
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
 };
 
-export function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: SegmentedControlProps<T>) {
   return (
     <div
       className="flex flex-wrap gap-px rounded overflow-hidden border"

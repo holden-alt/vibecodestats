@@ -98,11 +98,11 @@ export function StatsExplorer({ dailyStats, machineStats, today }: StatsExplorer
         style={{ borderColor: 'var(--color-border)', borderTop: '2px solid var(--color-magenta)' }}
       >
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <SegmentedControl options={TABS} value={tab} onChange={(id) => setTab(id as TabId)} />
+          <SegmentedControl options={TABS} value={tab} onChange={setTab} />
           <SegmentedControl
             options={WINDOWS}
             value={statsWindow}
-            onChange={(id) => setStatsWindow(id as StatsWindow)}
+            onChange={setStatsWindow}
           />
         </div>
         <div data-explorer-body>{body}</div>

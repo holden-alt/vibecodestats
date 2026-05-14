@@ -32,6 +32,7 @@ const baseData: ProfileData = {
       ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
     },
   ],
+  machineStats: [],
 };
 
 beforeEach(() => {
@@ -75,38 +76,33 @@ describe('ProfileLive', () => {
     expect(screen.queryByText(/999/)).not.toBeInTheDocument();
   });
 
-  it('renders the trends and charts sections', () => {
-    const initialData = {
+  it('renders the trends section and the stats explorer', () => {
+    const initialData: ProfileData = {
       user: {
-        id: 'u1',
-        github_handle: 'holden-alt',
-        display_name: 'Holden',
-        avatar_url: null,
-        primary_persona: null,
-        secondary_personas: [],
+        id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
+        avatar_url: null, primary_persona: null, secondary_personas: [],
       },
       dailyStats: [
         {
-          user_id: 'u1',
-          date: '2026-05-14',
-          tokens_total: 300,
-          tokens_by_model: { 'claude-opus-4-7': 300 },
-          sessions: 2,
-          deep_work_minutes: 60,
-          machines: ['iMac'],
-          projects_touched: {},
-          ships: {},
-          hourly_tokens: { '14': 300 },
-          source_synced_at: null,
+          user_id: 'u1', date: '2026-05-14', tokens_total: 300,
+          tokens_by_model: { 'claude-opus-4-7': 300 }, sessions: 2,
+          deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
+          ships: {}, hourly_tokens: { '14': 300 }, source_synced_at: null,
+        },
+      ],
+      machineStats: [
+        {
+          user_id: 'u1', date: '2026-05-14', machine: 'iMac', tokens_total: 300,
+          tokens_by_model: {}, sessions: 2, deep_work_minutes: 60,
+          projects_touched: {}, ships: {}, hourly_tokens: {}, updated_at: '2026-05-14T12:00:00Z',
         },
       ],
     };
     const { container } = render(<ProfileLive initialData={initialData} today="2026-05-14" />);
     // TrendsSection: 30 token bars + 30 model-mix columns
-    expect(container.querySelectorAll('[data-bar]').length).toBeGreaterThanOrEqual(30);
     expect(container.querySelectorAll('[data-col]').length).toBe(30);
-    // ChartsSection: donut + 24 hour bars
-    expect(container.querySelector('[data-donut]')).toBeTruthy();
-    expect(container.querySelectorAll('[data-hour]').length).toBe(24);
+    // StatsExplorer present, with its tab + window controls (6 + 6 segments)
+    expect(container.querySelector('[data-stats-explorer]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-segment]').length).toBe(12);
   });
 });

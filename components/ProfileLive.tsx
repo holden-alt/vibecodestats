@@ -8,7 +8,7 @@ import { BuildsPane } from '@/components/BuildsPane';
 import { ActivityPane } from '@/components/ActivityPane';
 import { PersonaPane } from '@/components/PersonaPane';
 import { TrendsSection } from '@/components/TrendsSection';
-import { ChartsSection } from '@/components/ChartsSection';
+import { StatsExplorer } from '@/components/StatsExplorer';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 
 type ProfileLiveProps = {
@@ -18,7 +18,7 @@ type ProfileLiveProps = {
 
 export function ProfileLive({ initialData, today }: ProfileLiveProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
-  const { user } = initialData;
+  const { user, machineStats } = initialData;
 
   useEffect(() => {
     const supabase = createClient();
@@ -87,7 +87,7 @@ export function ProfileLive({ initialData, today }: ProfileLiveProps) {
         />
       </section>
       <TrendsSection dailyStats={dailyStats} today={today} />
-      <ChartsSection dailyStats={dailyStats} />
+      <StatsExplorer dailyStats={dailyStats} machineStats={machineStats} today={today} />
     </main>
   );
 }

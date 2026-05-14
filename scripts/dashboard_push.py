@@ -23,6 +23,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -147,3 +148,40 @@ def count_ships(claude_dir, target_date, author_email):
             commits += n
             repos_with_commits += 1
     return {'commits': commits, 'repos': repos_with_commits}
+
+
+def sign_body(body, secret):
+    """HMAC-SHA256 hex digest — must match lib/ingest/hmac.ts signPayload()."""
+    return hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+
+
+def build_payload(day, ships, github_handle, machine, target_date):
+    """Assemble the IngestPayload dict the /api/ingest route expects."""
+    return {
+        'github_handle': github_handle,
+        'machine': machine,
+        'date': target_date,
+        'tokens_total': day['tokens_total'],
+        'tokens_by_model': day['tokens_by_model'],
+        'sessions': day['sessions'],
+        'deep_work_minutes': deep_work_minutes(day.get('timestamps', [])),
+        'projects_touched': day['projects_touched'],
+        'ships': ships,
+    }
+
+
+def post_payload(url, payload, secret):
+    """Sign and POST the payload. Returns (status_code, response_text)."""
+    body = json.dumps(payload, separators=(',', ':'), sort_keys=True)
+    signature = sign_body(body, secret)
+    req = urllib.request.Request(
+        url.rstrip('/') + '/api/ingest',
+        data=body.encode(),
+        headers={'Content-Type': 'application/json', 'X-CC-Signature': signature},
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()

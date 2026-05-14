@@ -159,5 +159,33 @@ class TestCountShips(unittest.TestCase):
             self.assertEqual(result, {'commits': 0, 'repos': 0})
 
 
+class TestSignAndPayload(unittest.TestCase):
+    def test_sign_body_matches_known_hmac(self):
+        # HMAC-SHA256 of 'hello' with key 'k' — precomputed.
+        import hmac as _hmac, hashlib as _hashlib
+        expected = _hmac.new(b'k', b'hello', _hashlib.sha256).hexdigest()
+        self.assertEqual(dashboard_push.sign_body('hello', 'k'), expected)
+
+    def test_build_payload_shape(self):
+        day = {
+            'tokens_total': 415,
+            'tokens_by_model': {'claude-opus-4-7': 400, 'claude-sonnet-4-6': 15},
+            'sessions': 2,
+            'projects_touched': {'holden-alt/cc-dashboard': 400},
+            'timestamps': ['2026-05-14T10:00:00.000Z', '2026-05-14T10:05:00.000Z'],
+        }
+        ships = {'commits': 3, 'repos': 2}
+        payload = dashboard_push.build_payload(
+            day, ships, github_handle='holden-alt', machine='iMac', target_date='2026-05-14',
+        )
+        self.assertEqual(payload['github_handle'], 'holden-alt')
+        self.assertEqual(payload['machine'], 'iMac')
+        self.assertEqual(payload['date'], '2026-05-14')
+        self.assertEqual(payload['tokens_total'], 415)
+        self.assertEqual(payload['deep_work_minutes'], 5)  # two ts 5 min apart
+        self.assertEqual(payload['ships'], {'commits': 3, 'repos': 2})
+        self.assertNotIn('timestamps', payload)  # internal-only, not sent
+
+
 if __name__ == '__main__':
     unittest.main()

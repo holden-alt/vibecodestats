@@ -185,3 +185,104 @@ def post_payload(url, payload, secret):
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode()
+
+
+def today_jsonl_files(projects_dir):
+    """JSONL files modified since local midnight."""
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = midnight.timestamp()
+    out = []
+    for path in glob.glob(os.path.join(projects_dir, '*', '*.jsonl')):
+        try:
+            if os.path.getmtime(path) >= cutoff:
+                out.append(path)
+        except OSError:
+            continue
+    return out
+
+
+def all_jsonl_files(projects_dir):
+    return glob.glob(os.path.join(projects_dir, '*', '*.jsonl'))
+
+
+def is_debounced(marker_path, window):
+    """True if the last push was less than `window` seconds ago."""
+    try:
+        with open(marker_path) as f:
+            last = float(f.read().strip())
+    except (OSError, ValueError):
+        return False
+    return (time.time() - last) < window
+
+
+def git_author_email():
+    try:
+        out = subprocess.run(['git', 'config', 'user.email'],
+                             capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or 'unknown@local'
+    except (subprocess.SubprocessError, OSError):
+        return 'unknown@local'
+
+
+def main():
+    backfill = '--backfill' in sys.argv
+
+    url = os.environ.get('CC_DASHBOARD_URL')
+    secret = os.environ.get('CC_DASHBOARD_HMAC_SECRET')
+    handle = os.environ.get('CC_DASHBOARD_HANDLE')
+    if not url or not secret or not handle:
+        print('dashboard-push: missing CC_DASHBOARD_URL / CC_DASHBOARD_HMAC_SECRET / '
+              'CC_DASHBOARD_HANDLE — skipping', file=sys.stderr)
+        return 0
+
+    if not backfill and is_debounced(LAST_PUSH_FILE, DEBOUNCE_SECONDS):
+        return 0  # pushed recently — skip silently
+
+    machine = socket.gethostname().split('.')[0]
+    claude_dir = os.path.join(HOME, 'Claude')
+    author_email = git_author_email()
+
+    if backfill:
+        # one row per date present across all sessions
+        all_files = all_jsonl_files(PROJECTS_DIR)
+        dates = set()
+        for path in all_files:
+            try:
+                with open(path) as f:
+                    for line in f:
+                        try:
+                            ts = json.loads(line).get('timestamp')
+                        except json.JSONDecodeError:
+                            continue
+                        if ts:
+                            dates.add(ts[:10])
+            except OSError:
+                continue
+        for target_date in sorted(dates):
+            day = parse_day(all_files, target_date, HOME)
+            if day['tokens_total'] == 0:
+                continue
+            ships = count_ships(claude_dir, target_date, author_email)
+            payload = build_payload(day, ships, handle, machine, target_date)
+            status, text = post_payload(url, payload, secret)
+            print(f'  {target_date}: {status} {text[:80]}')
+        return 0
+
+    # default: today only, incremental
+    target_date = datetime.now().strftime('%Y-%m-%d')
+    files = today_jsonl_files(PROJECTS_DIR)
+    day = parse_day(files, target_date, HOME)
+    ships = count_ships(claude_dir, target_date, author_email)
+    payload = build_payload(day, ships, handle, machine, target_date)
+    status, text = post_payload(url, payload, secret)
+
+    if status == 200:
+        with open(LAST_PUSH_FILE, 'w') as f:
+            f.write(str(time.time()))
+    else:
+        print(f'dashboard-push: ingest returned {status}: {text[:200]}', file=sys.stderr)
+    return 0 if status == 200 else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

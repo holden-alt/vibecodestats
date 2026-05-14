@@ -187,5 +187,57 @@ class TestSignAndPayload(unittest.TestCase):
         self.assertNotIn('timestamps', payload)  # internal-only, not sent
 
 
+class TestFileSelection(unittest.TestCase):
+    def test_today_files_only_picks_recently_modified(self):
+        with tempfile.TemporaryDirectory() as d:
+            projects = os.path.join(d, 'projects')
+            proj = os.path.join(projects, 'p')
+            os.makedirs(proj)
+            recent = os.path.join(proj, 'recent.jsonl')
+            old = os.path.join(proj, 'old.jsonl')
+            open(recent, 'w').close()
+            open(old, 'w').close()
+            # set 'old' mtime to 3 days ago
+            old_time = time.time() - 3 * 86400
+            os.utime(old, (old_time, old_time))
+
+            picked = dashboard_push.today_jsonl_files(projects)
+            self.assertIn(recent, picked)
+            self.assertNotIn(old, picked)
+
+    def test_all_files_picks_everything(self):
+        with tempfile.TemporaryDirectory() as d:
+            projects = os.path.join(d, 'projects')
+            proj = os.path.join(projects, 'p')
+            os.makedirs(proj)
+            a = os.path.join(proj, 'a.jsonl')
+            b = os.path.join(proj, 'b.jsonl')
+            open(a, 'w').close()
+            open(b, 'w').close()
+            old_time = time.time() - 30 * 86400
+            os.utime(b, (old_time, old_time))
+            picked = dashboard_push.all_jsonl_files(projects)
+            self.assertEqual(sorted(picked), sorted([a, b]))
+
+
+class TestDebounce(unittest.TestCase):
+    def test_debounced_when_recent(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, 'last-push')
+            with open(marker, 'w') as f:
+                f.write(str(time.time()))  # just now
+            self.assertTrue(dashboard_push.is_debounced(marker, window=90))
+
+    def test_not_debounced_when_stale(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, 'last-push')
+            with open(marker, 'w') as f:
+                f.write(str(time.time() - 200))
+            self.assertFalse(dashboard_push.is_debounced(marker, window=90))
+
+    def test_not_debounced_when_missing(self):
+        self.assertFalse(dashboard_push.is_debounced('/nonexistent/marker', window=90))
+
+
 if __name__ == '__main__':
     unittest.main()

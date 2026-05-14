@@ -8,6 +8,7 @@ export type IngestPayload = {
   deep_work_minutes: number;
   projects_touched: Record<string, number>;
   ships: { commits: number; repos: number };
+  // hourly_tokens is optional on the wire; the validator normalises missing → {}
   hourly_tokens: Record<string, number>;
 };
 

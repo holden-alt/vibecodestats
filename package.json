@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "db:types": "supabase gen types typescript --local > lib/types/database.ts"
+    "db:types": "supabase gen types typescript --local > lib/types/database.ts",
+    "pages:build": "pnpm exec next-on-pages",
+    "pages:deploy": "pnpm pages:build && pnpm exec wrangler pages deploy .vercel/output/static"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -23,6 +25,7 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
@@ -40,6 +43,7 @@
     "supabase": "^2.98.2",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "wrangler": "^4.90.1"
   }
 }

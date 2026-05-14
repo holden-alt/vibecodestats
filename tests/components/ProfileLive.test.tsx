@@ -99,7 +99,7 @@ describe('ProfileLive', () => {
       ],
     };
     const { container } = render(<ProfileLive initialData={initialData} today="2026-05-14" />);
-    // TrendsSection: 30 token bars + 30 model-mix columns
+    // TrendsSection: 30 model-mix columns
     expect(container.querySelectorAll('[data-col]').length).toBe(30);
     // StatsExplorer present, with its tab + window controls (6 + 6 segments)
     expect(container.querySelector('[data-stats-explorer]')).toBeTruthy();

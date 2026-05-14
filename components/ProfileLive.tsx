@@ -7,6 +7,8 @@ import { StatusBar } from '@/components/StatusBar';
 import { BuildsPane } from '@/components/BuildsPane';
 import { ActivityPane } from '@/components/ActivityPane';
 import { PersonaPane } from '@/components/PersonaPane';
+import { TrendsSection } from '@/components/TrendsSection';
+import { ChartsSection } from '@/components/ChartsSection';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 
 type ProfileLiveProps = {
@@ -84,6 +86,8 @@ export function ProfileLive({ initialData, today }: ProfileLiveProps) {
           secondary={user.secondary_personas ?? []}
         />
       </section>
+      <TrendsSection dailyStats={dailyStats} today={today} />
+      <ChartsSection dailyStats={dailyStats} />
     </main>
   );
 }

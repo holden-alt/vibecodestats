@@ -74,4 +74,39 @@ describe('ProfileLive', () => {
     expect(screen.getByText(/100K tokens/)).toBeInTheDocument();
     expect(screen.queryByText(/999/)).not.toBeInTheDocument();
   });
+
+  it('renders the trends and charts sections', () => {
+    const initialData = {
+      user: {
+        id: 'u1',
+        github_handle: 'holden-alt',
+        display_name: 'Holden',
+        avatar_url: null,
+        primary_persona: null,
+        secondary_personas: [],
+      },
+      dailyStats: [
+        {
+          user_id: 'u1',
+          date: '2026-05-14',
+          tokens_total: 300,
+          tokens_by_model: { 'claude-opus-4-7': 300 },
+          sessions: 2,
+          deep_work_minutes: 60,
+          machines: ['iMac'],
+          projects_touched: {},
+          ships: {},
+          hourly_tokens: { '14': 300 },
+          source_synced_at: null,
+        },
+      ],
+    };
+    const { container } = render(<ProfileLive initialData={initialData} today="2026-05-14" />);
+    // TrendsSection: 30 token bars + 30 model-mix columns
+    expect(container.querySelectorAll('[data-bar]').length).toBeGreaterThanOrEqual(30);
+    expect(container.querySelectorAll('[data-col]').length).toBe(30);
+    // ChartsSection: donut + 24 hour bars
+    expect(container.querySelector('[data-donut]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-hour]').length).toBe(24);
+  });
 });

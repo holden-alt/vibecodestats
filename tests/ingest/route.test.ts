@@ -23,6 +23,7 @@ type MachineRowT = {
   deep_work_minutes: number;
   projects_touched: Record<string, number>;
   ships: { commits: number; repos: number };
+  hourly_tokens: Record<string, number>;
 };
 
 // Store-backed mock so repeated/multi-machine pushes behave realistically.
@@ -161,5 +162,19 @@ describe('POST /api/ingest — rollup semantics', () => {
     expect(rollup.deep_work_minutes).toBe(35);
     expect(rollup.projects_touched).toEqual({ 'holden-alt/cc-dashboard': 800 });
     expect(rollup.ships).toEqual({ commits: 3, repos: 1 }); // commits sum, repos max
+  });
+
+  it('merges hourly_tokens across machines', async () => {
+    const { POST } = await import('../../app/api/ingest/route');
+    await POST(await makeRequest({
+      ...validBody, machine: 'iMac', tokens_total: 500,
+      hourly_tokens: { '9': 300, '10': 200 },
+    }));
+    await POST(await makeRequest({
+      ...validBody, machine: 'MacBook-Air', tokens_total: 300,
+      hourly_tokens: { '10': 100, '22': 200 },
+    }));
+    const rollup = dailyUpsertMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(rollup.hourly_tokens).toEqual({ '9': 300, '10': 300, '22': 200 });
   });
 });

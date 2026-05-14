@@ -24,6 +24,7 @@ type MachineRow = {
   deep_work_minutes: number;
   projects_touched: Record<string, number>;
   ships: { commits: number; repos: number };
+  hourly_tokens: Record<string, number>;
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -85,6 +86,7 @@ export async function POST(request: Request): Promise<Response> {
       deep_work_minutes: payload.deep_work_minutes,
       projects_touched: payload.projects_touched,
       ships: payload.ships,
+      hourly_tokens: payload.hourly_tokens,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,date,machine' },
@@ -99,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
   // 2. Read every machine's sub-total for the day.
   const { data: machineRows, error: rollupSelectError } = await supabase
     .from('machine_daily_stats')
-    .select('machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships')
+    .select('machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships, hourly_tokens')
     .eq('user_id', user.id)
     .eq('date', payload.date);
   if (rollupSelectError || !machineRows) {
@@ -127,6 +129,10 @@ export async function POST(request: Request): Promise<Response> {
       commits: rows.reduce((s, r) => s + r.ships.commits, 0),
       repos: rows.reduce((m, r) => Math.max(m, r.ships.repos), 0),
     },
+    hourly_tokens: rows.reduce<Record<string, number>>(
+      (acc, r) => mergeNumberRecords(acc, r.hourly_tokens),
+      {},
+    ),
     source_synced_at: new Date().toISOString(),
   };
 

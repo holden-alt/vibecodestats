@@ -1,4 +1,4 @@
-import type { DailyStat } from '@/lib/stats/profile-data';
+import type { DailyStat, MachineDailyStat } from '@/lib/stats/profile-data';
 
 // ---------------------------------------------------------------------------
 // Model classification
@@ -159,6 +159,17 @@ export function projectTotals(stats: DailyStat[]): RankedItem[] {
     for (const [label, n] of Object.entries(projects)) {
       totals[label] = (totals[label] ?? 0) + n;
     }
+  }
+  return Object.entries(totals)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+// Sums per-machine tokens across the given machine_daily_stats rows, sorted descending.
+export function machineTotals(machineStats: MachineDailyStat[]): RankedItem[] {
+  const totals: Record<string, number> = {};
+  for (const m of machineStats) {
+    totals[m.machine] = (totals[m.machine] ?? 0) + m.tokens_total;
   }
   return Object.entries(totals)
     .map(([label, value]) => ({ label, value }))

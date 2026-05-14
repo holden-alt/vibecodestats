@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow, projectTotals } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow, projectTotals, machineTotals } from '@/lib/stats/aggregations';
 import type { StatsWindow } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
@@ -236,5 +236,40 @@ describe('projectTotals', () => {
 
   it('returns an empty array for empty input', () => {
     expect(projectTotals([])).toEqual([]);
+  });
+});
+
+describe('machineTotals', () => {
+  function machineStat(partial: Partial<import('@/lib/stats/profile-data').MachineDailyStat>) {
+    return {
+      user_id: 'u1',
+      date: '2026-05-14',
+      machine: 'iMac',
+      tokens_total: 0,
+      tokens_by_model: {},
+      sessions: 0,
+      deep_work_minutes: 0,
+      projects_touched: {},
+      ships: {},
+      hourly_tokens: {},
+      updated_at: '2026-05-14T12:00:00Z',
+      ...partial,
+    };
+  }
+
+  it('sums tokens per machine, sorted descending', () => {
+    const rows = [
+      machineStat({ machine: 'iMac', tokens_total: 100 }),
+      machineStat({ machine: 'MacBook-Air', tokens_total: 300 }),
+      machineStat({ machine: 'iMac', tokens_total: 50 }),
+    ];
+    expect(machineTotals(rows)).toEqual([
+      { label: 'MacBook-Air', value: 300 },
+      { label: 'iMac', value: 150 },
+    ]);
+  });
+
+  it('returns an empty array for empty input', () => {
+    expect(machineTotals([])).toEqual([]);
   });
 });

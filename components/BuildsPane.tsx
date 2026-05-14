@@ -1,26 +1,16 @@
-type BuildStatus = 'active' | 'shipped' | 'live' | 'paused' | 'work';
-
-type Build = {
-  name: string;
-  status: BuildStatus;
-  hint: string;
+type BuildsPaneProps = {
+  projects: Record<string, number>;
 };
 
-const PLACEHOLDER_BUILDS: Build[] = [
-  { name: 'cc-dashboard', status: 'active', hint: 'new' },
-  { name: 'holdengr.com', status: 'live', hint: 'live' },
-  { name: 'watch-whisperer', status: 'shipped', hint: 'shipped 1w' },
-];
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return Math.round(n / 1_000) + 'K';
+  return String(n);
+}
 
-const DOT_COLOR: Record<BuildStatus, string> = {
-  active: 'var(--color-orange)',
-  shipped: 'var(--color-green)',
-  live: 'var(--color-green)',
-  paused: '#333',
-  work: 'var(--color-yellow)',
-};
+export function BuildsPane({ projects }: BuildsPaneProps) {
+  const sorted = Object.entries(projects).sort((a, b) => b[1] - a[1]);
 
-export function BuildsPane() {
   return (
     <div
       className="rounded border p-2.5 min-h-[210px]"
@@ -29,15 +19,21 @@ export function BuildsPane() {
       <h4 className="text-[0.6rem] uppercase tracking-[0.1em] font-semibold mb-2" style={{ color: 'var(--color-cyan)' }}>
         · builds
       </h4>
-      {PLACEHOLDER_BUILDS.map((b) => (
-        <div key={b.name} data-testid="build-row" className="flex items-center gap-2 py-0.5">
-          <span className="inline-block w-2 h-2 rounded-full" style={{ background: DOT_COLOR[b.status] }} />
-          <span className="text-[0.7rem]">{b.name}</span>
-          <span className="text-[0.6rem] ml-auto" style={{ color: 'var(--color-dim)' }}>
-            {b.hint}
-          </span>
+      {sorted.length === 0 ? (
+        <div className="text-[0.6rem]" style={{ color: 'var(--color-dim)' }}>
+          no builds yet today — start a session
         </div>
-      ))}
+      ) : (
+        sorted.map(([name, tokens]) => (
+          <div key={name} data-testid="build-row" className="flex items-center gap-2 py-0.5">
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: 'var(--color-orange)' }} />
+            <span className="text-[0.7rem]">{name}</span>
+            <span className="text-[0.6rem] ml-auto" style={{ color: 'var(--color-dim)' }}>
+              {formatTokens(tokens)}
+            </span>
+          </div>
+        ))
+      )}
     </div>
   );
 }

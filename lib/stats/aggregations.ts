@@ -31,7 +31,7 @@ export function modelTotals(stats: DailyStat[]): ModelTotals {
 }
 
 // ---------------------------------------------------------------------------
-// 30-day trend (1.2)
+// Per-day trend (1.2 last30Days / 2.2 trendForWindow)
 // ---------------------------------------------------------------------------
 
 export type TrendDay = {

@@ -6,47 +6,40 @@ vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => { throw new Error('NEXT_NOT_FOUND'); }),
 }));
 
-function mockSupabase(handle: string, exists: boolean) {
-  return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(async () => ({
-            data: exists
-              ? {
-                  id: 'u1',
-                  github_handle: handle,
-                  display_name: 'Holden',
-                  avatar_url: null,
-                  primary_persona: null,
-                  secondary_personas: [],
-                }
-              : null,
-            error: null,
-          })),
-        })),
-      })),
-    })),
-  };
-}
+const getProfileDataMock = vi.fn();
+vi.mock('@/lib/stats/profile-data', () => ({
+  getProfileData: (...args: unknown[]) => getProfileDataMock(...args),
+}));
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({})) }));
+// ProfileLive mounts the browser realtime client on render — stub it so the
+// page test doesn't need real Supabase env vars.
+vi.mock('@/lib/supabase/browser', () => ({
+  createClient: vi.fn(() => ({
+    channel: vi.fn(() => {
+      const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
+      return ch;
+    }),
+    removeChannel: vi.fn(),
+  })),
+}));
 
 describe('GET /[handle]', () => {
-  it('renders the handle when user exists', async () => {
-    vi.resetModules();
-    vi.doMock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => mockSupabase('holden', true)) }));
+  it('renders ProfileLive when the user exists', async () => {
+    getProfileDataMock.mockResolvedValueOnce({
+      user: { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
+        avatar_url: null, primary_persona: null, secondary_personas: [] },
+      dailyStats: [],
+    });
     const { default: Page } = await import('../../app/[handle]/page');
-    const ui = await Page({ params: Promise.resolve({ handle: 'holden' }) });
-    render(ui as any);
-    expect(screen.getByText(/\$ holden/)).toBeInTheDocument();
-    vi.doUnmock('@/lib/supabase/server');
+    const ui = await Page({ params: Promise.resolve({ handle: 'holden-alt' }) });
+    render(ui as React.ReactElement);
+    expect(screen.getByText(/\$ holden-alt/)).toBeInTheDocument();
   });
 
-  it('calls notFound when user is missing', async () => {
-    vi.resetModules();
-    vi.doMock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => mockSupabase('ghost', false)) }));
+  it('calls notFound when the user is missing', async () => {
+    getProfileDataMock.mockResolvedValueOnce(null);
     const { default: Page } = await import('../../app/[handle]/page');
     await expect(Page({ params: Promise.resolve({ handle: 'ghost' }) })).rejects.toThrow('NEXT_NOT_FOUND');
     expect(notFound).toHaveBeenCalled();
-    vi.doUnmock('@/lib/supabase/server');
   });
 });

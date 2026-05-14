@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
 import { StatusBar } from '@/components/StatusBar';
 import { BuildsPane } from '@/components/BuildsPane';
@@ -19,21 +20,27 @@ export function ProfileLive({ initialData, today }: ProfileLiveProps) {
 
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
-      .channel(`daily_stats:${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_stats', filter: `user_id=eq.${user.id}` },
-        (payload: { new?: DailyStat }) => {
-          const row = payload.new;
-          if (!row) return;
-          setDailyStats((prev) => {
-            const without = prev.filter((r) => r.date !== row.date);
-            return [row, ...without].sort((a, b) => (a.date < b.date ? 1 : -1));
-          });
-        },
-      )
-      .subscribe();
+    const baseChannel: RealtimeChannel = supabase.channel(`daily_stats:${user.id}`);
+    // The typed `.on` overloads don't expose a clean `postgres_changes` literal
+    // signature here; cast to call the postgres-changes overload directly.
+    const channel = (
+      baseChannel.on as unknown as (
+        event: 'postgres_changes',
+        filter: { event: string; schema: string; table: string; filter: string },
+        callback: (payload: { new?: DailyStat }) => void,
+      ) => RealtimeChannel
+    )(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'daily_stats', filter: `user_id=eq.${user.id}` },
+      (payload: { new?: DailyStat }) => {
+        const row = payload.new;
+        if (!row) return;
+        setDailyStats((prev) => {
+          const without = prev.filter((r) => r.date !== row.date);
+          return [row, ...without].sort((a, b) => (a.date < b.date ? 1 : -1));
+        });
+      },
+    ).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };

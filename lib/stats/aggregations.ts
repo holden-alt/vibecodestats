@@ -45,17 +45,31 @@ export type TrendDay = {
 
 const MS_PER_DAY = 86_400_000;
 
-export function last30Days(stats: DailyStat[], today: string): TrendDay[] {
-  const byDate = new Map(stats.map((s) => [s.date, s]));
+// Window-aware per-day trend. Like last30Days but the length follows the window:
+// 'today' = 1 day, 'week' = 7, 'month' = 30, 'quarter' = 90, 'year' = 365,
+// 'all' = every day from the earliest stat through today (min 1 day).
+export function trendForWindow(stats: DailyStat[], today: string, window: StatsWindow): TrendDay[] {
   const todayMs = Date.parse(today + 'T00:00:00Z');
+  let dayCount: number;
+  if (window === 'all') {
+    if (stats.length === 0) {
+      dayCount = 1;
+    } else {
+      const earliestMs = Math.min(...stats.map((s) => Date.parse(s.date + 'T00:00:00Z')));
+      dayCount = Math.max(1, Math.round((todayMs - earliestMs) / MS_PER_DAY) + 1);
+    }
+  } else {
+    dayCount = WINDOW_DAYS[window];
+  }
+  const byDate = new Map(stats.map((s) => [s.date, s]));
   const out: TrendDay[] = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = dayCount - 1; i >= 0; i--) {
     const iso = new Date(todayMs - i * MS_PER_DAY).toISOString().slice(0, 10);
     const day: TrendDay = { date: iso, tokens: 0, opus: 0, sonnet: 0, haiku: 0, other: 0 };
-    const stat = byDate.get(iso);
-    if (stat) {
-      day.tokens = stat.tokens_total;
-      const byModel = (stat.tokens_by_model ?? {}) as Record<string, number>;
+    const found = byDate.get(iso);
+    if (found) {
+      day.tokens = found.tokens_total;
+      const byModel = (found.tokens_by_model ?? {}) as Record<string, number>;
       for (const [model, n] of Object.entries(byModel)) {
         day[classifyModel(model)] += n;
       }
@@ -63,6 +77,10 @@ export function last30Days(stats: DailyStat[], today: string): TrendDay[] {
     out.push(day);
   }
   return out;
+}
+
+export function last30Days(stats: DailyStat[], today: string): TrendDay[] {
+  return trendForWindow(stats, today, 'month');
 }
 
 // ---------------------------------------------------------------------------

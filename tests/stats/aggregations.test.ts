@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow } from '@/lib/stats/aggregations';
 import type { StatsWindow } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
@@ -133,6 +133,51 @@ describe('hourlyTotals', () => {
     const stats = [stat({ hourly_tokens: { '25': 999, 'x': 999, '-1': 999 } })];
     const hours = hourlyTotals(stats);
     expect(hours.every((n) => n === 0)).toBe(true);
+  });
+});
+
+describe('trendForWindow', () => {
+  it('returns 1 day for the "today" window', () => {
+    const days = trendForWindow([], '2026-05-14', 'today');
+    expect(days).toHaveLength(1);
+    expect(days[0]!.date).toBe('2026-05-14');
+  });
+
+  it('returns 7 days for the "week" window, oldest first', () => {
+    const days = trendForWindow([], '2026-05-14', 'week');
+    expect(days).toHaveLength(7);
+    expect(days[0]!.date).toBe('2026-05-08');
+    expect(days[6]!.date).toBe('2026-05-14');
+  });
+
+  it('returns 30 days for the "month" window', () => {
+    expect(trendForWindow([], '2026-05-14', 'month')).toHaveLength(30);
+  });
+
+  it('maps present days onto their slots with model breakdown', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 300, tokens_by_model: { 'claude-opus-4-7': 300 } }),
+    ];
+    const days = trendForWindow(stats, '2026-05-14', 'week');
+    expect(days[6]!.tokens).toBe(300);
+    expect(days[6]!.opus).toBe(300);
+  });
+
+  it('for the "all" window spans from the earliest stat to today', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 1 }),
+      stat({ date: '2026-05-10', tokens_total: 1 }),
+    ];
+    const days = trendForWindow(stats, '2026-05-14', 'all');
+    expect(days).toHaveLength(5); // 05-10 .. 05-14 inclusive
+    expect(days[0]!.date).toBe('2026-05-10');
+    expect(days[4]!.date).toBe('2026-05-14');
+  });
+
+  it('for the "all" window with no stats returns a single day (today)', () => {
+    const days = trendForWindow([], '2026-05-14', 'all');
+    expect(days).toHaveLength(1);
+    expect(days[0]!.date).toBe('2026-05-14');
   });
 });
 

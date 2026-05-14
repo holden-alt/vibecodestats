@@ -15,6 +15,7 @@ export function TimeOfDayHistogram({ hourly }: TimeOfDayHistogramProps) {
         return (
           <div
             key={h}
+            data-bar
             data-hour={h}
             data-pct={pct}
             title={`${String(h).padStart(2, '0')}:00 · ${n.toLocaleString()} tokens`}

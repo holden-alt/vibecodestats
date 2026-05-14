@@ -221,12 +221,26 @@ def is_debounced(marker_path, window):
 
 
 def git_author_email():
+    # Prefer an explicitly configured user.email.
     try:
         out = subprocess.run(['git', 'config', 'user.email'],
                              capture_output=True, text=True, timeout=5)
-        return out.stdout.strip() or 'unknown@local'
+        email = out.stdout.strip()
+        if email:
+            return email
     except (subprocess.SubprocessError, OSError):
-        return 'unknown@local'
+        pass
+    # Fall back to git's effective identity (auto-detected when user.email is unset).
+    # `git var GIT_AUTHOR_IDENT` -> "Name <email> <timestamp> <tz>".
+    try:
+        out = subprocess.run(['git', 'var', 'GIT_AUTHOR_IDENT'],
+                             capture_output=True, text=True, timeout=5)
+        ident = out.stdout.strip()
+        if '<' in ident and '>' in ident:
+            return ident[ident.index('<') + 1:ident.index('>')]
+    except (subprocess.SubprocessError, OSError):
+        pass
+    return 'unknown@local'
 
 
 def main():

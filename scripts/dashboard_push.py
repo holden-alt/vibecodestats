@@ -53,6 +53,7 @@ def parse_day(jsonl_paths, target_date, home):
     """Parse the given JSONL files, return aggregates for target_date (YYYY-MM-DD)."""
     tokens_by_model = defaultdict(int)
     tokens_by_project = defaultdict(int)
+    tokens_by_hour = defaultdict(int)
     sessions = set()
     timestamps = []
     for path in jsonl_paths:
@@ -86,6 +87,12 @@ def parse_day(jsonl_paths, target_date, home):
                     tokens_by_model[model] += fresh
                     label = short_project(session_cwd, home)
                     tokens_by_project[label] += fresh
+                    # Bucket by the user's LOCAL hour. ts is UTC ISO with a 'Z' suffix;
+                    # .astimezone() (no arg) converts to the machine's local timezone.
+                    local_hour = datetime.fromisoformat(
+                        ts.replace('Z', '+00:00')
+                    ).astimezone().hour
+                    tokens_by_hour[str(local_hour)] += fresh
         except OSError:
             continue
     return {
@@ -93,6 +100,7 @@ def parse_day(jsonl_paths, target_date, home):
         'tokens_by_model': dict(tokens_by_model),
         'sessions': len(sessions),
         'projects_touched': dict(tokens_by_project),
+        'tokens_by_hour': dict(tokens_by_hour),
         'timestamps': timestamps,
     }
 
@@ -167,6 +175,7 @@ def build_payload(day, ships, github_handle, machine, target_date):
         'deep_work_minutes': deep_work_minutes(day.get('timestamps', [])),
         'projects_touched': day['projects_touched'],
         'ships': ships,
+        'hourly_tokens': day.get('tokens_by_hour', {}),
     }
 
 

@@ -159,6 +159,59 @@ class TestCountShips(unittest.TestCase):
             self.assertEqual(result, {'commits': 0, 'repos': 0})
 
 
+class TestHourlyBucketing(unittest.TestCase):
+    def setUp(self):
+        self._orig_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'America/New_York'
+        time.tzset()
+
+    def tearDown(self):
+        if self._orig_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = self._orig_tz
+        time.tzset()
+
+    def test_parse_day_buckets_tokens_by_local_hour(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            write_jsonl(p, [
+                # 2026-05-14T18:00Z is 14:00 EDT (UTC-4)
+                {'type': 'assistant', 'timestamp': '2026-05-14T18:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
+                 'message': {'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 200}}},
+                # 2026-05-14T18:30Z is also 14:00 EDT -> same bucket
+                {'type': 'assistant', 'timestamp': '2026-05-14T18:30:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
+                 'message': {'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 50, 'output_tokens': 50}}},
+                # 2026-05-15T02:00Z is 22:00 EDT on 2026-05-14 -> hour 22, wrong day, ignored
+                {'type': 'assistant', 'timestamp': '2026-05-15T02:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
+                 'message': {'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 999, 'output_tokens': 999}}},
+            ])
+            result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
+            # both same-day messages land in local hour 14: 300 + 100 = 400
+            self.assertEqual(result['tokens_by_hour'], {'14': 400})
+
+    def test_build_payload_includes_hourly_tokens(self):
+        day = {
+            'tokens_total': 400,
+            'tokens_by_model': {'claude-opus-4-7': 400},
+            'sessions': 1,
+            'projects_touched': {'holden-alt/cc-dashboard': 400},
+            'timestamps': ['2026-05-14T18:00:00.000Z'],
+            'tokens_by_hour': {'14': 400},
+        }
+        payload = dashboard_push.build_payload(
+            day, {'commits': 0, 'repos': 0},
+            github_handle='holden-alt', machine='iMac', target_date='2026-05-14',
+        )
+        self.assertEqual(payload['hourly_tokens'], {'14': 400})
+
+
 class TestSignAndPayload(unittest.TestCase):
     def test_sign_body_matches_known_hmac(self):
         # HMAC-SHA256 of 'hello' with key 'k' — precomputed.
@@ -173,6 +226,7 @@ class TestSignAndPayload(unittest.TestCase):
             'sessions': 2,
             'projects_touched': {'holden-alt/cc-dashboard': 400},
             'timestamps': ['2026-05-14T10:00:00.000Z', '2026-05-14T10:05:00.000Z'],
+            'tokens_by_hour': {'10': 415},
         }
         ships = {'commits': 3, 'repos': 2}
         payload = dashboard_push.build_payload(
@@ -185,6 +239,7 @@ class TestSignAndPayload(unittest.TestCase):
         self.assertEqual(payload['deep_work_minutes'], 5)  # two ts 5 min apart
         self.assertEqual(payload['ships'], {'commits': 3, 'repos': 2})
         self.assertNotIn('timestamps', payload)  # internal-only, not sent
+        self.assertEqual(payload['hourly_tokens'], {'10': 415})
 
 
 class TestFileSelection(unittest.TestCase):

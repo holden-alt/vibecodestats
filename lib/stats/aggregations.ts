@@ -66,5 +66,21 @@ export function last30Days(stats: DailyStat[], today: string): TrendDay[] {
 }
 
 // ---------------------------------------------------------------------------
-// Future aggregations (1.3, 1.4) will be appended below this line
+// Day-of-week averages (1.3)
+// ---------------------------------------------------------------------------
+
+// Index 0 = Sunday, matching Date.prototype.getUTCDay().
+export function dayOfWeekAverages(stats: DailyStat[]): number[] {
+  const sums = new Array<number>(7).fill(0);
+  const counts = new Array<number>(7).fill(0);
+  for (const s of stats) {
+    const dow = new Date(s.date + 'T00:00:00Z').getUTCDay();
+    sums[dow]! += s.tokens_total;
+    counts[dow]! += 1;
+  }
+  return sums.map((sum, i) => (counts[i]! > 0 ? Math.round(sum / counts[i]!) : 0));
+}
+
+// ---------------------------------------------------------------------------
+// Future aggregations (1.4) will be appended below this line
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 function stat(partial: Partial<DailyStat>): DailyStat {
@@ -77,5 +77,36 @@ describe('last30Days', () => {
     const stats = [stat({ date: '2026-01-01', tokens_total: 999 })];
     const days = last30Days(stats, '2026-05-14');
     expect(days.some((d) => d.tokens === 999)).toBe(false);
+  });
+});
+
+describe('dayOfWeekAverages', () => {
+  it('returns a length-7 array, index 0 = Sunday', () => {
+    expect(dayOfWeekAverages([]).length).toBe(7);
+  });
+
+  it('averages tokens per weekday over the days observed', () => {
+    // 2026-05-14 is a Thursday (getUTCDay() === 4). 2026-05-07 also Thursday.
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 100 }),
+      stat({ date: '2026-05-07', tokens_total: 300 }),
+    ];
+    const avgs = dayOfWeekAverages(stats);
+    expect(avgs[4]!).toBe(200); // (100 + 300) / 2 Thursdays
+  });
+
+  it('returns 0 for weekdays with no data', () => {
+    const stats = [stat({ date: '2026-05-14', tokens_total: 100 })]; // Thursday only
+    const avgs = dayOfWeekAverages(stats);
+    expect(avgs[0]!).toBe(0); // Sunday
+    expect(avgs[1]!).toBe(0); // Monday
+  });
+
+  it('rounds the average to an integer', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 100 }), // Thursday
+      stat({ date: '2026-05-07', tokens_total: 101 }), // Thursday
+    ];
+    expect(dayOfWeekAverages(stats)[4]!).toBe(101); // round(100.5)
   });
 });

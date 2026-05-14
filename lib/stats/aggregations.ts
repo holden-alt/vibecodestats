@@ -82,5 +82,18 @@ export function dayOfWeekAverages(stats: DailyStat[]): number[] {
 }
 
 // ---------------------------------------------------------------------------
-// Future aggregations (1.4) will be appended below this line
+// Hourly totals (1.4)
 // ---------------------------------------------------------------------------
+
+// Index = hour 0..23. Sums hourly_tokens across every stat row.
+export function hourlyTotals(stats: DailyStat[]): number[] {
+  const out = new Array<number>(24).fill(0);
+  for (const s of stats) {
+    const hourly = (s.hourly_tokens ?? {}) as Record<string, number>;
+    for (const [hour, n] of Object.entries(hourly)) {
+      const h = Number(hour);
+      if (Number.isInteger(h) && h >= 0 && h < 24) out[h]! += n;
+    }
+  }
+  return out;
+}

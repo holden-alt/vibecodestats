@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 function stat(partial: Partial<DailyStat>): DailyStat {
@@ -108,5 +108,29 @@ describe('dayOfWeekAverages', () => {
       stat({ date: '2026-05-07', tokens_total: 101 }), // Thursday
     ];
     expect(dayOfWeekAverages(stats)[4]!).toBe(101); // round(100.5)
+  });
+});
+
+describe('hourlyTotals', () => {
+  it('returns a length-24 array', () => {
+    expect(hourlyTotals([]).length).toBe(24);
+  });
+
+  it('sums hourly_tokens across all stats by hour index', () => {
+    const stats = [
+      stat({ hourly_tokens: { '9': 100, '22': 50 } }),
+      stat({ hourly_tokens: { '9': 200, '10': 30 } }),
+    ];
+    const hours = hourlyTotals(stats);
+    expect(hours[9]!).toBe(300);
+    expect(hours[10]!).toBe(30);
+    expect(hours[22]!).toBe(50);
+    expect(hours[0]!).toBe(0);
+  });
+
+  it('ignores out-of-range or non-integer hour keys', () => {
+    const stats = [stat({ hourly_tokens: { '25': 999, 'x': 999, '-1': 999 } })];
+    const hours = hourlyTotals(stats);
+    expect(hours.every((n) => n === 0)).toBe(true);
   });
 });

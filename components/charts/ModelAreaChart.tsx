@@ -16,7 +16,7 @@ export function ModelAreaChart({ days }: ModelAreaChartProps) {
     <div
       className="flex items-stretch gap-[2px] h-[80px]"
       role="img"
-      aria-label="30-day model mix"
+      aria-label={`${days.length}-day model mix`}
     >
       {days.map((d) => {
         const total = d.opus + d.sonnet + d.haiku + d.other;

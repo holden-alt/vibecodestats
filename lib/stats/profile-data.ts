@@ -11,10 +11,12 @@ export type ProfileUser = {
 };
 
 export type DailyStat = Database['public']['Tables']['daily_stats']['Row'];
+export type MachineDailyStat = Database['public']['Tables']['machine_daily_stats']['Row'];
 
 export type ProfileData = {
   user: ProfileUser;
   dailyStats: DailyStat[];
+  machineStats: MachineDailyStat[];
 };
 
 const HISTORY_DAYS = 366;
@@ -38,8 +40,16 @@ export async function getProfileData(
     .order('date', { ascending: false })
     .limit(HISTORY_DAYS);
 
+  const { data: machineStats } = await supabase
+    .from('machine_daily_stats')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('date', { ascending: false })
+    .limit(HISTORY_DAYS * 3);
+
   return {
     user,
     dailyStats: dailyStats ?? [],
+    machineStats: machineStats ?? [],
   };
 }

@@ -5,6 +5,8 @@ import { BuildsPane } from '@/components/BuildsPane';
 import { ActivityPane } from '@/components/ActivityPane';
 import { PersonaPane } from '@/components/PersonaPane';
 
+export const runtime = 'edge';
+
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;
 };

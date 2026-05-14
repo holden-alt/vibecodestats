@@ -97,3 +97,32 @@ export function hourlyTotals(stats: DailyStat[]): number[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Time windows (Plan 4a)
+// ---------------------------------------------------------------------------
+
+export type StatsWindow = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
+
+const WINDOW_DAYS: Record<Exclude<StatsWindow, 'all'>, number> = {
+  today: 1,
+  week: 7,
+  month: 30,
+  quarter: 90,
+  year: 365,
+};
+
+// Filters any date-stamped rows to a trailing window ending at `today` (UTC).
+export function filterByWindow<T extends { date: string }>(
+  rows: T[],
+  today: string,
+  window: StatsWindow,
+): T[] {
+  if (window === 'all') return rows;
+  const todayMs = Date.parse(today + 'T00:00:00Z');
+  const cutoffMs = todayMs - (WINDOW_DAYS[window] - 1) * MS_PER_DAY;
+  return rows.filter((r) => {
+    const ms = Date.parse(r.date + 'T00:00:00Z');
+    return ms >= cutoffMs && ms <= todayMs;
+  });
+}

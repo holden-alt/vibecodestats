@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow } from '@/lib/stats/aggregations';
+import type { StatsWindow } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 function stat(partial: Partial<DailyStat>): DailyStat {
@@ -132,5 +133,42 @@ describe('hourlyTotals', () => {
     const stats = [stat({ hourly_tokens: { '25': 999, 'x': 999, '-1': 999 } })];
     const hours = hourlyTotals(stats);
     expect(hours.every((n) => n === 0)).toBe(true);
+  });
+});
+
+describe('filterByWindow', () => {
+  const stats = [
+    stat({ date: '2026-05-14' }), // today
+    stat({ date: '2026-05-10' }), // 4 days back
+    stat({ date: '2026-04-20' }), // 24 days back
+    stat({ date: '2026-01-01' }), // 133 days back
+  ];
+
+  it('returns everything for the "all" window', () => {
+    expect(filterByWindow(stats, '2026-05-14', 'all')).toHaveLength(4);
+  });
+
+  it('returns only today for the "today" window', () => {
+    const out = filterByWindow(stats, '2026-05-14', 'today');
+    expect(out).toHaveLength(1);
+    expect(out[0]!.date).toBe('2026-05-14');
+  });
+
+  it('returns the trailing 7 days for the "week" window', () => {
+    expect(filterByWindow(stats, '2026-05-14', 'week')).toHaveLength(2); // 05-14, 05-10
+  });
+
+  it('returns the trailing 30 days for the "month" window', () => {
+    expect(filterByWindow(stats, '2026-05-14', 'month')).toHaveLength(3); // 05-14, 05-10, 04-20
+  });
+
+  it('returns the trailing 365 days for the "year" window', () => {
+    expect(filterByWindow(stats, '2026-05-14', 'year')).toHaveLength(4);
+  });
+
+  it('is generic over any row with a date field', () => {
+    const rows = [{ date: '2026-05-14', machine: 'iMac' }, { date: '2026-01-01', machine: 'Air' }];
+    const out = filterByWindow(rows, '2026-05-14', 'week');
+    expect(out).toEqual([{ date: '2026-05-14', machine: 'iMac' }]);
   });
 });

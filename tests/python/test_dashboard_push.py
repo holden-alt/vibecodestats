@@ -1,8 +1,11 @@
 import json
 import os
+import subprocess
 import tempfile
+import time
 import unittest
 import sys
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
 import dashboard_push  # noqa: E402
@@ -100,6 +103,60 @@ class TestDeepWork(unittest.TestCase):
 
     def test_empty_is_zero(self):
         self.assertEqual(dashboard_push.deep_work_minutes([]), 0)
+
+
+class TestParseDayTimestamps(unittest.TestCase):
+    def test_parse_day_returns_timestamps_for_deep_work(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            write_jsonl(p, [
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
+                 'message': {'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 1, 'output_tokens': 1}}},
+                {'type': 'user', 'timestamp': '2026-05-14T10:05:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's', 'message': {}},
+            ])
+            result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
+            self.assertIn('timestamps', result)
+            self.assertEqual(sorted(result['timestamps']), [
+                '2026-05-14T10:00:00.000Z',
+                '2026-05-14T10:05:00.000Z',
+            ])
+
+
+class TestCountShips(unittest.TestCase):
+    def test_counts_commits_today_across_repos(self):
+        with tempfile.TemporaryDirectory() as d:
+            # make a git repo with a commit "today"
+            repo = os.path.join(d, 'Claude', 'demo-repo')
+            os.makedirs(repo)
+            env = {**os.environ, 'GIT_AUTHOR_NAME': 'Holden', 'GIT_AUTHOR_EMAIL': 'h@x.com',
+                   'GIT_COMMITTER_NAME': 'Holden', 'GIT_COMMITTER_EMAIL': 'h@x.com'}
+            subprocess.run(['git', 'init', '-q'], cwd=repo, check=True, env=env)
+            with open(os.path.join(repo, 'f.txt'), 'w') as f:
+                f.write('hi')
+            subprocess.run(['git', 'add', '.'], cwd=repo, check=True, env=env)
+            subprocess.run(['git', 'commit', '-q', '-m', 'today commit'], cwd=repo, check=True, env=env)
+
+            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            result = dashboard_push.count_ships(
+                claude_dir=os.path.join(d, 'Claude'),
+                target_date=today,
+                author_email='h@x.com',
+            )
+            self.assertEqual(result['repos'], 1)
+            self.assertEqual(result['commits'], 1)
+
+    def test_no_repos_returns_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'Claude'))
+            result = dashboard_push.count_ships(
+                claude_dir=os.path.join(d, 'Claude'),
+                target_date='2026-05-14',
+                author_email='h@x.com',
+            )
+            self.assertEqual(result, {'commits': 0, 'repos': 0})
 
 
 if __name__ == '__main__':

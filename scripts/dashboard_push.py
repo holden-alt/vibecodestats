@@ -53,6 +53,7 @@ def parse_day(jsonl_paths, target_date, home):
     tokens_by_model = defaultdict(int)
     tokens_by_project = defaultdict(int)
     sessions = set()
+    timestamps = []
     for path in jsonl_paths:
         session_id = os.path.basename(path).replace('.jsonl', '')
         session_cwd = None
@@ -70,6 +71,7 @@ def parse_day(jsonl_paths, target_date, home):
                         continue
                     if d.get('type') in ('user', 'assistant'):
                         sessions.add(session_id)
+                        timestamps.append(ts)
                     msg = d.get('message')
                     if not isinstance(msg, dict):
                         continue
@@ -90,6 +92,7 @@ def parse_day(jsonl_paths, target_date, home):
         'tokens_by_model': dict(tokens_by_model),
         'sessions': len(sessions),
         'projects_touched': dict(tokens_by_project),
+        'timestamps': timestamps,
     }
 
 
@@ -111,3 +114,36 @@ def deep_work_minutes(timestamps):
         prev = cur
     total_seconds += (prev - block_start).total_seconds()
     return int(total_seconds // 60)
+
+
+def count_ships(claude_dir, target_date, author_email):
+    """Count commits authored by author_email on target_date across git repos
+    directly under claude_dir and one level deeper (claude_dir/*/  and claude_dir/*/*/)."""
+    candidates = []
+    for depth1 in glob.glob(os.path.join(claude_dir, '*')):
+        if os.path.isdir(os.path.join(depth1, '.git')):
+            candidates.append(depth1)
+        for depth2 in glob.glob(os.path.join(depth1, '*')):
+            if os.path.isdir(os.path.join(depth2, '.git')):
+                candidates.append(depth2)
+
+    commits = 0
+    repos_with_commits = 0
+    since = target_date + 'T00:00:00'
+    until = target_date + 'T23:59:59'
+    for repo in candidates:
+        try:
+            out = subprocess.run(
+                ['git', 'log', '--author=' + author_email,
+                 '--since=' + since, '--until=' + until, '--oneline'],
+                cwd=repo, capture_output=True, text=True, timeout=10,
+            )
+        except (subprocess.SubprocessError, OSError):
+            continue
+        if out.returncode != 0:
+            continue
+        n = len([ln for ln in out.stdout.splitlines() if ln.strip()])
+        if n > 0:
+            commits += n
+            repos_with_commits += 1
+    return {'commits': commits, 'repos': repos_with_commits}

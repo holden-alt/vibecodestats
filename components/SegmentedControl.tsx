@@ -9,7 +9,7 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
     <div
       className="flex flex-wrap gap-px rounded overflow-hidden border"
       style={{ borderColor: 'var(--color-border)' }}
-      role="tablist"
+      role="radiogroup"
     >
       {options.map((opt) => {
         const active = opt.id === value;
@@ -17,8 +17,8 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
           <button
             key={opt.id}
             type="button"
-            role="tab"
-            aria-selected={active}
+            role="radio"
+            aria-checked={active}
             data-segment={opt.id}
             data-active={active}
             onClick={() => onChange(opt.id)}

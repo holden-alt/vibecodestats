@@ -45,7 +45,7 @@ export async function getProfileData(
     .select('*')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
-    .limit(HISTORY_DAYS * 3);
+    .limit(HISTORY_DAYS * 3); // up to ~3 machines per day
 
   return {
     user,

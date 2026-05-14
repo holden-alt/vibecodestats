@@ -27,7 +27,7 @@ export function ModelAreaChart({ days }: ModelAreaChartProps) {
             data-date={d.date}
             className="flex-1 flex flex-col-reverse rounded-[1px] overflow-hidden"
             style={{ background: 'var(--color-bg-2)' }}
-            title={`${d.date} · ${total.toLocaleString()} tokens`}
+            title={`${d.date} · ${d.tokens.toLocaleString()} tokens`}
           >
             {total > 0 &&
               LAYERS.map((layer) => {

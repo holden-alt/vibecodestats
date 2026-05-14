@@ -181,7 +181,7 @@ class TestHourlyBucketing(unittest.TestCase):
                  'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
                  'message': {'model': 'claude-opus-4-7',
                              'usage': {'input_tokens': 100, 'output_tokens': 200}}},
-                # 2026-05-14T18:30Z is also 14:00 EDT -> same bucket
+                # 2026-05-14T18:30Z is 14:30 EDT -> same hour-14 bucket
                 {'type': 'assistant', 'timestamp': '2026-05-14T18:30:00.000Z',
                  'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
                  'message': {'model': 'claude-opus-4-7',

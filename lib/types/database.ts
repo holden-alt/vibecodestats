@@ -78,6 +78,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      machine_daily_stats: {
+        Row: {
+          user_id: string;
+          date: string;
+          machine: string;
+          tokens_total: number;
+          tokens_by_model: Json;
+          sessions: number;
+          deep_work_minutes: number;
+          projects_touched: Json;
+          ships: Json;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          date: string;
+          machine: string;
+          tokens_total?: number;
+          tokens_by_model?: Json;
+          sessions?: number;
+          deep_work_minutes?: number;
+          projects_touched?: Json;
+          ships?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          date?: string;
+          machine?: string;
+          tokens_total?: number;
+          tokens_by_model?: Json;
+          sessions?: number;
+          deep_work_minutes?: number;
+          projects_touched?: Json;
+          ships?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

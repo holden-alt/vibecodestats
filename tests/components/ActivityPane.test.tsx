@@ -8,7 +8,7 @@ const stats: DailyStat[] = [
     date: '2026-05-14', user_id: 'u1', tokens_total: 487231,
     tokens_by_model: { 'claude-opus-4-7': 480000, 'claude-sonnet-4-6': 7231 },
     sessions: 6, deep_work_minutes: 240, machines: ['iMac', 'MacBook-Air'],
-    projects_touched: {}, ships: { commits: 1, repos: 1 }, source_synced_at: null,
+    projects_touched: {}, ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
   },
 ];
 

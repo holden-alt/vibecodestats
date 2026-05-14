@@ -50,6 +50,7 @@ export type Database = {
           machines: string[];
           projects_touched: Json;
           ships: Json;
+          hourly_tokens: Json;
           source_synced_at: string | null;
         };
         Insert: {
@@ -62,6 +63,7 @@ export type Database = {
           machines?: string[];
           projects_touched?: Json;
           ships?: Json;
+          hourly_tokens?: Json;
           source_synced_at?: string | null;
         };
         Update: {
@@ -74,6 +76,7 @@ export type Database = {
           machines?: string[];
           projects_touched?: Json;
           ships?: Json;
+          hourly_tokens?: Json;
           source_synced_at?: string | null;
         };
         Relationships: [];
@@ -89,6 +92,7 @@ export type Database = {
           deep_work_minutes: number;
           projects_touched: Json;
           ships: Json;
+          hourly_tokens: Json;
           updated_at: string;
         };
         Insert: {
@@ -101,6 +105,7 @@ export type Database = {
           deep_work_minutes?: number;
           projects_touched?: Json;
           ships?: Json;
+          hourly_tokens?: Json;
           updated_at?: string;
         };
         Update: {
@@ -113,6 +118,7 @@ export type Database = {
           deep_work_minutes?: number;
           projects_touched?: Json;
           ships?: Json;
+          hourly_tokens?: Json;
           updated_at?: string;
         };
         Relationships: [];

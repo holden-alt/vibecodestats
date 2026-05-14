@@ -29,7 +29,7 @@ const baseData: ProfileData = {
       date: '2026-05-14', user_id: 'u1', tokens_total: 100000,
       tokens_by_model: { 'claude-opus-4-7': 100000 }, sessions: 2,
       deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
-      ships: { commits: 1, repos: 1 }, source_synced_at: null,
+      ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
     },
   ],
 };

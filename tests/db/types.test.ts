@@ -13,4 +13,10 @@ describe('generated database types', () => {
     expect(src).toMatch(/users:/);
     expect(src).toMatch(/daily_stats:/);
   });
+  it('includes hourly_tokens on daily_stats and machine_daily_stats', () => {
+    const src = readFileSync(path, 'utf8');
+    const matches = src.match(/hourly_tokens/g);
+    // 2 tables x 3 variants (Row/Insert/Update) = 6 occurrences
+    expect(matches?.length).toBe(6);
+  });
 });

@@ -43,6 +43,7 @@ describe('ActivityPane', () => {
   it('renders 0 gracefully when there is no data today', () => {
     render(<ActivityPane {...baseProps} tokensToday={0} sessionsToday={0} machinesCount={0}
       deepWorkMinutes={0} tokensByModel={{}} dailyStats={[]} />);
-    expect(screen.getByText('0')).toBeInTheDocument();
+    // tokens, sessions, and machines all render "0" with no data — assert at least one.
+    expect(screen.getAllByText('0').length).toBeGreaterThan(0);
   });
 });

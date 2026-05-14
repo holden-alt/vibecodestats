@@ -24,7 +24,7 @@ export function TrendsSection({ dailyStats, today }: TrendsSectionProps) {
           style={{ borderColor: 'var(--color-border)', borderTop: '2px solid var(--color-orange)' }}
         >
           <h4
-            className="text-[0.58rem] uppercase tracking-[0.1em] mb-2"
+            className="text-[0.58rem] uppercase tracking-[0.1em] font-semibold mb-2"
             style={{ color: 'var(--color-orange)' }}
           >
             · daily tokens
@@ -36,7 +36,7 @@ export function TrendsSection({ dailyStats, today }: TrendsSectionProps) {
           style={{ borderColor: 'var(--color-border)', borderTop: '2px solid var(--color-cyan)' }}
         >
           <h4
-            className="text-[0.58rem] uppercase tracking-[0.1em] mb-2"
+            className="text-[0.58rem] uppercase tracking-[0.1em] font-semibold mb-2"
             style={{ color: 'var(--color-cyan)' }}
           >
             · model mix

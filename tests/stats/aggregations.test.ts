@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow, projectTotals } from '@/lib/stats/aggregations';
 import type { StatsWindow } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
@@ -215,5 +215,26 @@ describe('filterByWindow', () => {
     const rows = [{ date: '2026-05-14', machine: 'iMac' }, { date: '2026-01-01', machine: 'Air' }];
     const out = filterByWindow(rows, '2026-05-14', 'week');
     expect(out).toEqual([{ date: '2026-05-14', machine: 'iMac' }]);
+  });
+});
+
+describe('projectTotals', () => {
+  it('sums projects_touched across stats, sorted by tokens descending', () => {
+    const stats = [
+      stat({ projects_touched: { 'holden-alt/cc-dashboard': 100, 'realsavvy/agnt-portal': 50 } }),
+      stat({ projects_touched: { 'holden-alt/cc-dashboard': 200 } }),
+    ];
+    expect(projectTotals(stats)).toEqual([
+      { label: 'holden-alt/cc-dashboard', value: 300 },
+      { label: 'realsavvy/agnt-portal', value: 50 },
+    ]);
+  });
+
+  it('returns an empty array for stats with no projects', () => {
+    expect(projectTotals([stat({ projects_touched: {} })])).toEqual([]);
+  });
+
+  it('returns an empty array for empty input', () => {
+    expect(projectTotals([])).toEqual([]);
   });
 });

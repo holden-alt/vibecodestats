@@ -144,3 +144,23 @@ export function filterByWindow<T extends { date: string }>(
     return ms >= cutoffMs && ms <= todayMs;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Ranked breakdowns (Plan 4a)
+// ---------------------------------------------------------------------------
+
+export type RankedItem = { label: string; value: number };
+
+// Sums projects_touched across the given stats, sorted by tokens descending.
+export function projectTotals(stats: DailyStat[]): RankedItem[] {
+  const totals: Record<string, number> = {};
+  for (const s of stats) {
+    const projects = (s.projects_touched ?? {}) as Record<string, number>;
+    for (const [label, n] of Object.entries(projects)) {
+      totals[label] = (totals[label] ?? 0) + n;
+    }
+  }
+  return Object.entries(totals)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}

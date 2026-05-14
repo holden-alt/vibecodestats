@@ -177,7 +177,12 @@ def post_payload(url, payload, secret):
     req = urllib.request.Request(
         url.rstrip('/') + '/api/ingest',
         data=body.encode(),
-        headers={'Content-Type': 'application/json', 'X-CC-Signature': signature},
+        headers={
+            'Content-Type': 'application/json',
+            'X-CC-Signature': signature,
+            # Cloudflare's WAF 403s the default Python-urllib User-Agent (error 1010).
+            'User-Agent': 'cc-dashboard-push/1.0',
+        },
         method='POST',
     )
     try:

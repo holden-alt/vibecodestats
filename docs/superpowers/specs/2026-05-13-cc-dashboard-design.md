@@ -3,7 +3,7 @@
 **Status:** v1 design, awaiting Holden's review
 **Date:** 2026-05-13
 **Repo:** `~/Claude/holden-alt/cc-dashboard`
-**Working domain:** `vibecoders.club` (placeholder)
+**Domain:** `vibecodestats.dev`
 
 ---
 
@@ -17,9 +17,10 @@ The homepage **is** `/holden`. There is no separate marketing page. The profile 
 
 ## 2. Audience and posture
 
-- **v1:** just Holden. Stats are public on the internet from day one.
+- **v1:** just Holden. Public stats numbers from day one (tokens, streak, badges, model %, ship counts) — but project names default-private.
 - **v2+:** community of vibecoders. Each has a profile URL. Leaderboards become real.
 - **Architecture from day one:** every data path is built as if there will be many users, even though only one row exists.
+- **Privacy hygiene:** every project (repo / directory) is private-by-default in the dashboard. Aggregate counts (commits, sessions, tokens) include private work. Names of private projects are never shown publicly. Holden flips individual projects to public-by-name to surface them on the profile.
 
 ## 3. Aesthetic + layout
 
@@ -143,19 +144,26 @@ Personas are **auto-inferred from behavior**, re-evaluated weekly. Up to 3 activ
 - **Framework:** Next.js (App Router, React Server Components, server actions)
 - **Language:** TypeScript
 - **Database:** Supabase (Postgres + Auth + Storage)
-- **Auth:** Supabase Auth via **GitHub OAuth** — most thematically appropriate; vibecoders sign in with the same identity they ship code under
+- **Auth:** Supabase Auth via **GitHub OAuth**, minimum scope (`read:user` only — handle, name, avatar). No `repo` scope. Ship counts come from local `git log` via the Stop hook, not from GitHub API, so private-repo work counts toward dashboard numbers without ever leaving the Mac as named data.
 - **Styling:** Tailwind CSS + custom CSS variables for the palette
 - **Charts:** custom components (no chart lib for v1 — TUI styling is too specific to lean on Recharts/Chart.js). Build with divs + grid + gradients. We may add `d3-scale` for axis math only.
 - **Animation:** Framer Motion for badge unlocks + leaderboard transitions
 - **Deploy:** Cloudflare Pages (Next.js on Pages is mature; Holden already has CF accounts)
-- **Domain:** `vibecoders.club` (working name; Holden picks final)
+- **Domain:** `vibecodestats.dev`
 
 ## 8. Data layer
 
-**Source of truth (Approach A — locked):**
+**Source of truth (Approach A — locked, real-time variant):**
 
-- **Raw stats** stay in `~/Claude/holden/stats/*.json`, refreshed by existing `refresh-stats.py`, synced via git push from both Macs.
-- The **dashboard reads** from the git remote on a schedule (CF Worker pulls JSON every 10 min) and writes a normalized cache into Supabase.
+- **Existing `refresh-stats.py` is not touched.** Your `/stats` command keeps working exactly as today.
+- A new **`Stop` hook** in `~/.claude/settings.json` runs after every Claude Code turn. The hook calls a new local script `dashboard-push.py` (sibling to `refresh-stats.py`) that:
+  - Reads token totals from the same source `refresh-stats.py` uses.
+  - Walks `~/.claude/projects/` to count sessions, measure deep-work minutes, and list projects touched.
+  - Runs `git log` locally across known repos to count commits/PRs/ships (private repo work counted; names omitted unless project is opted public).
+  - POSTs the delta to `https://vibecodestats.dev/api/ingest` with a per-machine HMAC signature.
+- The webhook upserts `daily_stats` in Supabase.
+- The browser tab subscribes via **Supabase Realtime** — when `daily_stats` changes, the dashboard pushes the update without a refresh: token counter ticks up live, today's heatmap cell pulses, badge unlocks animate the moment criteria are met.
+- The **git-based pipeline stays** as a backup persistence layer. If the dashboard goes down or a Mac is offline, your `/stats` command and the git JSON files are unaffected.
 - **Derived data** (badges earned, persona assignments, notes, goals, group memberships, friendships) lives natively in Supabase as the source of truth.
 
 **Supabase schema (v1):**
@@ -215,12 +223,20 @@ friendships
 
 All public routes get full SSR with structured data (Person schema for profiles, ItemList for leaderboards), OG images generated per profile, and AEO-friendly meta tags.
 
-## 10. Stats freshness
+## 10. Stats freshness — real-time
 
-- **Holden's stats:** CF Worker cron runs every 10 minutes, pulls JSON from the git remote, normalizes, upserts into Supabase.
-- **Profile load:** reads from Supabase only (no remote-fetch in the request path). SSR is fast.
-- **Manual refresh:** small refresh icon on the profile triggers a fresh worker run, then re-renders.
-- **Badge eval:** runs after every stats update for the affected user; persona re-eval runs nightly.
+- **Push, not poll.** The Claude Code `Stop` hook on each Mac fires after every turn. `dashboard-push.py` computes the delta and POSTs it to `/api/ingest`.
+- **Real-time UI.** The open browser tab subscribes to Supabase Realtime on `daily_stats` for the visible user. Tokens tick up live, heatmap cell for today pulses on new data, badge unlocks animate on criteria.
+- **Profile load:** reads from Supabase only. SSR is fast, no remote-fetch in the request path.
+- **Badge eval:** runs server-side after every `daily_stats` upsert for the affected user. Newly-earned badges flow back to the browser via the same Realtime channel.
+- **Persona re-eval:** runs nightly (cron in CF Worker) — personas are weekly-averaged so daily oscillation isn't useful.
+- **Manual refresh button:** small refresh icon on the profile re-checks the local Mac data and forces a push, in case a Stop hook is misconfigured.
+
+### Per-machine sync
+
+- Each of Holden's two Macs (iMac + MacBook-Air) runs the same Stop hook independently.
+- Each push includes a `machine` field so the dashboard can show per-machine breakdown (the "machines" section already in the design).
+- HMAC signature on each push — Supabase rejects pushes without a valid signature for the claimed machine, so a rogue actor can't ingest fake data for your profile.
 
 ## 11. v1 scope — what's in, what's out
 
@@ -245,13 +261,15 @@ All public routes get full SSR with structured data (Person schema for profiles,
 - Race chart animation
 - Profile customization (palette, layout)
 
-## 12. Open questions / decisions Holden should weigh in on before plan
+## 12. Decisions (resolved 2026-05-13)
 
-1. **Domain.** `vibecoders.club` is a placeholder. Other options: `cccc.dev`, `vibecode.gg`, subdomain of `holdengr.com`, brand-new. Strong preference?
-2. **Stats history.** The existing `daily-summary.py` only emits per-day per-model token totals. We'll need session count, deep-work minutes, projects-touched, ship events. Should the existing `refresh-stats.py` be extended (more JSON), or should the dashboard derive these from other sources (gh API, git logs)? My pick: **derive externally** — keep the existing script unchanged.
-3. **Public stats.** Day one your token counts are on the internet. Confirm this is fine.
-4. **Cost ceiling.** Supabase free tier + CF Pages free tier covers v1 for one user. If/when we add LLM persona inference, costs become real. Sane to defer LLM persona to v2.
-5. **GitHub OAuth scopes.** Public profile (read) is enough for v1. Future: read commits + PRs for the "ship" metric. Pick scopes now or expand later?
+All five open questions answered before plan:
+
+1. **Domain:** `vibecodestats.dev`.
+2. **Stats history:** derived externally. New `dashboard-push.py` script reads CC project data + local git logs; `refresh-stats.py` is not modified.
+3. **Public stats + privacy:** stats numbers public from day one; project names default-private; Holden opts individual projects public-by-name.
+4. **LLM persona inference:** deferred to v2. v1 uses free rules-based scoring.
+5. **GitHub OAuth scope:** `read:user` only. Ship metrics come from local `git log`, never from GitHub API, so no `repo` scope is ever requested.
 
 ## 13. Non-goals
 

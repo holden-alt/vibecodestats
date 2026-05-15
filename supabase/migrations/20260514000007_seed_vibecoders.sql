@@ -38,37 +38,44 @@ from (values
 ) as u(id, base)
 cross join generate_series(0, 44) as g(d);
 
--- 3. Default group, owned by Holden.
-insert into public.groups (id, slug, name, description, color, owner_id)
-select
-  '00000000-0000-4000-8000-0000000000b1',
-  'default',
-  'The Squad',
-  'Holden''s starting crew of vibecoders.',
-  'cyan',
-  h.id
-from public.users h
-where h.github_handle = 'holden-alt';
+-- 3-5. Group, memberships, and friendships — all depend on Holden's user row.
+-- Wrapped in a guard so the migration still succeeds on a fresh database where
+-- 'holden-alt' has not signed in yet (the group/friendship seeding is simply
+-- skipped in that case; re-seed manually once the real user exists).
+do $$
+declare
+  holden_id uuid;
+begin
+  select id into holden_id from public.users where github_handle = 'holden-alt';
+  if holden_id is null then
+    raise notice 'seed_vibecoders: holden-alt not found — skipping group/friendship seed';
+    return;
+  end if;
 
--- 4. Group members: Holden (owner) + the five seed users.
-insert into public.group_members (group_id, user_id, role)
-select '00000000-0000-4000-8000-0000000000b1', h.id, 'owner'
-from public.users h where h.github_handle = 'holden-alt';
+  -- 3. Default group, owned by Holden.
+  insert into public.groups (id, slug, name, description, color, owner_id)
+  values (
+    '00000000-0000-4000-8000-0000000000b1',
+    'default',
+    'The Squad',
+    'Holden''s starting crew of vibecoders.',
+    'cyan',
+    holden_id
+  );
 
-insert into public.group_members (group_id, user_id, role)
-values
-  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a1', 'member'),
-  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a2', 'member'),
-  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a3', 'member'),
-  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a4', 'member'),
-  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a5', 'member');
+  -- 4. Group members: Holden (owner) + the five seed users.
+  insert into public.group_members (group_id, user_id, role) values
+    ('00000000-0000-4000-8000-0000000000b1', holden_id, 'owner'),
+    ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a1', 'member'),
+    ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a2', 'member'),
+    ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a3', 'member'),
+    ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a4', 'member'),
+    ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a5', 'member');
 
--- 5. Friendships (symmetric — both directions stored): Holden <-> Mira, Holden <-> Sam.
-insert into public.friendships (user_id, friend_id)
-select h.id, '00000000-0000-4000-8000-0000000000a1' from public.users h where h.github_handle = 'holden-alt'
-union all
-select '00000000-0000-4000-8000-0000000000a1', h.id from public.users h where h.github_handle = 'holden-alt'
-union all
-select h.id, '00000000-0000-4000-8000-0000000000a4' from public.users h where h.github_handle = 'holden-alt'
-union all
-select '00000000-0000-4000-8000-0000000000a4', h.id from public.users h where h.github_handle = 'holden-alt';
+  -- 5. Friendships (symmetric — both directions stored): Holden <-> Mira, Holden <-> Sam.
+  insert into public.friendships (user_id, friend_id) values
+    (holden_id, '00000000-0000-4000-8000-0000000000a1'),
+    ('00000000-0000-4000-8000-0000000000a1', holden_id),
+    (holden_id, '00000000-0000-4000-8000-0000000000a4'),
+    ('00000000-0000-4000-8000-0000000000a4', holden_id);
+end $$;

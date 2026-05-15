@@ -66,4 +66,56 @@ describe('Leaderboard', () => {
     );
     expect(handles.sort()).toEqual(['devon-ships', 'holden-alt']);
   });
+
+  const dataWithTwoGroups: LeaderboardData = {
+    ...data,
+    viewerGroups: [
+      { id: 'g1', slug: 'squad', name: 'Squad', color: 'cyan', description: null, memberUserIds: ['u1', 'u2'] },
+      { id: 'g2', slug: 'opus-club', name: 'Opus Club', color: 'orange', description: null, memberUserIds: ['u1', 'u3'] },
+    ],
+  };
+
+  it('hides the scope SegmentedControl when lockedScope is set', () => {
+    const { container } = render(
+      <Leaderboard
+        data={dataWithTwoGroups}
+        viewerId="u1"
+        today="2026-05-14"
+        lockedScope="groups"
+        lockedGroupId="g1"
+      />,
+    );
+    // Metric/window/view controls still present
+    expect(container.querySelector('[data-segment="tokens"]')).toBeTruthy();
+    expect(container.querySelector('[data-segment="all"]')).toBeTruthy();
+    expect(container.querySelector('[data-segment="ranklist"]')).toBeTruthy();
+    // Scope controls absent
+    expect(container.querySelector('[data-segment="global"]')).toBeFalsy();
+    expect(container.querySelector('[data-segment="groups"]')).toBeFalsy();
+    expect(container.querySelector('[data-segment="friends"]')).toBeFalsy();
+  });
+
+  it('with lockedScope=groups + lockedGroupId, restricts the ranking to that group\'s members', () => {
+    const { container } = render(
+      <Leaderboard
+        data={dataWithTwoGroups}
+        viewerId="u1"
+        today="2026-05-14"
+        lockedScope="groups"
+        lockedGroupId="g2"
+      />,
+    );
+    const handles = Array.from(container.querySelectorAll('[data-rank-row]'))
+      .map((r) => r.getAttribute('data-handle'))
+      .sort();
+    expect(handles).toEqual(['devon-ships', 'holden-alt']);
+  });
+
+  it('with lockedScope=global, restricts to global (all users) and hides the picker', () => {
+    const { container } = render(
+      <Leaderboard data={dataWithTwoGroups} viewerId="u1" today="2026-05-14" lockedScope="global" />,
+    );
+    expect(container.querySelectorAll('[data-rank-row]').length).toBe(3);
+    expect(container.querySelector('[data-segment="groups"]')).toBeFalsy();
+  });
 });

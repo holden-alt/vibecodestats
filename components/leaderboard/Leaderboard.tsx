@@ -12,6 +12,10 @@ type LeaderboardProps = {
   data: LeaderboardData;
   viewerId: string;
   today: string;
+  // When set, the scope SegmentedControl is hidden and rankUsers uses this value.
+  // For lockedScope='groups', lockedGroupId pins the rank to that specific group.
+  lockedScope?: LeaderboardScope;
+  lockedGroupId?: string;
 };
 
 type ViewId = 'ranklist' | 'barcomparison';
@@ -44,13 +48,27 @@ const VIEWS = [
   { id: 'barcomparison', label: 'bars' },
 ] as const;
 
-export function Leaderboard({ data, viewerId, today }: LeaderboardProps) {
+export function Leaderboard({
+  data,
+  viewerId,
+  today,
+  lockedScope,
+  lockedGroupId,
+}: LeaderboardProps) {
   const [metric, setMetric] = useState<LeaderboardMetric>('tokens');
   const [statsWindow, setStatsWindow] = useState<StatsWindow>('all');
-  const [scope, setScope] = useState<LeaderboardScope>('global');
+  const [scope, setScope] = useState<LeaderboardScope>(lockedScope ?? 'global');
   const [view, setView] = useState<ViewId>('ranklist');
 
-  const ranked = rankUsers(data, { metric, window: statsWindow, scope, viewerId, today });
+  const effectiveScope = lockedScope ?? scope;
+  const ranked = rankUsers(data, {
+    metric,
+    window: statsWindow,
+    scope: effectiveScope,
+    viewerId,
+    today,
+    groupId: effectiveScope === 'groups' ? lockedGroupId : undefined,
+  });
 
   return (
     <div
@@ -61,7 +79,9 @@ export function Leaderboard({ data, viewerId, today }: LeaderboardProps) {
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <SegmentedControl options={METRICS} value={metric} onChange={setMetric} />
         <SegmentedControl options={WINDOWS} value={statsWindow} onChange={setStatsWindow} />
-        <SegmentedControl options={SCOPES} value={scope} onChange={setScope} />
+        {!lockedScope && (
+          <SegmentedControl options={SCOPES} value={scope} onChange={setScope} />
+        )}
         <SegmentedControl options={VIEWS} value={view} onChange={setView} />
       </div>
       <div data-leaderboard-body>

@@ -17,7 +17,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          id: string;
+          id?: string;
           github_id?: number | null;
           auth_id?: string | null;
           github_handle: string;

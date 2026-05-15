@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
+import type { LeaderboardData } from '@/lib/stats/leaderboard';
 
 // Capture the realtime callback so the test can fire a fake update.
 let realtimeCallback: ((payload: unknown) => void) | null = null;
@@ -18,6 +19,13 @@ vi.mock('@/lib/supabase/browser', () => ({
     removeChannel: vi.fn(),
   })),
 }));
+
+const leaderboardData: LeaderboardData = {
+  users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
+  statsByUser: {},
+  groupMemberUserIds: ['u1'],
+  friendUserIds: [],
+};
 
 const baseData: ProfileData = {
   user: {
@@ -42,13 +50,13 @@ beforeEach(() => {
 
 describe('ProfileLive', () => {
   it('renders the StatusBar with the initial token total', () => {
-    render(<ProfileLive initialData={baseData} today="2026-05-14" />);
+    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
     // 100000 -> "100K tokens"
     expect(screen.getByText(/100K tokens/)).toBeInTheDocument();
   });
 
   it('updates the token total when a realtime event for today arrives', () => {
-    render(<ProfileLive initialData={baseData} today="2026-05-14" />);
+    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
     expect(realtimeCallback).not.toBeNull();
     act(() => {
       realtimeCallback!({
@@ -64,7 +72,7 @@ describe('ProfileLive', () => {
   });
 
   it('ignores realtime events for other dates', () => {
-    render(<ProfileLive initialData={baseData} today="2026-05-14" />);
+    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
     act(() => {
       realtimeCallback!({
         new: { date: '2026-05-13', user_id: 'u1', tokens_total: 999999,
@@ -98,11 +106,14 @@ describe('ProfileLive', () => {
         },
       ],
     };
-    const { container } = render(<ProfileLive initialData={initialData} today="2026-05-14" />);
+    const { container } = render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-14" />);
     // TrendsSection: 30 model-mix columns
     expect(container.querySelectorAll('[data-col]').length).toBe(30);
-    // StatsExplorer present, with its tab + window controls (6 + 6 segments)
+    // StatsExplorer present, with its tab + window controls (6 + 6 segments = 12)
+    // LeaderboardSection adds 4 SegmentedControls (5+6+3+2 = 16 segments)
+    // Total: 12 + 16 = 28
     expect(container.querySelector('[data-stats-explorer]')).toBeTruthy();
-    expect(container.querySelectorAll('[data-segment]').length).toBe(12);
+    expect(container.querySelectorAll('[data-segment]').length).toBe(28);
+    expect(container.querySelector('[data-leaderboard-section]')).toBeTruthy();
   });
 });

@@ -10,6 +10,14 @@ const getProfileDataMock = vi.fn();
 vi.mock('@/lib/stats/profile-data', () => ({
   getProfileData: (...args: unknown[]) => getProfileDataMock(...args),
 }));
+vi.mock('@/lib/stats/leaderboard-data', () => ({
+  getLeaderboardData: vi.fn(async () => ({
+    users: [],
+    statsByUser: {},
+    groupMemberUserIds: [],
+    friendUserIds: [],
+  })),
+}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({})) }));
 // ProfileLive mounts the browser realtime client on render — stub it so the
 // page test doesn't need real Supabase env vars.

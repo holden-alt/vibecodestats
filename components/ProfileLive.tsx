@@ -9,15 +9,18 @@ import { ActivityPane } from '@/components/ActivityPane';
 import { PersonaPane } from '@/components/PersonaPane';
 import { TrendsSection } from '@/components/TrendsSection';
 import { StatsExplorer } from '@/components/StatsExplorer';
+import { LeaderboardSection } from '@/components/LeaderboardSection';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
+import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { computeStreak } from '@/lib/stats/aggregations';
 
 type ProfileLiveProps = {
   initialData: ProfileData;
+  leaderboardData: LeaderboardData;
   today: string; // YYYY-MM-DD, computed server-side for hydration stability
 };
 
-export function ProfileLive({ initialData, today }: ProfileLiveProps) {
+export function ProfileLive({ initialData, leaderboardData, today }: ProfileLiveProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
   const { user, machineStats } = initialData;
 
@@ -89,6 +92,7 @@ export function ProfileLive({ initialData, today }: ProfileLiveProps) {
       </section>
       <TrendsSection dailyStats={dailyStats} today={today} />
       <StatsExplorer dailyStats={dailyStats} machineStats={machineStats} today={today} />
+      <LeaderboardSection data={leaderboardData} viewerId={user.id} today={today} />
     </main>
   );
 }

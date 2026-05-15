@@ -27,7 +27,7 @@ export async function getLeaderboardData(
   const groupIds = (viewerGroupRows ?? []).map((g) => g.group_id);
 
   // Group details for those groups, and every member of those groups.
-  let groupDetails: { id: string; slug: string; name: string; color: string; description: string | null }[] = [];
+  let groupDetails: Omit<Group, 'memberUserIds'>[] = [];
   let allMembers: { group_id: string; user_id: string }[] = [];
   if (groupIds.length > 0) {
     const { data: groupsData } = await supabase

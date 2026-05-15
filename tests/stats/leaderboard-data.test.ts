@@ -12,7 +12,6 @@ function mockSupabase(tables: {
   group_members: { group_id: string; user_id: string }[]; // second group_members read (in group_id)
   friendships: unknown[];
 }) {
-  let groupMembersCall = 0;
   return {
     from: vi.fn((table: string) => {
       if (table === 'users') {
@@ -26,7 +25,6 @@ function mockSupabase(tables: {
         };
       }
       if (table === 'group_members') {
-        groupMembersCall++;
         return {
           select: () => ({
             eq: vi.fn(async () => ({ data: tables.viewer_groups, error: null })),

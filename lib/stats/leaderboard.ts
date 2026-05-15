@@ -39,6 +39,7 @@ type RankOptions = {
   scope: LeaderboardScope;
   viewerId: string;
   today: string;
+  groupId?: string; // when scope === 'groups', restricts to this specific group's members
 };
 
 // Cumulative metrics sum over the (already window-filtered) stats. Streak is
@@ -59,15 +60,26 @@ function cumulativeValue(stats: DailyStat[], metric: Exclude<LeaderboardMetric, 
   }
 }
 
-function scopedUserIds(data: LeaderboardData, scope: LeaderboardScope, viewerId: string): Set<string> {
+function scopedUserIds(
+  data: LeaderboardData,
+  scope: LeaderboardScope,
+  viewerId: string,
+  groupId?: string,
+): Set<string> {
   if (scope === 'global') return new Set(data.users.map((u) => u.id));
-  if (scope === 'groups') return new Set(data.groupMemberUserIds);
+  if (scope === 'groups') {
+    if (groupId) {
+      const group = data.viewerGroups.find((g) => g.id === groupId);
+      return new Set(group?.memberUserIds ?? []);
+    }
+    return new Set(data.groupMemberUserIds);
+  }
   return new Set([viewerId, ...data.friendUserIds]);
 }
 
 export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry[] {
-  const { metric, window, scope, viewerId, today } = opts;
-  const inScope = scopedUserIds(data, scope, viewerId);
+  const { metric, window, scope, viewerId, today, groupId } = opts;
+  const inScope = scopedUserIds(data, scope, viewerId, groupId);
 
   const entries = data.users
     .filter((u) => inScope.has(u.id))

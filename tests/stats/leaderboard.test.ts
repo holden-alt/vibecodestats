@@ -141,4 +141,54 @@ describe('rankUsers', () => {
     expect(ranked.map((r) => r.handle)).toEqual(['devon-ships', 'holden-alt', 'mira-builds']);
     expect(ranked.find((r) => r.handle === 'devon-ships')!.value).toBe(10);
   });
+
+  // groupId scoping tests
+  const dataWithTwoGroups: LeaderboardData = {
+    ...data,
+    viewerGroups: [
+      { id: 'g1', slug: 'squad', name: 'Squad', color: 'cyan', description: null, memberUserIds: ['u1', 'u2'] },
+      { id: 'g2', slug: 'opus-club', name: 'Opus Club', color: 'orange', description: null, memberUserIds: ['u1', 'u3'] },
+    ],
+  };
+
+  it('with groupId, restricts scope to that specific group\'s members only', () => {
+    const ranked = rankUsers(dataWithTwoGroups, {
+      metric: 'tokens', window: 'all', scope: 'groups', viewerId: 'u1', today: '2026-05-14',
+      groupId: 'g1',
+    });
+    expect(ranked.map((r) => r.handle).sort()).toEqual(['holden-alt', 'mira-builds']);
+  });
+
+  it('with a different groupId, restricts to that group\'s members instead', () => {
+    const ranked = rankUsers(dataWithTwoGroups, {
+      metric: 'tokens', window: 'all', scope: 'groups', viewerId: 'u1', today: '2026-05-14',
+      groupId: 'g2',
+    });
+    expect(ranked.map((r) => r.handle).sort()).toEqual(['devon-ships', 'holden-alt']);
+  });
+
+  it('with groupId pointing at an unknown group, returns an empty list', () => {
+    const ranked = rankUsers(dataWithTwoGroups, {
+      metric: 'tokens', window: 'all', scope: 'groups', viewerId: 'u1', today: '2026-05-14',
+      groupId: 'g-nonexistent',
+    });
+    expect(ranked).toEqual([]);
+  });
+
+  it('without groupId, falls back to existing groups behavior (union of all viewer groups)', () => {
+    const ranked = rankUsers(dataWithTwoGroups, {
+      metric: 'tokens', window: 'all', scope: 'groups', viewerId: 'u1', today: '2026-05-14',
+      // no groupId
+    });
+    // groupMemberUserIds = ['u1', 'u2'] in the base fixture (still the union shape from getLeaderboardData)
+    expect(ranked.map((r) => r.handle).sort()).toEqual(['holden-alt', 'mira-builds']);
+  });
+
+  it('groupId is ignored for non-groups scopes', () => {
+    const ranked = rankUsers(dataWithTwoGroups, {
+      metric: 'tokens', window: 'all', scope: 'global', viewerId: 'u1', today: '2026-05-14',
+      groupId: 'g1', // should have no effect
+    });
+    expect(ranked.map((r) => r.handle).sort()).toEqual(['devon-ships', 'holden-alt', 'mira-builds']);
+  });
 });

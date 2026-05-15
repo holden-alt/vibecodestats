@@ -1,14 +1,9 @@
 import type { RankedEntry } from '@/lib/stats/leaderboard';
+import { formatValue } from '@/components/leaderboard/format';
 
 type RankListProps = {
   entries: RankedEntry[];
 };
-
-function formatValue(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-  if (n >= 1_000) return Math.round(n / 1_000) + 'K';
-  return String(n);
-}
 
 export function RankList({ entries }: RankListProps) {
   if (entries.length === 0) {

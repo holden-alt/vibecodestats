@@ -67,7 +67,7 @@ export function Leaderboard({
     scope: effectiveScope,
     viewerId,
     today,
-    groupId: effectiveScope === 'groups' ? lockedGroupId : undefined,
+    ...(effectiveScope === 'groups' && lockedGroupId ? { groupId: lockedGroupId } : {}),
   });
 
   return (

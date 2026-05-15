@@ -16,12 +16,13 @@ describe('social_tables migration', () => {
 
   it('creates public.group_members with a (group_id, user_id) primary key', () => {
     expect(sql).toMatch(/create table public\.group_members/i);
-    expect(sql).toMatch(/primary key \(group_id, user_id\)/i);
+    expect(sql).toMatch(/primary key\s*\(group_id, user_id\)/i);
   });
 
   it('creates public.friendships with a (user_id, friend_id) primary key', () => {
     expect(sql).toMatch(/create table public\.friendships/i);
-    expect(sql).toMatch(/primary key \(user_id, friend_id\)/i);
+    expect(sql).toMatch(/primary key\s*\(user_id, friend_id\)/i);
+    expect(sql).toMatch(/create index friendships_friend_idx on public\.friendships \(friend_id\)/i);
   });
 
   it('enables RLS with public select policies on all three tables', () => {

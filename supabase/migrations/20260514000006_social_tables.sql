@@ -30,6 +30,8 @@ create table public.friendships (
   primary key (user_id, friend_id)
 );
 
+create index friendships_friend_idx on public.friendships (friend_id);
+
 alter table public.groups enable row level security;
 alter table public.group_members enable row level security;
 alter table public.friendships enable row level security;

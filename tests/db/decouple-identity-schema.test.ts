@@ -14,7 +14,7 @@ describe('decouple_user_identity migration', () => {
   });
 
   it('adds a nullable auth_id column referencing auth.users', () => {
-    expect(sql).toMatch(/add column auth_id uuid references auth\.users \(id\)/i);
+    expect(sql).toMatch(/add column if not exists auth_id uuid references auth\.users \(id\)/i);
   });
 
   it('backfills auth_id from the existing id', () => {
@@ -28,10 +28,11 @@ describe('decouple_user_identity migration', () => {
   it('rewrites the signup trigger to populate auth_id', () => {
     expect(sql).toMatch(/insert into public\.users \(auth_id,/i);
     expect(sql).toMatch(/on conflict \(auth_id\) do nothing/i);
+    expect(sql).toMatch(/values\s*\(\s*new\.id,/i);
   });
 
   it('updates the users_update_self RLS policy to match on auth_id', () => {
-    expect(sql).toMatch(/drop policy users_update_self/i);
+    expect(sql).toMatch(/drop policy if exists users_update_self/i);
     expect(sql).toMatch(/using \(auth\.uid\(\) = auth_id\)/i);
   });
 });

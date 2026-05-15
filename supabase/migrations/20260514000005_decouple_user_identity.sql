@@ -24,7 +24,7 @@ end $$;
 
 -- 2. Add the nullable auth_id link.
 alter table public.users
-  add column auth_id uuid references auth.users (id) on delete set null;
+  add column if not exists auth_id uuid references auth.users (id) on delete set null;
 
 -- 3. Backfill: every existing profile's id IS its auth id today.
 update public.users set auth_id = id;
@@ -33,9 +33,10 @@ update public.users set auth_id = id;
 alter table public.users alter column id set default gen_random_uuid();
 
 -- 5. One profile per auth account (nulls allowed, and multiple nulls are fine).
-create unique index users_auth_id_idx on public.users (auth_id) where auth_id is not null;
+create unique index if not exists users_auth_id_idx on public.users (auth_id) where auth_id is not null;
 
 -- 6. Rewrite the signup trigger to populate auth_id instead of id.
+--    The `on conflict (auth_id)` clause below relies on the partial unique index from step 5.
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
@@ -57,6 +58,6 @@ end;
 $$;
 
 -- 7. RLS: owner can update their own profile — match on auth_id now.
-drop policy users_update_self on public.users;
+drop policy if exists users_update_self on public.users;
 create policy users_update_self on public.users for update
   using (auth.uid() = auth_id) with check (auth.uid() = auth_id);

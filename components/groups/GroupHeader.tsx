@@ -15,7 +15,7 @@ export function GroupHeader({ name, color, description, memberCount }: GroupHead
       />
       <h1
         className="text-[0.95rem] uppercase tracking-[0.14em] font-semibold"
-        style={{ color: 'var(--color-fg)' }}
+        style={{ color: 'var(--color-text)' }}
       >
         {name}
       </h1>
@@ -26,7 +26,7 @@ export function GroupHeader({ name, color, description, memberCount }: GroupHead
         <p
           data-group-description
           className="text-[0.75rem] mt-2 max-w-[60ch]"
-          style={{ color: 'var(--color-fg)' }}
+          style={{ color: 'var(--color-text)' }}
         >
           {description}
         </p>

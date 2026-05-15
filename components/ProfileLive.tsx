@@ -10,6 +10,7 @@ import { PersonaPane } from '@/components/PersonaPane';
 import { TrendsSection } from '@/components/TrendsSection';
 import { StatsExplorer } from '@/components/StatsExplorer';
 import { LeaderboardSection } from '@/components/LeaderboardSection';
+import { GroupLeaderboardSection } from '@/components/GroupLeaderboardSection';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { computeStreak } from '@/lib/stats/aggregations';
@@ -93,6 +94,15 @@ export function ProfileLive({ initialData, leaderboardData, today }: ProfileLive
       <TrendsSection dailyStats={dailyStats} today={today} />
       <StatsExplorer dailyStats={dailyStats} machineStats={machineStats} today={today} />
       <LeaderboardSection data={leaderboardData} viewerId={user.id} today={today} />
+      {leaderboardData.viewerGroups.map((group) => (
+        <GroupLeaderboardSection
+          key={group.id}
+          data={leaderboardData}
+          viewerId={user.id}
+          today={today}
+          group={group}
+        />
+      ))}
     </main>
   );
 }

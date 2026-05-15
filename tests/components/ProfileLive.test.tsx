@@ -117,4 +117,48 @@ describe('ProfileLive', () => {
     expect(container.querySelectorAll('[data-segment]').length).toBe(28);
     expect(container.querySelector('[data-leaderboard-section]')).toBeTruthy();
   });
+
+  it('renders one GroupLeaderboardSection per viewer group, below the global LeaderboardSection', () => {
+    const groupLeaderboardData: LeaderboardData = {
+      users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
+      statsByUser: { u1: [] },
+      groupMemberUserIds: ['u1'],
+      friendUserIds: [],
+      viewerGroups: [
+        { id: 'g1', slug: 'default', name: 'The Squad', color: 'cyan', description: null, memberUserIds: ['u1'] },
+        { id: 'g2', slug: 'opus-club', name: 'Opus Club', color: 'orange', description: null, memberUserIds: ['u1'] },
+      ],
+    };
+    const initialData: ProfileData = {
+      user: {
+        id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
+        avatar_url: null, primary_persona: null, secondary_personas: [],
+      },
+      dailyStats: [
+        {
+          date: '2026-05-14', user_id: 'u1', tokens_total: 100000,
+          tokens_by_model: { 'claude-opus-4-7': 100000 }, sessions: 2,
+          deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
+          ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
+        },
+      ],
+      machineStats: [],
+    };
+
+    const { container } = render(
+      <ProfileLive initialData={initialData} leaderboardData={groupLeaderboardData} today="2026-05-14" />,
+    );
+
+    const sections = container.querySelectorAll('[data-leaderboard-section]');
+    // 1 global + 2 group sections = 3 total
+    expect(sections.length).toBe(3);
+
+    // Verify the two group sections appear and carry the right group slug attribute.
+    const groupSections = container.querySelectorAll('[data-group-section]');
+    expect(groupSections.length).toBe(2);
+    const slugs = Array.from(groupSections)
+      .map((s) => s.getAttribute('data-group-section'))
+      .sort();
+    expect(slugs).toEqual(['default', 'opus-club']);
+  });
 });

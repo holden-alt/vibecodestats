@@ -16,6 +16,7 @@ export default async function LeaderboardPage() {
     .select('id')
     .eq('github_handle', V1_VIEWER_HANDLE)
     .maybeSingle();
+  // '' fallback is safe in v1 because holden-alt always exists; v2 will redirect to login instead.
   const viewerId = viewer?.id ?? '';
 
   const data = await getLeaderboardData(supabase, viewerId);

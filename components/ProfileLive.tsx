@@ -10,6 +10,7 @@ import { PersonaPane } from '@/components/PersonaPane';
 import { TrendsSection } from '@/components/TrendsSection';
 import { StatsExplorer } from '@/components/StatsExplorer';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
+import { computeStreak } from '@/lib/stats/aggregations';
 
 type ProfileLiveProps = {
   initialData: ProfileData;
@@ -90,20 +91,4 @@ export function ProfileLive({ initialData, today }: ProfileLiveProps) {
       <StatsExplorer dailyStats={dailyStats} machineStats={machineStats} today={today} />
     </main>
   );
-}
-
-function computeStreak(stats: DailyStat[], today: string): number {
-  const active = new Set(stats.filter((s) => s.tokens_total > 0).map((s) => s.date));
-  let streak = 0;
-  const cursor = new Date(today + 'T00:00:00Z');
-  // Walk backwards day by day while the date is active.
-  // Today not yet active still allows the streak to count from yesterday.
-  if (!active.has(today)) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-  while (active.has(cursor.toISOString().slice(0, 10))) {
-    streak++;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-  return streak;
 }

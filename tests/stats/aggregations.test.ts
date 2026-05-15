@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow, projectTotals, machineTotals } from '@/lib/stats/aggregations';
+import { classifyModel, modelTotals, last30Days, dayOfWeekAverages, hourlyTotals, filterByWindow, trendForWindow, projectTotals, machineTotals, computeStreak } from '@/lib/stats/aggregations';
 import type { StatsWindow } from '@/lib/stats/aggregations';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
@@ -271,5 +271,44 @@ describe('machineTotals', () => {
 
   it('returns an empty array for empty input', () => {
     expect(machineTotals([])).toEqual([]);
+  });
+});
+
+describe('computeStreak', () => {
+  it('counts consecutive active days ending at today', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 100 }),
+      stat({ date: '2026-05-13', tokens_total: 100 }),
+      stat({ date: '2026-05-12', tokens_total: 100 }),
+    ];
+    expect(computeStreak(stats, '2026-05-14')).toBe(3);
+  });
+
+  it('still counts the streak from yesterday when today is not yet active', () => {
+    const stats = [
+      stat({ date: '2026-05-13', tokens_total: 100 }),
+      stat({ date: '2026-05-12', tokens_total: 100 }),
+    ];
+    expect(computeStreak(stats, '2026-05-14')).toBe(2);
+  });
+
+  it('breaks the streak on a gap', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 100 }),
+      stat({ date: '2026-05-12', tokens_total: 100 }), // 05-13 missing
+    ];
+    expect(computeStreak(stats, '2026-05-14')).toBe(1);
+  });
+
+  it('ignores zero-token days', () => {
+    const stats = [
+      stat({ date: '2026-05-14', tokens_total: 0 }),
+      stat({ date: '2026-05-13', tokens_total: 0 }),
+    ];
+    expect(computeStreak(stats, '2026-05-14')).toBe(0);
+  });
+
+  it('returns 0 for empty input', () => {
+    expect(computeStreak([], '2026-05-14')).toBe(0);
   });
 });

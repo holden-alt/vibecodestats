@@ -175,3 +175,23 @@ export function machineTotals(machineStats: MachineDailyStat[]): RankedItem[] {
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 }
+
+// ---------------------------------------------------------------------------
+// Streak (Plan 4b-1 — extracted from ProfileLive)
+// ---------------------------------------------------------------------------
+
+// Consecutive days with tokens, ending at `today`. If today has no tokens yet,
+// the streak still counts from yesterday.
+export function computeStreak(stats: DailyStat[], today: string): number {
+  const active = new Set(stats.filter((s) => s.tokens_total > 0).map((s) => s.date));
+  let streak = 0;
+  const cursor = new Date(today + 'T00:00:00Z');
+  if (!active.has(today)) {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  while (active.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return streak;
+}

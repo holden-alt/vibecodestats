@@ -7,6 +7,7 @@ export type Database = {
         Row: {
           id: string;
           github_id: number | null;
+          auth_id: string | null;
           github_handle: string;
           display_name: string | null;
           avatar_url: string | null;
@@ -18,6 +19,7 @@ export type Database = {
         Insert: {
           id: string;
           github_id?: number | null;
+          auth_id?: string | null;
           github_handle: string;
           display_name?: string | null;
           avatar_url?: string | null;
@@ -29,6 +31,7 @@ export type Database = {
         Update: {
           id?: string;
           github_id?: number | null;
+          auth_id?: string | null;
           github_handle?: string;
           display_name?: string | null;
           avatar_url?: string | null;
@@ -120,6 +123,75 @@ export type Database = {
           ships?: Json;
           hourly_tokens?: Json;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      groups: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          description: string | null;
+          color: string;
+          owner_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          description?: string | null;
+          color?: string;
+          owner_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          slug?: string;
+          name?: string;
+          description?: string | null;
+          color?: string;
+          owner_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      group_members: {
+        Row: {
+          group_id: string;
+          user_id: string;
+          role: string;
+          joined_at: string;
+        };
+        Insert: {
+          group_id: string;
+          user_id: string;
+          role?: string;
+          joined_at?: string;
+        };
+        Update: {
+          group_id?: string;
+          user_id?: string;
+          role?: string;
+          joined_at?: string;
+        };
+        Relationships: [];
+      };
+      friendships: {
+        Row: {
+          user_id: string;
+          friend_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          friend_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          friend_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

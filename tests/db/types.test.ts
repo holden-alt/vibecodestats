@@ -19,4 +19,17 @@ describe('generated database types', () => {
     // 2 tables x 3 variants (Row/Insert/Update) = 6 occurrences
     expect(matches?.length).toBe(6);
   });
+
+  it('includes auth_id on the users table', () => {
+    const src = readFileSync(path, 'utf8');
+    // users Row + Insert + Update = 3 occurrences
+    expect(src.match(/auth_id/g)?.length).toBe(3);
+  });
+
+  it('exports types for groups, group_members, and friendships', () => {
+    const src = readFileSync(path, 'utf8');
+    expect(src).toMatch(/groups:/);
+    expect(src).toMatch(/group_members:/);
+    expect(src).toMatch(/friendships:/);
+  });
 });

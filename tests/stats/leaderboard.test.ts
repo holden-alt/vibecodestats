@@ -83,4 +83,61 @@ describe('rankUsers', () => {
     expect(ranked.find((r) => r.handle === 'holden-alt')!.value).toBe(10);
     expect(ranked[0]!.handle).toBe('mira-builds'); // 50 > 30 > 10
   });
+
+  it('ranks by streak, ignoring the time window', () => {
+    const streakData: LeaderboardData = {
+      ...data,
+      statsByUser: {
+        // u1: active 05-14 and 05-13 -> streak 2
+        u1: [
+          stat({ user_id: 'u1', date: '2026-05-14', tokens_total: 100 }),
+          stat({ user_id: 'u1', date: '2026-05-13', tokens_total: 100 }),
+        ],
+        // u2: active 05-14 only -> streak 1
+        u2: [stat({ user_id: 'u2', date: '2026-05-14', tokens_total: 100 })],
+        // u3: active 05-10 only, nothing recent -> streak 0
+        u3: [stat({ user_id: 'u3', date: '2026-05-10', tokens_total: 100 })],
+      },
+    };
+    // window 'today' is passed but streak must ignore it (u1 still = 2, not 1)
+    const ranked = rankUsers(streakData, {
+      metric: 'streak', window: 'today', scope: 'global', viewerId: 'u1', today: '2026-05-14',
+    });
+    expect(ranked.map((r) => r.handle)).toEqual(['holden-alt', 'mira-builds', 'devon-ships']);
+    expect(ranked.find((r) => r.handle === 'holden-alt')!.value).toBe(2);
+    expect(ranked.find((r) => r.handle === 'devon-ships')!.value).toBe(0);
+  });
+
+  it('ranks by deepwork hours (minutes / 60, rounded)', () => {
+    const dwData: LeaderboardData = {
+      ...data,
+      statsByUser: {
+        u1: [stat({ user_id: 'u1', date: '2026-05-14', deep_work_minutes: 120 })], // 2h
+        u2: [stat({ user_id: 'u2', date: '2026-05-14', deep_work_minutes: 200 })], // round(3.33) = 3h
+        u3: [stat({ user_id: 'u3', date: '2026-05-14', deep_work_minutes: 45 })],  // round(0.75) = 1h
+      },
+    };
+    const ranked = rankUsers(dwData, {
+      metric: 'deepwork', window: 'all', scope: 'global', viewerId: 'u1', today: '2026-05-14',
+    });
+    expect(ranked.map((r) => r.handle)).toEqual(['mira-builds', 'holden-alt', 'devon-ships']);
+    expect(ranked.find((r) => r.handle === 'mira-builds')!.value).toBe(3);
+    expect(ranked.find((r) => r.handle === 'devon-ships')!.value).toBe(1);
+  });
+
+  it('ranks by ships (commits from the ships jsonb)', () => {
+    const shipsData: LeaderboardData = {
+      ...data,
+      statsByUser: {
+        u1: [stat({ user_id: 'u1', date: '2026-05-14', ships: { commits: 5, repos: 1 } })],
+        u2: [stat({ user_id: 'u2', date: '2026-05-14', ships: { commits: 1, repos: 1 } })],
+        u3: [stat({ user_id: 'u3', date: '2026-05-14', ships: { commits: 10, repos: 2 } })],
+      },
+    };
+    const ranked = rankUsers(shipsData, {
+      metric: 'ships', window: 'all', scope: 'global', viewerId: 'u1', today: '2026-05-14',
+    });
+    expect(ranked.map((r) => r.handle)).toEqual(['devon-ships', 'holden-alt', 'mira-builds']);
+    expect(ranked.find((r) => r.handle === 'devon-ships')!.value).toBe(10);
+  });
 });

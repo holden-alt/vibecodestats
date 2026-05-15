@@ -42,7 +42,7 @@ function cumulativeValue(stats: DailyStat[], metric: Exclude<LeaderboardMetric, 
     case 'ships':
       return stats.reduce((s, d) => {
         const ships = (d.ships ?? {}) as { commits?: number };
-        return s + (ships.commits ?? 0);
+        return s + Number(ships.commits ?? 0);
       }, 0);
   }
 }
@@ -69,5 +69,6 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
     });
 
   entries.sort((a, b) => b.value - a.value);
+  // Ordinal ranking: ties still get distinct sequential ranks (1, 2, 3 — not 1, 1, 3).
   return entries.map((e, i) => ({ ...e, rank: i + 1, isViewer: e.userId === viewerId }));
 }

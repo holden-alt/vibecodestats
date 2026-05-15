@@ -143,6 +143,9 @@ describe('rankUsers', () => {
   });
 
   // groupId scoping tests
+  // NOTE: dataWithTwoGroups inherits groupMemberUserIds=['u1','u2'] from base `data`.
+  // That intentionally equals g1.memberUserIds so the "no groupId" fallback test
+  // proves the union-fallback path against a known shape. Keep both in sync.
   const dataWithTwoGroups: LeaderboardData = {
     ...data,
     viewerGroups: [

@@ -23,6 +23,7 @@ const data: LeaderboardData = {
   },
   groupMemberUserIds: ['u1', 'u2'],
   friendUserIds: ['u3'],
+  viewerGroups: [],
 };
 
 describe('rankUsers', () => {

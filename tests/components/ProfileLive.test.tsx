@@ -25,6 +25,7 @@ const leaderboardData: LeaderboardData = {
   statsByUser: {},
   groupMemberUserIds: ['u1'],
   friendUserIds: [],
+  viewerGroups: [],
 };
 
 const baseData: ProfileData = {

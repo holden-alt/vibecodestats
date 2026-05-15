@@ -4,12 +4,24 @@ import { type StatsWindow, filterByWindow, computeStreak } from '@/lib/stats/agg
 export type LeaderboardMetric = 'tokens' | 'sessions' | 'deepwork' | 'streak' | 'ships';
 export type LeaderboardScope = 'global' | 'groups' | 'friends';
 
-// What getLeaderboardData (Task 1.3) produces and rankUsers consumes.
+// Group with full details + the user ids of its members. Used both for the
+// per-group profile sections and for the /groups/:slug route header.
+export type Group = {
+  id: string;
+  slug: string;
+  name: string;
+  color: string;
+  description: string | null;
+  memberUserIds: string[];
+};
+
+// What getLeaderboardData produces and rankUsers consumes.
 export type LeaderboardData = {
   users: { id: string; github_handle: string; display_name: string | null }[];
   statsByUser: Record<string, DailyStat[]>;
-  groupMemberUserIds: string[]; // users sharing a group with the viewer (includes the viewer)
+  groupMemberUserIds: string[]; // union of all the viewer's groups' members (includes the viewer)
   friendUserIds: string[]; // the viewer's friends' user ids
+  viewerGroups: Group[]; // every group the viewer belongs to, with per-group membership
 };
 
 export type RankedEntry = {

@@ -16,6 +16,7 @@ vi.mock('@/lib/stats/leaderboard-data', () => ({
     statsByUser: {},
     groupMemberUserIds: [],
     friendUserIds: [],
+    viewerGroups: [],
   })),
 }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({})) }));

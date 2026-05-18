@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
@@ -41,14 +42,14 @@ async function AuthWidget() {
   if (!user) {
     return (
       <div style={wrapStyle}>
-        <a href="/auth/signin" style={linkStyle}>$ sign in</a>
+        <Link href="/auth/signin" prefetch={false} style={linkStyle}>$ sign in</Link>
       </div>
     );
   }
 
   return (
     <div style={wrapStyle}>
-      <a href="/me" style={linkStyle}>$ me</a>
+      <Link href="/me" prefetch={false} style={linkStyle}>$ me</Link>
       <form method="post" action="/auth/signout" style={{ display: 'inline' }}>
         <button type="submit" style={buttonStyle}>$ sign out</button>
       </form>

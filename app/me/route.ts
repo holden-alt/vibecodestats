@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const { data: row } = await supabase
     .from('users')
     .select('github_handle')
-    .eq('id', user.id)
+    .eq('auth_id', user.id)
     .single();
 
   if (!row?.github_handle) {

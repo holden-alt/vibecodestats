@@ -19,6 +19,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
 
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const viewerIsOwner = !!authUser && data.user.auth_id === authUser.id;
+  const hasEverPushed = data.dailyStats.length > 0;
+
   const leaderboardData = await getLeaderboardData(supabase, data.user.id);
 
   // Server-compute "today" so SSR and client hydration agree.
@@ -26,5 +30,5 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   const liveRanking = await getLiveRanking(supabase, data.user.id, today);
 
-  return <ProfileLive initialData={data} leaderboardData={leaderboardData} today={today} initialLiveRanking={liveRanking} />;
+  return <ProfileLive initialData={data} leaderboardData={leaderboardData} today={today} initialLiveRanking={liveRanking} viewerIsOwner={viewerIsOwner} hasEverPushed={hasEverPushed} />;
 }

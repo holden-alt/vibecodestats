@@ -22,6 +22,7 @@ vi.mock('@/lib/supabase/browser', () => ({
 const initialData: ProfileData = {
   user: {
     id: 'u1',
+    auth_id: 'auth-1',
     github_handle: 'holden-alt',
     display_name: 'Holden',
     avatar_url: null,
@@ -65,6 +66,8 @@ describe('ProfileLive (new layout)', () => {
         leaderboardData={leaderboardData}
         today="2026-05-19"
         initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
       />,
     );
     expect(screen.getAllByText('@holden-alt').length).toBeGreaterThan(0);
@@ -76,8 +79,24 @@ describe('ProfileLive (new layout)', () => {
         leaderboardData={leaderboardData}
         today="2026-05-19"
         initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
       />,
     );
     expect(screen.getByText(/global rank/i)).toBeInTheDocument();
+  });
+  it('shows setup banner when viewer is owner and has never pushed', () => {
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={true}
+        hasEverPushed={false}
+      />,
+    );
+    expect(screen.getByText(/your stats aren't flowing yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/set up sync/i)).toBeInTheDocument();
   });
 });

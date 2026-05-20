@@ -4,6 +4,7 @@ import { computeLiveDailyRanking, type LiveRanking } from './leaderboard-live';
 
 export type ProfileUser = {
   id: string;
+  auth_id: string | null;
   github_handle: string;
   display_name: string | null;
   avatar_url: string | null;
@@ -28,7 +29,7 @@ export async function getProfileData(
 ): Promise<ProfileData | null> {
   const { data: user } = await supabase
     .from('users')
-    .select('id, github_handle, display_name, avatar_url, primary_persona, secondary_personas')
+    .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas')
     .eq('github_handle', handle)
     .maybeSingle();
 

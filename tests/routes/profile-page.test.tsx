@@ -24,7 +24,13 @@ vi.mock('@/lib/stats/leaderboard-data', () => ({
     viewerGroups: [],
   })),
 }));
-vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({})) }));
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(async () => ({
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: null } })),
+    },
+  })),
+}));
 // ProfileLive mounts the browser realtime client on render — stub it so the
 // page test doesn't need real Supabase env vars.
 vi.mock('@/lib/supabase/browser', () => ({
@@ -40,7 +46,7 @@ vi.mock('@/lib/supabase/browser', () => ({
 describe('GET /[handle]', () => {
   it('renders ProfileLive when the user exists', async () => {
     getProfileDataMock.mockResolvedValueOnce({
-      user: { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
+      user: { id: 'u1', auth_id: 'auth-1', github_handle: 'holden-alt', display_name: 'Holden',
         avatar_url: null, primary_persona: null, secondary_personas: [] },
       dailyStats: [],
       machineStats: [],

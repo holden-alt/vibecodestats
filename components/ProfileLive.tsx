@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
@@ -35,9 +36,11 @@ type ProfileLiveProps = {
   leaderboardData: LeaderboardData;
   initialLiveRanking: LiveRanking;
   today: string;
+  viewerIsOwner: boolean;
+  hasEverPushed: boolean;
 };
 
-export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, today }: ProfileLiveProps) {
+export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, today, viewerIsOwner, hasEverPushed }: ProfileLiveProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
   const { user } = initialData;
 
@@ -126,6 +129,29 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           nowProject={nowProject}
         />
       </div>
+
+      {viewerIsOwner && !hasEverPushed && (
+        <div style={{
+          border: '1px dashed var(--chart-1)',
+          background: 'rgba(217,119,87,0.08)',
+          borderRadius: 3,
+          padding: '14px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 24,
+          flexWrap: 'wrap',
+        }}>
+          <div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>your stats aren&apos;t flowing yet</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.75, marginTop: 2 }}>install the Claude Code Stop hook so every CC turn pushes to this profile.</div>
+          </div>
+          <Link href="/setup" prefetch={false} style={{ background: 'var(--chart-1)', color: 'var(--color-bg)', padding: '8px 14px', borderRadius: 2, fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>
+            set up sync →
+          </Link>
+        </div>
+      )}
 
       <StreakAtRisk streakDays={streakDays} todayTokens={tokensToday} />
 

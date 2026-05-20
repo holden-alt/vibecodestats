@@ -59,13 +59,22 @@ export function ProfileLive({ initialData, leaderboardData, today }: ProfileLive
     };
   }, [user.id]);
 
-  const todayRow = useMemo(() => dailyStats.find((s) => s.date === today), [dailyStats, today]);
+  // Server passes UTC `today`, but the ingest pipeline writes rows keyed by the
+  // user's LOCAL date. To avoid showing 0 while the user is still in their local
+  // "today" (and UTC has rolled over), prefer the most recent row when the
+  // server-computed UTC date has no data yet.
+  const effectiveToday = useMemo(() => {
+    if (dailyStats.find((s) => s.date === today)) return today;
+    return dailyStats[0]?.date ?? today; // dailyStats is sorted desc by date
+  }, [dailyStats, today]);
+
+  const todayRow = useMemo(() => dailyStats.find((s) => s.date === effectiveToday), [dailyStats, effectiveToday]);
   const yesterdayRow = useMemo(() => {
-    const d = new Date(today + 'T00:00:00Z');
+    const d = new Date(effectiveToday + 'T00:00:00Z');
     d.setUTCDate(d.getUTCDate() - 1);
     const key = d.toISOString().slice(0, 10);
     return dailyStats.find((s) => s.date === key);
-  }, [dailyStats, today]);
+  }, [dailyStats, effectiveToday]);
 
   const tokensToday = todayRow?.tokens_total ?? 0;
   const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
@@ -79,17 +88,17 @@ export function ProfileLive({ initialData, leaderboardData, today }: ProfileLive
   const hourlyTokens = (todayRow?.hourly_tokens as Record<string, number>) ?? {};
 
   const projectsTouchedCount = Object.keys(projectsTouched).length;
-  const streakDays = computeStreak(dailyStats, today);
+  const streakDays = computeStreak(dailyStats, effectiveToday);
   const nowProject = pickNowProject(projectsTouched);
 
   const globalRanked = useMemo(
-    () => rankUsers(leaderboardData, { metric: 'tokens', window: 'month', scope: 'global', viewerId: user.id, today }),
-    [leaderboardData, user.id, today],
+    () => rankUsers(leaderboardData, { metric: 'tokens', window: 'month', scope: 'global', viewerId: user.id, today: effectiveToday }),
+    [leaderboardData, user.id, effectiveToday],
   );
   const rank = globalRanked.find((e) => e.isViewer)?.rank ?? null;
   const squadSize = globalRanked.length > 0 ? globalRanked.length : null;
 
-  const machineRowsToday = machineStats.filter((m) => m.date === today);
+  const machineRowsToday = machineStats.filter((m) => m.date === effectiveToday);
 
   return (
     <main style={{ maxWidth: 1400, margin: '0 auto', padding: '16px 16px 48px', display: 'flex', flexDirection: 'column', gap: 10 }}>

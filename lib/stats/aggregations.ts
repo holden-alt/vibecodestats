@@ -195,3 +195,82 @@ export function computeStreak(stats: DailyStat[], today: string): number {
   }
   return streak;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2: Aggregations (rolling avg, week/month/all-time, PBs, milestones)
+// ---------------------------------------------------------------------------
+
+export function computeRollingAverage(stats: DailyStat[], anchor: string, days: number): number {
+  if (!stats.length) return 0;
+  const end = new Date(anchor + 'T00:00:00Z');
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - days + 1);
+  const startKey = start.toISOString().slice(0, 10);
+  const window = stats.filter((s) => s.date >= startKey && s.date <= anchor);
+  if (!window.length) return 0;
+  const sum = window.reduce((acc, s) => acc + s.tokens_total, 0);
+  return Math.round(sum / days);
+}
+
+export function computeWeekTotal(stats: DailyStat[], anchor: string): number {
+  const end = new Date(anchor + 'T00:00:00Z');
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 6);
+  const startKey = start.toISOString().slice(0, 10);
+  return stats
+    .filter((s) => s.date >= startKey && s.date <= anchor)
+    .reduce((acc, s) => acc + s.tokens_total, 0);
+}
+
+export function computeMonthTotal(stats: DailyStat[], anchor: string): number {
+  const ym = anchor.slice(0, 7); // YYYY-MM
+  return stats
+    .filter((s) => s.date.startsWith(ym))
+    .reduce((acc, s) => acc + s.tokens_total, 0);
+}
+
+export function computeAllTimeTotals(stats: DailyStat[]): {
+  tokens: number; daysActive: number; ships: number; sessions: number;
+} {
+  let tokens = 0, ships = 0, sessions = 0;
+  for (const s of stats) {
+    tokens += s.tokens_total;
+    sessions += s.sessions;
+    const sh = (s.ships as { commits?: number } | null)?.commits ?? 0;
+    ships += sh;
+  }
+  return { tokens, daysActive: stats.length, ships, sessions };
+}
+
+export function computePersonalBests(stats: DailyStat[]): {
+  bestDayTokens: number; bestDayDate: string | null;
+  bestShipsCount: number; bestShipsDate: string | null;
+  bestSessionsCount: number; bestSessionsDate: string | null;
+} {
+  let bestDayTokens = 0, bestDayDate: string | null = null;
+  let bestShipsCount = 0, bestShipsDate: string | null = null;
+  let bestSessionsCount = 0, bestSessionsDate: string | null = null;
+  for (const s of stats) {
+    if (s.tokens_total > bestDayTokens) { bestDayTokens = s.tokens_total; bestDayDate = s.date; }
+    const sh = (s.ships as { commits?: number } | null)?.commits ?? 0;
+    if (sh > bestShipsCount) { bestShipsCount = sh; bestShipsDate = s.date; }
+    if (s.sessions > bestSessionsCount) { bestSessionsCount = s.sessions; bestSessionsDate = s.date; }
+  }
+  return { bestDayTokens, bestDayDate, bestShipsCount, bestShipsDate, bestSessionsCount, bestSessionsDate };
+}
+
+const MILESTONES = [
+  1_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000,
+  100_000_000, 250_000_000, 500_000_000, 1_000_000_000,
+];
+
+export function computeNextMilestone(lifetimeTokens: number): {
+  target: number; progress: number; remaining: number;
+} {
+  const target = MILESTONES.find((m) => m > lifetimeTokens) ?? lifetimeTokens * 2;
+  return {
+    target,
+    progress: Math.min(1, lifetimeTokens / target),
+    remaining: Math.max(0, target - lifetimeTokens),
+  };
+}

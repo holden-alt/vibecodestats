@@ -1,5 +1,5 @@
 import type { RankedEntry } from '@/lib/stats/leaderboard';
-import { formatValue } from '@/components/leaderboard/format';
+import { formatCompact, formatNumber } from '@/lib/format';
 
 type BarComparisonProps = {
   entries: RankedEntry[];
@@ -25,24 +25,38 @@ export function BarComparison({ entries }: BarComparisonProps) {
             data-handle={e.handle}
             data-viewer={e.isViewer}
             role="listitem"
-            className="flex items-center gap-2 text-[0.6rem]"
+            className="flex items-center gap-2 text-[0.65rem]"
+            style={{
+              fontVariantNumeric: 'tabular-nums',
+              background: e.isViewer ? 'color-mix(in srgb, var(--chart-1) 10%, transparent)' : 'transparent',
+              borderRadius: 2,
+              padding: '1px 2px',
+            }}
+            title={formatNumber(e.value)}
           >
-            <span className="w-[110px] shrink-0 truncate" style={{ color: 'var(--color-text)' }} title={e.handle}>
-              {e.displayName ?? e.handle}
+            <span
+              className="w-[20px] shrink-0 text-right font-semibold"
+              style={{ color: e.rank === 1 ? 'var(--color-yellow)' : 'var(--color-dim)' }}
+            >
+              {e.rank}
             </span>
-            <div className="flex-1 h-[12px] rounded-[1px] overflow-hidden" style={{ background: 'var(--color-bg-2)' }}>
+            <span className="w-[90px] shrink-0 truncate" style={{ color: 'var(--color-text)' }} title={e.handle}>
+              @{e.handle}
+            </span>
+            <div className="flex-1 h-[7px] rounded-[1px] overflow-hidden" style={{ background: 'var(--color-bg-2)' }}>
               <div
                 data-bar
                 data-pct={pct}
                 style={{
                   width: `${pct}%`,
                   height: '100%',
-                  background: e.isViewer ? 'var(--color-orange)' : 'var(--color-cyan)',
+                  background: e.isViewer ? 'var(--chart-1)' : 'var(--chart-2)',
+                  transition: 'width 800ms ease-out',
                 }}
               />
             </div>
-            <span className="w-[52px] shrink-0 text-right tabular-nums" style={{ color: 'var(--color-dim)' }}>
-              {formatValue(e.value)}
+            <span className="w-[42px] shrink-0 text-right" style={{ color: 'var(--color-dim)', opacity: 0.75 }}>
+              {formatCompact(e.value)}
             </span>
           </div>
         );

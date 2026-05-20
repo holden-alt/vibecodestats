@@ -20,6 +20,7 @@ type Props = {
 export function GlobalLeaderboard({ data, viewerId, today }: Props) {
   const [metric, setMetric] = useState<Metric>('tokens');
   const [window, setWindow] = useState<Window>('today');
+  const [expanded, setExpanded] = useState(false);
 
   const ranked = useMemo(
     () => rankUsers(data, { metric, window, scope: 'global', viewerId, today }),
@@ -28,7 +29,7 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
 
   const viewerEntry = ranked.find((e) => e.isViewer);
   const top10 = ranked.slice(0, 10);
-  const showViewerRow = viewerEntry && !top10.includes(viewerEntry);
+  const showViewerRow = viewerEntry && !top10.includes(viewerEntry) && !expanded;
   const max = ranked[0]?.value ?? 1;
 
   return (
@@ -51,17 +52,39 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {top10.map((e) => (
-          <Row key={e.userId} rank={e.rank} handle={e.handle} value={e.value} max={max} viewer={e.isViewer} />
-        ))}
+        <div style={{ maxHeight: expanded ? 400 : undefined, overflowY: expanded ? 'auto' : undefined, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {(expanded ? ranked : top10).map((e) => (
+            <Row key={e.userId} rank={e.rank} handle={e.handle} value={e.value} max={max} viewer={e.isViewer} />
+          ))}
+          {ranked.length === 0 && (
+            <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>no data yet for {metric} · {window}</div>
+          )}
+        </div>
         {showViewerRow && (
           <>
             <div style={{ fontSize: '0.65rem', opacity: 0.4, textAlign: 'center', margin: '2px 0' }}>···</div>
             <Row rank={viewerEntry!.rank} handle={viewerEntry!.handle} value={viewerEntry!.value} max={max} viewer={true} />
           </>
         )}
-        {ranked.length === 0 && (
-          <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>no data yet for {metric} · {window}</div>
+        {ranked.length > 10 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            style={{
+              marginTop: 8,
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-dim)',
+              padding: '4px 10px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: '0.65rem',
+              width: '100%',
+              textAlign: 'center',
+            }}
+          >
+            {expanded ? 'show less' : `show all ${ranked.length}`}
+          </button>
         )}
       </div>
     </div>

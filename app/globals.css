@@ -78,3 +78,11 @@ a.bento-tile:hover {
 @media (prefers-reduced-motion: reduce) {
   [style*="cc-pulse"] { animation: none !important; }
 }
+
+.hero-token {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--chart-1);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}

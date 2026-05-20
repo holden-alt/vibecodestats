@@ -86,3 +86,13 @@ a.bento-tile:hover {
   letter-spacing: -0.02em;
   line-height: 1;
 }
+
+.cc-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+@media (max-width: 768px) {
+  .cc-bento-grid { grid-template-columns: 1fr; }
+  .cc-bento-grid > * { grid-column: span 1 !important; grid-row: span 1 !important; }
+}

@@ -3,15 +3,21 @@
 dashboard_push.py — push today's Claude Code stats to the cc-dashboard ingest API.
 
 Stdlib only. Parses ~/.claude/projects/*/*.jsonl for the target date, computes a
-per-machine daily stats payload, HMAC-signs it, and POSTs to /api/ingest.
+per-machine daily stats payload, and POSTs to /api/ingest.
+
+Supports two auth modes:
+  1. Bearer token (preferred): CC_DASHBOARD_TOKEN
+  2. HMAC signature (legacy): CC_DASHBOARD_HMAC_SECRET + CC_DASHBOARD_HANDLE
 
 Default mode parses only files modified today (fast — runs after every CC turn
 via the Stop hook). --backfill parses everything for a one-time history load.
 
 Env vars required:
-  CC_DASHBOARD_URL          e.g. https://cc-dashboard-qab.pages.dev
-  CC_DASHBOARD_HMAC_SECRET  same value as the deploy's INGEST_HMAC_SECRET
-  CC_DASHBOARD_HANDLE       the GitHub handle whose profile this machine feeds
+  CC_DASHBOARD_URL                   e.g. https://cc-dashboard-qab.pages.dev
+  CC_DASHBOARD_TOKEN                 (preferred) per-user Bearer token
+    OR
+  CC_DASHBOARD_HMAC_SECRET           (legacy) same value as deploy's INGEST_HMAC_SECRET
+  CC_DASHBOARD_HANDLE                (legacy) the GitHub handle whose profile this machine feeds
 """
 
 import glob
@@ -179,19 +185,29 @@ def build_payload(day, ships, github_handle, machine, target_date):
     }
 
 
-def post_payload(url, payload, secret):
-    """Sign and POST the payload. Returns (status_code, response_text)."""
+def post_payload(url, payload, token=None, secret=None):
+    """POST the payload with Bearer token (preferred) or HMAC signature (fallback).
+
+    Returns (status_code, response_text).
+    """
     body = json.dumps(payload, separators=(',', ':'), sort_keys=True)
-    signature = sign_body(body, secret)
+    headers = {
+        'Content-Type': 'application/json',
+        # Cloudflare's WAF 403s the default Python-urllib User-Agent (error 1010).
+        'User-Agent': 'cc-dashboard-push/1.0',
+    }
+
+    # Prefer Bearer token; fall back to HMAC signature.
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    elif secret:
+        signature = sign_body(body, secret)
+        headers['X-CC-Signature'] = signature
+
     req = urllib.request.Request(
         url.rstrip('/') + '/api/ingest',
         data=body.encode(),
-        headers={
-            'Content-Type': 'application/json',
-            'X-CC-Signature': signature,
-            # Cloudflare's WAF 403s the default Python-urllib User-Agent (error 1010).
-            'User-Agent': 'cc-dashboard-push/1.0',
-        },
+        headers=headers,
         method='POST',
     )
     try:
@@ -256,10 +272,19 @@ def main():
     backfill = '--backfill' in sys.argv
 
     url = os.environ.get('CC_DASHBOARD_URL')
+    token = os.environ.get('CC_DASHBOARD_TOKEN')
     secret = os.environ.get('CC_DASHBOARD_HMAC_SECRET')
     handle = os.environ.get('CC_DASHBOARD_HANDLE')
-    if not url or not secret or not handle:
-        print('dashboard-push: missing CC_DASHBOARD_URL / CC_DASHBOARD_HMAC_SECRET / '
+
+    # Validate: require URL and either (token) or (secret + handle).
+    if not url:
+        print('dashboard-push: missing CC_DASHBOARD_URL and either '
+              'CC_DASHBOARD_TOKEN or both CC_DASHBOARD_HMAC_SECRET + '
+              'CC_DASHBOARD_HANDLE — skipping', file=sys.stderr)
+        return 0
+    if not token and not (secret and handle):
+        print('dashboard-push: missing CC_DASHBOARD_URL and either '
+              'CC_DASHBOARD_TOKEN or both CC_DASHBOARD_HMAC_SECRET + '
               'CC_DASHBOARD_HANDLE — skipping', file=sys.stderr)
         return 0
 
@@ -292,7 +317,7 @@ def main():
                 continue
             ships = count_ships(claude_dir, target_date, author_email)
             payload = build_payload(day, ships, handle, machine, target_date)
-            status, text = post_payload(url, payload, secret)
+            status, text = post_payload(url, payload, token=token, secret=secret)
             print(f'  {target_date}: {status} {text[:80]}')
         return 0
 
@@ -302,7 +327,7 @@ def main():
     day = parse_day(files, target_date, HOME)
     ships = count_ships(claude_dir, target_date, author_email)
     payload = build_payload(day, ships, handle, machine, target_date)
-    status, text = post_payload(url, payload, secret)
+    status, text = post_payload(url, payload, token=token, secret=secret)
 
     if status == 200:
         with open(LAST_PUSH_FILE, 'w') as f:

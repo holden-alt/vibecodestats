@@ -6,20 +6,15 @@ import type { DailyStat, MachineDailyStat } from '@/lib/stats/profile-data';
 import {
   type StatsWindow,
   filterByWindow,
-  trendForWindow,
-  modelTotals,
-  dayOfWeekAverages,
-  hourlyTotals,
   projectTotals,
   machineTotals,
 } from '@/lib/stats/aggregations';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { TokenTrendChart } from '@/components/charts/TokenTrendChart';
-import { ModelAreaChart } from '@/components/charts/ModelAreaChart';
-import { ModelDonut } from '@/components/charts/ModelDonut';
-import { DayOfWeekChart } from '@/components/charts/DayOfWeekChart';
-import { TimeOfDayHistogram } from '@/components/charts/TimeOfDayHistogram';
-import { RankedBarList } from '@/components/RankedBarList';
+import { TokenTrendChart } from '@/components/charts/v2/TokenTrendChart';
+import { ModelMix } from '@/components/charts/v2/ModelMix';
+import { DayOfWeekChart } from '@/components/charts/v2/DayOfWeekChart';
+import { TimeOfDayHistogram } from '@/components/charts/v2/TimeOfDayHistogram';
+import { ProjectsBarList } from '@/components/charts/v2/ProjectsBarList';
 
 type StatsExplorerProps = {
   dailyStats: DailyStat[];
@@ -54,34 +49,51 @@ export function StatsExplorer({ dailyStats, machineStats, today }: StatsExplorer
   const filteredDaily = filterByWindow(dailyStats, today, statsWindow);
   const filteredMachines = filterByWindow(machineStats, today, statsWindow);
 
+  // Build a Record<string, number> of tokens by model from filtered stats
+  const tokensByModel: Record<string, number> = {};
+  for (const s of filteredDaily) {
+    const byModel = (s.tokens_by_model ?? {}) as Record<string, number>;
+    for (const [model, n] of Object.entries(byModel)) {
+      tokensByModel[model] = (tokensByModel[model] ?? 0) + n;
+    }
+  }
+
+  // Build hourlyTokens Record<string, number> from filtered stats
+  const hourlyTokens: Record<string, number> = {};
+  for (const s of filteredDaily) {
+    const hourly = (s.hourly_tokens ?? {}) as Record<string, number>;
+    for (const [h, n] of Object.entries(hourly)) {
+      hourlyTokens[h] = (hourlyTokens[h] ?? 0) + n;
+    }
+  }
+
+  // Convert RankedItem[] to Record<string, number> for ProjectsBarList
+  const projectsRecord: Record<string, number> = Object.fromEntries(
+    projectTotals(filteredDaily).map(({ label, value }) => [label, value])
+  );
+  const machinesRecord: Record<string, number> = Object.fromEntries(
+    machineTotals(filteredMachines).map(({ label, value }) => [label, value])
+  );
+
   let body: ReactNode;
   switch (tab) {
-    case 'trends': {
-      const days = trendForWindow(dailyStats, today, statsWindow);
-      body = <TokenTrendChart days={days.map((d) => ({ date: d.date, tokens: d.tokens }))} />;
+    case 'trends':
+      body = <TokenTrendChart stats={filteredDaily} />;
       break;
-    }
-    case 'models': {
-      const days = trendForWindow(dailyStats, today, statsWindow);
-      body = (
-        <div className="flex flex-col gap-3">
-          <ModelDonut totals={modelTotals(filteredDaily)} />
-          <ModelAreaChart days={days} />
-        </div>
-      );
+    case 'models':
+      body = <ModelMix tokensByModel={tokensByModel} />;
       break;
-    }
     case 'timeofday':
-      body = <TimeOfDayHistogram hourly={hourlyTotals(filteredDaily)} />;
+      body = <TimeOfDayHistogram hourlyTokens={hourlyTokens} />;
       break;
     case 'dayofweek':
-      body = <DayOfWeekChart averages={dayOfWeekAverages(filteredDaily)} />;
+      body = <DayOfWeekChart stats={filteredDaily} />;
       break;
     case 'projects':
-      body = <RankedBarList items={projectTotals(filteredDaily)} />;
+      body = <ProjectsBarList projects={projectsRecord} />;
       break;
     case 'machines':
-      body = <RankedBarList items={machineTotals(filteredMachines)} />;
+      body = <ProjectsBarList projects={machinesRecord} />;
       break;
   }
 

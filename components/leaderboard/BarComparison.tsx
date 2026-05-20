@@ -55,7 +55,7 @@ export function BarComparison({ entries }: BarComparisonProps) {
                 }}
               />
             </div>
-            <span className="w-[42px] shrink-0 text-right" style={{ color: 'var(--color-dim)', opacity: 0.75 }}>
+            <span className="w-[42px] shrink-0 text-right" style={{ color: 'var(--color-dim)' }}>
               {formatCompact(e.value)}
             </span>
           </div>

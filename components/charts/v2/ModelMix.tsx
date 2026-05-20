@@ -35,7 +35,7 @@ export function ModelMix({ tokensByModel }: Props) {
   }
   const total = buckets.opus + buckets.sonnet + buckets.haiku + buckets.other;
   if (total === 0) {
-    return <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>no model data yet</div>;
+    return <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>no model data yet</div>;
   }
   const data = (['opus', 'sonnet', 'haiku', 'other'] as const)
     .filter((k) => buckets[k] > 0)
@@ -59,7 +59,7 @@ export function ModelMix({ tokensByModel }: Props) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.6rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.65rem' }}>
         {data.map((d) => (
           <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: d.color, display: 'inline-block' }} />

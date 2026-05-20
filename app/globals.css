@@ -6,7 +6,7 @@
   --color-bg-2: #1a1715;
   --color-border: #2a2622;
   --color-text: #ece6dc;
-  --color-dim: #777;
+  --color-dim: #999;
 
   /* Polychrome palette */
   --color-orange: #d97757;
@@ -18,7 +18,7 @@
   --color-red: #d97373;
 
   /* Heatmap ramp */
-  --color-heat-0: #1a1715;
+  --color-heat-0: #2e2820;
   --color-heat-1: #3a2a1f;
   --color-heat-2: #6b3e26;
   --color-heat-3: #a8623f;

@@ -28,7 +28,7 @@ export function PercentileBar({ percentile, height = 14 }: Props) {
       <div
         style={{
           position: 'absolute', top: 0, left: markerLeft, transform: 'translateX(-50%)',
-          fontSize: '0.55rem', color: 'var(--chart-1)', whiteSpace: 'nowrap',
+          fontSize: '0.65rem', color: 'var(--chart-1)', whiteSpace: 'nowrap',
         }}
       >
         ▼

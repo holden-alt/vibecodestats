@@ -7,7 +7,7 @@ import { formatNumber } from '@/lib/format';
 
 type Props = { stats: DailyStat[]; weeks?: number };
 
-const HEAT_COLORS = ['#1a1715', '#3a2a1f', '#6b3e26', '#a8623f', '#d97757'];
+const HEAT_COLORS = ['#2e2820', '#3a2a1f', '#6b3e26', '#a8623f', '#d97757'];
 
 export function ContributionHeatmap({ stats, weeks = 52 }: Props) {
   const values = useMemo(

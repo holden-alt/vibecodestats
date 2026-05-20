@@ -44,10 +44,10 @@ export function TokenTrendChart({ stats }: Props) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <div style={{ fontSize: '0.55rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           tokens trend
         </div>
-        <div style={{ display: 'flex', gap: 4, fontSize: '0.55rem' }}>
+        <div style={{ display: 'flex', gap: 4, fontSize: '0.65rem' }}>
           {RANGES.map((r) => (
             <button
               key={r}

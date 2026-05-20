@@ -20,7 +20,7 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
       style={{
         position: 'relative',
         padding: '14px 16px 12px',
-        border: '1px solid var(--color-border)',
+        border: '1px solid var(--chart-5)',
         borderLeft: '3px solid var(--chart-5)',
         background: 'linear-gradient(180deg, var(--color-bg-2), var(--color-bg))',
         borderRadius: 3,
@@ -28,7 +28,7 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
     >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div style={{ fontSize: '0.55rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             global rank · today (live)
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
@@ -46,7 +46,7 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
             </span>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.6rem', minWidth: 200 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.65rem', minWidth: 200 }}>
           {r.closestAbove ? (
             <div>↑ <strong>@{r.closestAbove.handle}</strong> is {formatCompact(r.closestAbove.tokensAhead)} ahead</div>
           ) : (
@@ -61,7 +61,7 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
       </div>
       <div style={{ marginTop: 10 }}>
         <PercentileBar percentile={r.percentile} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.5rem', opacity: 0.55, marginTop: 2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', opacity: 0.55, marginTop: 2 }}>
           <span>bottom</span>
           <span>top</span>
         </div>

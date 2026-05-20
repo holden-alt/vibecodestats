@@ -16,7 +16,7 @@ export function AllTimeTile({ lifetimeTokens, daysActive, lifetimeShips, nextMil
         <Stat label="lifetime ships" value={formatNumber(lifetimeShips)} />
       </div>
       <div>
-        <div style={{ fontSize: '0.5rem', opacity: 0.55, marginBottom: 3 }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.55, marginBottom: 3 }}>
           next milestone: {formatCompact(nextMilestone.target)} tokens
           <span style={{ opacity: 0.5, marginLeft: 6 }}>
             ({formatCompact(nextMilestone.remaining)} to go)
@@ -40,7 +40,7 @@ export function AllTimeTile({ lifetimeTokens, daysActive, lifetimeShips, nextMil
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ opacity: 0.6, fontSize: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+      <div style={{ opacity: 0.6, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
       <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--chart-2)' }}>{value}</div>
     </div>
   );

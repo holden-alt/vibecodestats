@@ -37,7 +37,7 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <span style={{ fontSize: '0.85rem' }}>@{user.github_handle}</span>
         {user.display_name && (
-          <span style={{ fontSize: '0.55rem', opacity: 0.6 }}>{user.display_name}</span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>{user.display_name}</span>
         )}
       </div>
       {user.primary_persona && (
@@ -70,7 +70,7 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
 
 function pill(color: string, filled: boolean): React.CSSProperties {
   return {
-    fontSize: '0.55rem',
+    fontSize: '0.65rem',
     padding: '2px 6px',
     borderRadius: 2,
     background: filled ? color : 'transparent',

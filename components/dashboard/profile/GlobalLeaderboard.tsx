@@ -32,9 +32,9 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
   const max = ranked[0]?.value ?? 1;
 
   return (
-    <div style={{ border: '1px solid var(--color-border)', borderRadius: 3, padding: '10px 12px' }}>
+    <div style={{ border: '1px solid var(--chart-1)', borderRadius: 3, padding: '10px 12px', background: 'rgba(217, 119, 87, 0.03)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-        <div style={{ fontSize: '0.55rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           global leaderboard
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -56,12 +56,12 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
         ))}
         {showViewerRow && (
           <>
-            <div style={{ fontSize: '0.6rem', opacity: 0.4, textAlign: 'center', margin: '2px 0' }}>···</div>
+            <div style={{ fontSize: '0.65rem', opacity: 0.4, textAlign: 'center', margin: '2px 0' }}>···</div>
             <Row rank={viewerEntry!.rank} handle={viewerEntry!.handle} value={viewerEntry!.value} max={max} viewer={true} />
           </>
         )}
         {ranked.length === 0 && (
-          <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>no data yet for {metric} · {window}</div>
+          <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>no data yet for {metric} · {window}</div>
         )}
       </div>
     </div>
@@ -97,6 +97,6 @@ function pill(active: boolean): React.CSSProperties {
     borderRadius: 2,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    fontSize: '0.55rem',
+    fontSize: '0.65rem',
   };
 }

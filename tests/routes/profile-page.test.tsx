@@ -13,7 +13,7 @@ const getLiveRankingMock = vi.fn(async () => ({
 }));
 vi.mock('@/lib/stats/profile-data', () => ({
   getProfileData: (...args: unknown[]) => getProfileDataMock(...args),
-  getLiveRanking: (...args: unknown[]) => getLiveRankingMock(...args),
+  getLiveRanking: async (...args: unknown[]) => getLiveRankingMock(...(args as Parameters<typeof getLiveRankingMock>)),
 }));
 vi.mock('@/lib/stats/leaderboard-data', () => ({
   getLeaderboardData: vi.fn(async () => ({

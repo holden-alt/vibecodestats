@@ -21,7 +21,7 @@ export function Sparkline({ data, height = 28, showThem }: Props) {
             border: '1px solid var(--color-border)',
             borderRadius: 3,
             fontFamily: 'ui-monospace, monospace',
-            fontSize: '0.6rem',
+            fontSize: '0.65rem',
           }}
           formatter={(v) => {
             if (typeof v === 'number') {

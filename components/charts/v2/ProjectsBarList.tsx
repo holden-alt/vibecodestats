@@ -12,7 +12,7 @@ export function ProjectsBarList({ projects, limit = 6 }: Props) {
     .slice(0, limit);
   const max = entries[0]?.[1] ?? 1;
   if (entries.length === 0) {
-    return <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>no projects touched yet today</div>;
+    return <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>no projects touched yet today</div>;
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

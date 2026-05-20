@@ -30,7 +30,7 @@ export function BentoTile({ label, sub, href, colSpan, rowSpan, className, child
       {label && (
         <div
           style={{
-            fontSize: '0.55rem',
+            fontSize: '0.65rem',
             opacity: 0.55,
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
@@ -42,7 +42,7 @@ export function BentoTile({ label, sub, href, colSpan, rowSpan, className, child
       )}
       <div>{children}</div>
       {sub && (
-        <div style={{ fontSize: '0.6rem', opacity: 0.6, marginTop: 4 }}>{sub}</div>
+        <div style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: 4 }}>{sub}</div>
       )}
     </>
   );

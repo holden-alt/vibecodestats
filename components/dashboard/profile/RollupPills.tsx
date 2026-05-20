@@ -13,7 +13,7 @@ export function RollupPills({ weekTokens, weekDelta, monthTokens, daysActiveThis
   const deltaSign = weekDelta >= 0 ? '+' : '';
   const deltaColor = weekDelta >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)';
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: '0.6rem' }}>
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: '0.65rem' }}>
       <Pill label="this week" value={formatCompact(weekTokens)} delta={`${deltaSign}${Math.round(weekDelta * 100)}% vs last`} deltaColor={deltaColor} />
       <Pill label="this month" value={formatCompact(monthTokens)} />
       <Pill label="days active" value={`${daysActiveThisMonth}/${daysInMonth}`} />
@@ -33,9 +33,9 @@ function Pill({ label, value, delta, deltaColor }: { label: string; value: strin
       gap: 2,
       minWidth: 110,
     }}>
-      <span style={{ opacity: 0.55, fontSize: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+      <span style={{ opacity: 0.55, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
       <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>{value}</span>
-      {delta && <span style={{ color: deltaColor, fontSize: '0.5rem' }}>{delta}</span>}
+      {delta && <span style={{ color: deltaColor, fontSize: '0.65rem' }}>{delta}</span>}
     </div>
   );
 }

@@ -53,7 +53,7 @@ export function HeroBlock({
         </ResponsiveContainer>
       </div>
       <div style={{ position: 'relative' }}>
-        <div style={{ fontSize: '0.55rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           tokens today
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
@@ -62,7 +62,7 @@ export function HeroBlock({
             {deltaVsYesterday >= 0 ? '▲' : '▼'} {formatDelta(deltaVsYesterday)} vs yesterday
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.6rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.65rem', flexWrap: 'wrap' }}>
           {deltaVs7dAvg !== 0 && (
             <span style={{ color: deltaVs7dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
               {deltaVs7dAvg >= 0 ? '▲' : '▼'} {formatDelta(deltaVs7dAvg)} vs 7d avg

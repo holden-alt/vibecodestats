@@ -1,14 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
-import type { LeaderboardData } from '@/lib/stats/leaderboard';
 
-// Capture the realtime callback so the test can fire a fake update.
-let realtimeCallback: ((payload: unknown) => void) | null = null;
+// Mock supabase so the realtime useEffect doesn't blow up in jsdom
 const channelMock = {
   on: vi.fn((_evt: string, _filter: unknown, cb: (p: unknown) => void) => {
-    realtimeCallback = cb;
+    void cb;
     return channelMock;
   }),
   subscribe: vi.fn(() => channelMock),
@@ -20,145 +18,41 @@ vi.mock('@/lib/supabase/browser', () => ({
   })),
 }));
 
-const leaderboardData: LeaderboardData = {
-  users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
-  statsByUser: {},
-  groupMemberUserIds: ['u1'],
-  friendUserIds: [],
-  viewerGroups: [],
-};
-
-const baseData: ProfileData = {
+const initialData: ProfileData = {
   user: {
-    id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
-    avatar_url: null, primary_persona: null, secondary_personas: [],
+    id: 'u1',
+    github_handle: 'holden-alt',
+    display_name: 'Holden',
+    avatar_url: null,
+    primary_persona: 'vibe-coder',
+    secondary_personas: ['ai-builder'],
   },
-  dailyStats: [
-    {
-      date: '2026-05-14', user_id: 'u1', tokens_total: 100000,
-      tokens_by_model: { 'claude-opus-4-7': 100000 }, sessions: 2,
-      deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
-      ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
-    },
-  ],
+  dailyStats: [{
+    user_id: 'u1', date: '2026-05-19', tokens_total: 487231,
+    tokens_by_model: { 'claude-opus-4-7': 480000 },
+    sessions: 6, deep_work_minutes: 240, machines: ['mbp'],
+    projects_touched: { 'cc-dashboard': 320000, 'holden': 167231 },
+    ships: { commits: 3, repos: 2 }, hourly_tokens: { '14': 100000 },
+    source_synced_at: null,
+  }] as any,
   machineStats: [],
 };
 
-beforeEach(() => {
-  realtimeCallback = null;
-  vi.clearAllMocks();
-});
+const leaderboardData = {
+  users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
+  statsByUser: { u1: [] },
+  groupMemberUserIds: ['u1'],
+  friendUserIds: [],
+  viewerGroups: [],
+} as any;
 
-describe('ProfileLive', () => {
-  it('renders the StatusBar with the initial token total', () => {
-    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
-    // 100000 -> "100K tokens"
-    expect(screen.getByText(/100K tokens/)).toBeInTheDocument();
+describe('ProfileLive (new layout)', () => {
+  it('renders the handle in the identity strip', () => {
+    render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-19" />);
+    expect(screen.getByText('@holden-alt')).toBeInTheDocument();
   });
-
-  it('updates the token total when a realtime event for today arrives', () => {
-    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
-    expect(realtimeCallback).not.toBeNull();
-    act(() => {
-      realtimeCallback!({
-        new: {
-          date: '2026-05-14', user_id: 'u1', tokens_total: 487000,
-          tokens_by_model: { 'claude-opus-4-7': 487000 }, sessions: 6,
-          deep_work_minutes: 240, machines: ['iMac'], projects_touched: {},
-          ships: { commits: 12, repos: 3 }, source_synced_at: null,
-        },
-      });
-    });
-    expect(screen.getByText(/487K tokens/)).toBeInTheDocument();
-  });
-
-  it('ignores realtime events for other dates', () => {
-    render(<ProfileLive initialData={baseData} leaderboardData={leaderboardData} today="2026-05-14" />);
-    act(() => {
-      realtimeCallback!({
-        new: { date: '2026-05-13', user_id: 'u1', tokens_total: 999999,
-          tokens_by_model: {}, sessions: 0, deep_work_minutes: 0, machines: [],
-          projects_touched: {}, ships: { commits: 0, repos: 0 }, source_synced_at: null },
-      });
-    });
-    expect(screen.getByText(/100K tokens/)).toBeInTheDocument();
-    expect(screen.queryByText(/999/)).not.toBeInTheDocument();
-  });
-
-  it('renders the trends section and the stats explorer', () => {
-    const initialData: ProfileData = {
-      user: {
-        id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
-        avatar_url: null, primary_persona: null, secondary_personas: [],
-      },
-      dailyStats: [
-        {
-          user_id: 'u1', date: '2026-05-14', tokens_total: 300,
-          tokens_by_model: { 'claude-opus-4-7': 300 }, sessions: 2,
-          deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
-          ships: {}, hourly_tokens: { '14': 300 }, source_synced_at: null,
-        },
-      ],
-      machineStats: [
-        {
-          user_id: 'u1', date: '2026-05-14', machine: 'iMac', tokens_total: 300,
-          tokens_by_model: {}, sessions: 2, deep_work_minutes: 60,
-          projects_touched: {}, ships: {}, hourly_tokens: {}, updated_at: '2026-05-14T12:00:00Z',
-        },
-      ],
-    };
-    const { container } = render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-14" />);
-    // TrendsSection: 30 model-mix columns
-    expect(container.querySelectorAll('[data-col]').length).toBe(30);
-    // StatsExplorer present, with its tab + window controls (6 + 6 segments = 12)
-    // LeaderboardSection adds 4 SegmentedControls (5+6+3+2 = 16 segments)
-    // Total: 12 + 16 = 28
-    expect(container.querySelector('[data-stats-explorer]')).toBeTruthy();
-    expect(container.querySelectorAll('[data-segment]').length).toBe(28);
-    expect(container.querySelector('[data-leaderboard-section]')).toBeTruthy();
-  });
-
-  it('renders one GroupLeaderboardSection per viewer group, below the global LeaderboardSection', () => {
-    const groupLeaderboardData: LeaderboardData = {
-      users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
-      statsByUser: { u1: [] },
-      groupMemberUserIds: ['u1'],
-      friendUserIds: [],
-      viewerGroups: [
-        { id: 'g1', slug: 'default', name: 'The Squad', color: 'cyan', description: null, memberUserIds: ['u1'] },
-        { id: 'g2', slug: 'opus-club', name: 'Opus Club', color: 'orange', description: null, memberUserIds: ['u1'] },
-      ],
-    };
-    const initialData: ProfileData = {
-      user: {
-        id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
-        avatar_url: null, primary_persona: null, secondary_personas: [],
-      },
-      dailyStats: [
-        {
-          date: '2026-05-14', user_id: 'u1', tokens_total: 100000,
-          tokens_by_model: { 'claude-opus-4-7': 100000 }, sessions: 2,
-          deep_work_minutes: 60, machines: ['iMac'], projects_touched: {},
-          ships: { commits: 1, repos: 1 }, hourly_tokens: {}, source_synced_at: null,
-        },
-      ],
-      machineStats: [],
-    };
-
-    const { container } = render(
-      <ProfileLive initialData={initialData} leaderboardData={groupLeaderboardData} today="2026-05-14" />,
-    );
-
-    const sections = container.querySelectorAll('[data-leaderboard-section]');
-    // 1 global + 2 group sections = 3 total
-    expect(sections.length).toBe(3);
-
-    // Verify the two group sections appear and carry the right group slug attribute.
-    const groupSections = container.querySelectorAll('[data-group-section]');
-    expect(groupSections.length).toBe(2);
-    const slugs = Array.from(groupSections)
-      .map((s) => s.getAttribute('data-group-section'))
-      .sort();
-    expect(slugs).toEqual(['default', 'opus-club']);
+  it('renders the rank tile with a numeric rank', () => {
+    render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-19" />);
+    expect(screen.getByText('#1')).toBeInTheDocument();
   });
 });

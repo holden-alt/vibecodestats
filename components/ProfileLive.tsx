@@ -3,33 +3,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
-import { StatusBar } from '@/components/StatusBar';
-import { BuildsPane } from '@/components/BuildsPane';
-import { ActivityPane } from '@/components/ActivityPane';
-import { PersonaPane } from '@/components/PersonaPane';
-import { TrendsSection } from '@/components/TrendsSection';
 import { StatsExplorer } from '@/components/StatsExplorer';
 import { LeaderboardSection } from '@/components/LeaderboardSection';
 import { GroupLeaderboardSection } from '@/components/GroupLeaderboardSection';
+import { IdentityStrip } from '@/components/dashboard/profile/IdentityStrip';
+import { HeroBlock } from '@/components/dashboard/profile/HeroBlock';
+import { BentoGrid } from '@/components/dashboard/profile/BentoGrid';
+import { BentoTile } from '@/components/dashboard/BentoTile';
+import { TokenTrendChart } from '@/components/charts/v2/TokenTrendChart';
+import { ModelMix } from '@/components/charts/v2/ModelMix';
+import { TimeOfDayHistogram } from '@/components/charts/v2/TimeOfDayHistogram';
+import { DayOfWeekChart } from '@/components/charts/v2/DayOfWeekChart';
+import { ProjectsBarList } from '@/components/charts/v2/ProjectsBarList';
+import { ContributionHeatmap } from '@/components/charts/v2/ContributionHeatmap';
+import { RollingNumber } from '@/components/dashboard/RollingNumber';
+import { formatCompact } from '@/lib/format';
+import { computeStreak } from '@/lib/stats/aggregations';
+import { rankUsers } from '@/lib/stats/leaderboard';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
-import { computeStreak } from '@/lib/stats/aggregations';
 
 type ProfileLiveProps = {
   initialData: ProfileData;
   leaderboardData: LeaderboardData;
-  today: string; // YYYY-MM-DD, computed server-side for hydration stability
+  today: string;
 };
 
 export function ProfileLive({ initialData, leaderboardData, today }: ProfileLiveProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
-  const { user, machineStats } = initialData;
+  const { user, machineStats = [] } = initialData;
 
   useEffect(() => {
     const supabase = createClient();
     const baseChannel: RealtimeChannel = supabase.channel(`daily_stats:${user.id}`);
-    // The typed `.on` overloads don't expose a clean `postgres_changes` literal
-    // signature here; cast to call the postgres-changes overload directly.
     const channel = (
       baseChannel.on as unknown as (
         event: 'postgres_changes',
@@ -49,60 +55,148 @@ export function ProfileLive({ initialData, leaderboardData, today }: ProfileLive
       },
     ).subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [user.id]);
 
-  const todayStat = useMemo(
-    () => dailyStats.find((r) => r.date === today) ?? null,
-    [dailyStats, today],
-  );
+  const todayRow = useMemo(() => dailyStats.find((s) => s.date === today), [dailyStats, today]);
+  const yesterdayRow = useMemo(() => {
+    const d = new Date(today + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - 1);
+    const key = d.toISOString().slice(0, 10);
+    return dailyStats.find((s) => s.date === key);
+  }, [dailyStats, today]);
 
-  const tokensToday = todayStat?.tokens_total ?? 0;
-  const sessionsToday = todayStat?.sessions ?? 0;
-  const machinesToday = todayStat?.machines ?? [];
-  const deepWorkToday = todayStat?.deep_work_minutes ?? 0;
-  const tokensByModel = (todayStat?.tokens_by_model ?? {}) as Record<string, number>;
-  const projectsToday = (todayStat?.projects_touched ?? {}) as Record<string, number>;
+  const tokensToday = todayRow?.tokens_total ?? 0;
+  const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
+  const deltaVsYesterday = tokensYesterday > 0 ? (tokensToday - tokensYesterday) / tokensYesterday : 0;
 
+  const sessionsToday = todayRow?.sessions ?? 0;
+  const deepWorkMinutes = todayRow?.deep_work_minutes ?? 0;
+  const shipsToday = (todayRow?.ships as { commits?: number; repos?: number } | undefined) ?? {};
+  const projectsTouched = (todayRow?.projects_touched as Record<string, number>) ?? {};
+  const tokensByModel = (todayRow?.tokens_by_model as Record<string, number>) ?? {};
+  const hourlyTokens = (todayRow?.hourly_tokens as Record<string, number>) ?? {};
+
+  const projectsTouchedCount = Object.keys(projectsTouched).length;
   const streakDays = computeStreak(dailyStats, today);
+  const nowProject = pickNowProject(projectsTouched);
+
+  const globalRanked = useMemo(
+    () => rankUsers(leaderboardData, { metric: 'tokens', window: 'month', scope: 'global', viewerId: user.id, today }),
+    [leaderboardData, user.id, today],
+  );
+  const rank = globalRanked.find((e) => e.isViewer)?.rank ?? null;
+  const squadSize = globalRanked.length > 0 ? globalRanked.length : null;
+
+  const machineRowsToday = machineStats.filter((m) => m.date === today);
 
   return (
-    <main className="min-h-screen px-6 py-4 max-w-[1400px] mx-auto">
-      <StatusBar
-        handle={user.github_handle}
-        primaryPersona={user.primary_persona ?? null}
+    <main style={{ maxWidth: 1400, margin: '0 auto', padding: '16px 16px 48px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <IdentityStrip
+        user={user}
+        rank={rank}
+        squadSize={squadSize}
         streakDays={streakDays}
-        tokensToday={tokensToday}
+        nowProject={nowProject}
       />
-      <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr_1.2fr] gap-3 mt-4">
-        <BuildsPane projects={projectsToday} />
-        <ActivityPane
-          tokensToday={tokensToday}
-          sessionsToday={sessionsToday}
-          machinesCount={machinesToday.length}
-          deepWorkMinutes={deepWorkToday}
-          tokensByModel={tokensByModel}
-          dailyStats={dailyStats}
-          today={today}
-        />
-        <PersonaPane
-          primary={user.primary_persona ?? null}
-          secondary={user.secondary_personas ?? []}
-        />
-      </section>
-      <TrendsSection dailyStats={dailyStats} today={today} />
-      <StatsExplorer dailyStats={dailyStats} machineStats={machineStats} today={today} />
-      <LeaderboardSection data={leaderboardData} viewerId={user.id} today={today} />
-      {leaderboardData.viewerGroups.map((group) => (
-        <GroupLeaderboardSection
-          key={group.id}
-          data={leaderboardData}
-          viewerId={user.id}
-          today={today}
-          group={group}
-        />
-      ))}
+      <HeroBlock
+        tokensToday={tokensToday}
+        sessionsToday={sessionsToday}
+        deepWorkMinutes={deepWorkMinutes}
+        shipsToday={{ commits: shipsToday.commits ?? 0, repos: shipsToday.repos ?? 0 }}
+        projectsTouchedCount={projectsTouchedCount}
+        trendStats={dailyStats}
+        deltaVsYesterday={deltaVsYesterday}
+      />
+
+      <BentoGrid>
+        <BentoTile label="30-day tokens" colSpan={4} rowSpan={2}>
+          <TokenTrendChart stats={dailyStats} />
+        </BentoTile>
+        <BentoTile
+          label="rank in squad"
+          {...(squadSize != null ? { sub: `of ${squadSize} members` } : {})}
+          colSpan={2}
+          href="/leaderboard"
+        >
+          <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--chart-5)' }}>
+            {rank != null ? `#${rank}` : '—'}
+          </span>
+        </BentoTile>
+        <BentoTile label="streak" sub="days in a row" colSpan={2}>
+          <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--chart-3)' }}>
+            <RollingNumber value={streakDays} />d
+          </span>
+        </BentoTile>
+
+        <BentoTile label="model mix" colSpan={2}>
+          <ModelMix tokensByModel={tokensByModel} />
+        </BentoTile>
+        <BentoTile label="hour of day" colSpan={2}>
+          <TimeOfDayHistogram hourlyTokens={hourlyTokens} />
+        </BentoTile>
+        <BentoTile label="day of week" colSpan={2}>
+          <DayOfWeekChart stats={dailyStats} />
+        </BentoTile>
+
+        <BentoTile label="top projects today" colSpan={3}>
+          <ProjectsBarList projects={projectsTouched} />
+        </BentoTile>
+        <BentoTile label="machines" colSpan={2}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.6rem' }}>
+            {machineRowsToday.length === 0 && <div style={{ opacity: 0.6 }}>no machine data today</div>}
+            {machineRowsToday.map((m) => (
+              <div key={m.machine} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 10, height: 10, border: '1px solid var(--chart-2)', borderRadius: 2 }} />
+                <span>{m.machine}</span>
+                <span style={{ marginLeft: 'auto', opacity: 0.7 }}>{formatCompact(m.tokens_total)}</span>
+              </div>
+            ))}
+          </div>
+        </BentoTile>
+        <BentoTile label="ships" sub={`across ${shipsToday.repos ?? 0} repos`} colSpan={1}>
+          <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chart-5)' }}>
+            <RollingNumber value={shipsToday.commits ?? 0} />
+          </span>
+        </BentoTile>
+      </BentoGrid>
+
+      <BentoTile label="52-week activity">
+        <ContributionHeatmap stats={dailyStats} />
+      </BentoTile>
+
+      <details style={{ marginTop: 24 }}>
+        <summary style={{ cursor: 'pointer', opacity: 0.7, fontSize: '0.7rem' }}>deep dive — trends, projects, machines, leaderboard</summary>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
+          <StatsExplorer
+            dailyStats={dailyStats}
+            machineStats={machineStats}
+            today={today}
+          />
+          <LeaderboardSection data={leaderboardData} viewerId={user.id} today={today} />
+          {leaderboardData.viewerGroups.map((group) => (
+            <GroupLeaderboardSection
+              key={group.id}
+              data={leaderboardData}
+              viewerId={user.id}
+              today={today}
+              group={group}
+            />
+          ))}
+        </div>
+      </details>
+
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          * { animation: none !important; transition: none !important; }
+        }
+      `}</style>
     </main>
   );
+}
+
+function pickNowProject(projects: Record<string, number>): string | null {
+  const entries = Object.entries(projects).sort((a, b) => b[1] - a[1]);
+  return entries[0]?.[0] ?? null;
 }

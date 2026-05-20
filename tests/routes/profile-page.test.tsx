@@ -42,7 +42,7 @@ describe('GET /[handle]', () => {
     const { default: Page } = await import('../../app/[handle]/page');
     const ui = await Page({ params: Promise.resolve({ handle: 'holden-alt' }) });
     render(ui as React.ReactElement);
-    expect(screen.getByText(/\$ holden-alt/)).toBeInTheDocument();
+    expect(screen.getByText('@holden-alt')).toBeInTheDocument();
   });
 
   it('calls notFound when the user is missing', async () => {

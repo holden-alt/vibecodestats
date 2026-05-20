@@ -83,7 +83,7 @@ export function ChartTooltipContent({
   className,
 }: {
   active?: boolean;
-  payload?: Array<{ dataKey?: string; name?: string; color?: string; value?: number; payload?: Record<string, any> }>;
+  payload?: Array<{ dataKey?: string; name?: string; color?: string; value?: number; payload?: Record<string, unknown> }>;
   label?: string | number;
   hideLabel?: boolean;
   hideIndicator?: boolean;
@@ -110,10 +110,10 @@ export function ChartTooltipContent({
         <div style={{ opacity: 0.7, marginBottom: 4 }}>{String(label)}</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {payload.map((item: any, i: number) => {
+        {payload.map((item, i: number) => {
           const key = (item.dataKey as string) || (item.name as string) || 'value';
           const cfg = config[key];
-          const color = (item.payload && item.payload.fill) || item.color || 'var(--chart-1)';
+          const color = (item.payload && (item.payload.fill as string | undefined)) || item.color || 'var(--chart-1)';
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {!hideIndicator && (

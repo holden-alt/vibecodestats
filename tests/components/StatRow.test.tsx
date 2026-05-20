@@ -17,7 +17,7 @@ describe('StatRow', () => {
     expect(container.textContent?.toLowerCase()).toContain('tokens');
     expect(container.querySelector('[data-stat-value="A"]')?.textContent).toContain('150');
     expect(container.querySelector('[data-stat-value="B"]')?.textContent).toContain('700');
-    expect(container.querySelector('svg')).toBeTruthy();
+    expect(container.querySelector('[data-sparkline]')).toBeTruthy();
   });
 
   it('marks the winning cell with data-winner=true', () => {

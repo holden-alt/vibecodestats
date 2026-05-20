@@ -1,4 +1,4 @@
-import { Sparkline } from '@/components/head-to-head/Sparkline';
+import { Sparkline } from '@/components/charts/v2/Sparkline';
 import type { HeadToHeadMetric } from '@/lib/stats/head-to-head';
 import { formatValue } from '@/components/leaderboard/format';
 
@@ -50,11 +50,13 @@ export function StatRow({ metric, valueA, valueB, winner, sparkA, sparkB }: Stat
         >
           {METRIC_LABELS[metric]}
         </div>
-        <Sparkline
-          seriesA={sparkA}
-          seriesB={sparkB}
-          ariaLabel={`${METRIC_LABELS[metric]} last 30 days`}
-        />
+        <div data-sparkline>
+          <Sparkline
+            data={sparkA.map((you, i) => ({ date: String(i), you, them: sparkB[i] ?? 0 }))}
+            height={30}
+            showThem
+          />
+        </div>
       </div>
       <div
         data-stat-value="B"

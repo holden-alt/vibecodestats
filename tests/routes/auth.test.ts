@@ -1,5 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    getAll: () => [],
+    get: () => undefined,
+    set: vi.fn(),
+  })),
+}));
+
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: vi.fn(() => ({
+    auth: { signOut: vi.fn(async () => ({ error: null })) },
+  })),
+}));
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: {
@@ -32,6 +46,7 @@ describe('auth routes', () => {
     const req = new Request('http://localhost:3000/auth/signout', { method: 'POST' });
     const res = await mod.POST(req as any);
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('/');
+    // NextResponse.redirect(new URL('/', request.url)) yields a fully-qualified URL.
+    expect(res.headers.get('location')).toMatch(/\/$/);
   });
 });

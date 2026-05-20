@@ -20,7 +20,7 @@ type Props = {
 export function HeroBlock({
   tokensToday,
   sessionsToday,
-  deepWorkMinutes: _deepWorkMinutes,
+  deepWorkMinutes: _deepWorkMinutes, // eslint-disable-line @typescript-eslint/no-unused-vars
   shipsToday,
   projectsTouchedCount,
   trendStats,

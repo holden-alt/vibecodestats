@@ -22,11 +22,13 @@ import { computeStreak } from '@/lib/stats/aggregations';
 import { rankUsers } from '@/lib/stats/leaderboard';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
+import type { LiveRanking } from '@/lib/stats/leaderboard-live';
 
 type ProfileLiveProps = {
   initialData: ProfileData;
   leaderboardData: LeaderboardData;
   today: string;
+  initialLiveRanking?: LiveRanking;
 };
 
 export function ProfileLive({ initialData, leaderboardData, today }: ProfileLiveProps) {

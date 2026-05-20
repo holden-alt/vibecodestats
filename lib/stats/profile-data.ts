@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
+import { computeLiveDailyRanking, type LiveRanking } from './leaderboard-live';
 
 export type ProfileUser = {
   id: string;
@@ -52,4 +53,22 @@ export async function getProfileData(
     dailyStats: dailyStats ?? [],
     machineStats: machineStats ?? [],
   };
+}
+
+export async function getLiveRanking(
+  supabase: SupabaseClient<Database>,
+  viewerId: string,
+  date: string,
+): Promise<LiveRanking> {
+  const { data } = await supabase
+    .from('daily_stats')
+    .select('user_id, tokens_total, users:user_id (github_handle)')
+    .eq('date', date);
+  type RawRow = { user_id: string; tokens_total: number; users: { github_handle: string } | null };
+  const rows = (data as RawRow[] ?? []).map((r) => ({
+    user_id: r.user_id,
+    github_handle: r.users?.github_handle ?? '',
+    tokens_total: r.tokens_total,
+  })).filter((r) => r.github_handle);
+  return computeLiveDailyRanking(rows, viewerId);
 }

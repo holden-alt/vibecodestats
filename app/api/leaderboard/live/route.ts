@@ -16,11 +16,12 @@ export async function GET(request: Request) {
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).map((r: any) => ({
+  type RawRow = { user_id: string; tokens_total: number; users: { github_handle: string } | null };
+  const rows = (data as RawRow[] ?? []).map((r) => ({
     user_id: r.user_id,
     github_handle: r.users?.github_handle ?? '',
     tokens_total: r.tokens_total,
-  })).filter((r: any) => r.github_handle);
+  })).filter((r) => r.github_handle);
 
   const ranking = computeLiveDailyRanking(rows, viewerId);
   return Response.json(ranking, {

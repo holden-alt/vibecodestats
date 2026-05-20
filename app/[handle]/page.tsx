@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getProfileData } from '@/lib/stats/profile-data';
+import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { ProfileLive } from '@/components/ProfileLive';
 
@@ -24,5 +24,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   // Server-compute "today" so SSR and client hydration agree.
   const today = new Date().toISOString().slice(0, 10);
 
-  return <ProfileLive initialData={data} leaderboardData={leaderboardData} today={today} />;
+  const liveRanking = await getLiveRanking(supabase, data.user.id, today);
+
+  return <ProfileLive initialData={data} leaderboardData={leaderboardData} today={today} initialLiveRanking={liveRanking} />;
 }

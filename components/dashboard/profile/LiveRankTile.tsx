@@ -3,7 +3,7 @@
 import { useLiveRank } from '@/hooks/useLiveRank';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import { PercentileBar } from './PercentileBar';
-import { formatCompact, formatNumber } from '@/lib/format';
+import { formatCompact } from '@/lib/format';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
 
 type Props = {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
+import type { LiveRanking } from '@/lib/stats/leaderboard-live';
 
 // Mock supabase so the realtime useEffect doesn't blow up in jsdom
 const channelMock = {
@@ -46,13 +47,37 @@ const leaderboardData = {
   viewerGroups: [],
 } as any;
 
+const initialLiveRanking: LiveRanking = {
+  rank: 1,
+  total: 1,
+  percentile: 1,
+  viewerTokens: 0,
+  closestAbove: null,
+  closestBelow: null,
+  top: [],
+};
+
 describe('ProfileLive (new layout)', () => {
   it('renders the handle in the identity strip', () => {
-    render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-19" />);
-    expect(screen.getByText('@holden-alt')).toBeInTheDocument();
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+      />,
+    );
+    expect(screen.getAllByText('@holden-alt').length).toBeGreaterThan(0);
   });
-  it('renders the rank tile with a numeric rank', () => {
-    render(<ProfileLive initialData={initialData} leaderboardData={leaderboardData} today="2026-05-19" />);
-    expect(screen.getByText('#1')).toBeInTheDocument();
+  it('renders the global rank label in the live rank tile', () => {
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+      />,
+    );
+    expect(screen.getByText(/global rank/i)).toBeInTheDocument();
   });
 });

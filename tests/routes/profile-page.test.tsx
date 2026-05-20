@@ -7,8 +7,13 @@ vi.mock('next/navigation', () => ({
 }));
 
 const getProfileDataMock = vi.fn();
+const getLiveRankingMock = vi.fn(async () => ({
+  rank: 1, total: 1, percentile: 1, viewerTokens: 0,
+  closestAbove: null, closestBelow: null, top: [],
+}));
 vi.mock('@/lib/stats/profile-data', () => ({
   getProfileData: (...args: unknown[]) => getProfileDataMock(...args),
+  getLiveRanking: (...args: unknown[]) => getLiveRankingMock(...args),
 }));
 vi.mock('@/lib/stats/leaderboard-data', () => ({
   getLeaderboardData: vi.fn(async () => ({
@@ -38,11 +43,12 @@ describe('GET /[handle]', () => {
       user: { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden',
         avatar_url: null, primary_persona: null, secondary_personas: [] },
       dailyStats: [],
+      machineStats: [],
     });
     const { default: Page } = await import('../../app/[handle]/page');
     const ui = await Page({ params: Promise.resolve({ handle: 'holden-alt' }) });
     render(ui as React.ReactElement);
-    expect(screen.getByText('@holden-alt')).toBeInTheDocument();
+    expect(screen.getAllByText('@holden-alt').length).toBeGreaterThan(0);
   });
 
   it('calls notFound when the user is missing', async () => {

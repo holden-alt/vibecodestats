@@ -26,6 +26,13 @@
 
   /* Fonts */
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, monospace;
+
+  /* shadcn chart tokens — map to existing terminal palette */
+  --chart-1: #d97757; /* orange — tokens, hero */
+  --chart-2: #6bbfd9; /* cyan — machines, sonnet */
+  --chart-3: #8fbc8f; /* green — sessions, haiku, positive deltas */
+  --chart-4: #c47cb8; /* magenta — persona, "now" indicators */
+  --chart-5: #e3c466; /* yellow — rank, ships */
 }
 
 @theme inline {

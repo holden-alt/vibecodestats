@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, Line, ReferenceDot, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { formatCompact } from '@/lib/format';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 const config: ChartConfig = {
   tokens: { label: 'tokens', color: 'var(--chart-1)' },
+  avg7d: { label: '7d avg', color: 'var(--chart-3)' },
 };
 
 type Props = { stats: DailyStat[] };
@@ -25,6 +26,20 @@ export function TokenTrendChart({ stats }: Props) {
       .slice(-days)
       .map((s) => ({ date: s.date, tokens: s.tokens_total }));
   }, [stats, range]);
+
+  const enriched = useMemo(() => {
+    // window-aware rolling 7d avg, marked best day in range
+    let bestIdx = -1;
+    let bestVal = 0;
+    data.forEach((d, i) => { if (d.tokens > bestVal) { bestVal = d.tokens; bestIdx = i; } });
+    return data.map((d, i) => {
+      // compute rolling avg of preceding 7 days inclusive
+      const start = Math.max(0, i - 6);
+      const window = data.slice(start, i + 1);
+      const avg = window.reduce((s, x) => s + x.tokens, 0) / Math.max(1, window.length);
+      return { ...d, avg7d: Math.round(avg), isBest: i === bestIdx };
+    });
+  }, [data]);
 
   return (
     <div>
@@ -54,7 +69,7 @@ export function TokenTrendChart({ stats }: Props) {
         </div>
       </div>
       <ChartContainer config={config} style={{ height: 120 }}>
-        <AreaChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
+        <AreaChart data={enriched} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
           <defs>
             <linearGradient id="ttc-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
@@ -79,15 +94,18 @@ export function TokenTrendChart({ stats }: Props) {
             width={36}
           />
           <ChartTooltip cursor={{ stroke: 'var(--chart-1)', strokeOpacity: 0.4 }} content={<ChartTooltipContent />} />
-          <Area
-            type="monotone"
-            dataKey="tokens"
-            stroke="var(--chart-1)"
-            fill="url(#ttc-fill)"
-            strokeWidth={1.5}
-            isAnimationActive
-            animationDuration={1200}
-          />
+          <Area type="monotone" dataKey="tokens" stroke="var(--chart-1)" fill="url(#ttc-fill)" strokeWidth={1.5} isAnimationActive animationDuration={1200} />
+          <Line type="monotone" dataKey="avg7d" stroke="var(--chart-3)" strokeWidth={1.2} strokeDasharray="3 3" dot={false} isAnimationActive animationDuration={1500} />
+          {enriched.find((d) => d.isBest) && (
+            <ReferenceDot
+              x={enriched.find((d) => d.isBest)!.date}
+              y={enriched.find((d) => d.isBest)!.tokens}
+              r={4}
+              fill="var(--chart-5)"
+              stroke="var(--color-bg)"
+              strokeWidth={1}
+            />
+          )}
         </AreaChart>
       </ChartContainer>
     </div>

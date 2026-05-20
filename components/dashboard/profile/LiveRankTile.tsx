@@ -19,9 +19,8 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
     <div
       style={{
         position: 'relative',
-        padding: '14px 16px 12px',
-        border: '1px solid var(--chart-5)',
-        borderLeft: '3px solid var(--chart-5)',
+        padding: '20px 24px',
+        border: '1px solid var(--color-border)',
         background: 'linear-gradient(180deg, var(--color-bg-2), var(--color-bg))',
         borderRadius: 3,
       }}
@@ -32,7 +31,7 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
             global rank · today (live)
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
-            <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--chart-5)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: '2.8rem', fontWeight: 700, color: 'var(--chart-5)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
               {r.rank != null ? <>#<RollingNumber value={r.rank} /></> : '—'}
             </span>
             <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>

@@ -16,7 +16,7 @@ export function BentoTile({ label, sub, href, colSpan, rowSpan, className, child
     background: 'var(--color-bg-2, #14110e)',
     border: '1px solid var(--color-border, #2a2622)',
     borderRadius: 3,
-    padding: '10px 12px',
+    padding: '16px 20px',
     transition: 'border-color 200ms ease-out, box-shadow 200ms ease-out',
     gridColumn: colSpan ? `span ${colSpan}` : undefined,
     gridRow: rowSpan ? `span ${rowSpan}` : undefined,

@@ -116,75 +116,88 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   const milestone = useMemo(() => computeNextMilestone(allTime.tokens), [allTime.tokens]);
 
   return (
-    <main style={{ maxWidth: 1400, margin: '0 auto', padding: '16px 16px 48px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <IdentityStrip
-        user={user}
-        rank={null}
-        squadSize={null}
-        streakDays={streakDays}
-        nowProject={nowProject}
-      />
+    <main style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 64px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div style={{ marginBottom: 28 }}>
+        <IdentityStrip
+          user={user}
+          rank={null}
+          squadSize={null}
+          streakDays={streakDays}
+          nowProject={nowProject}
+        />
+      </div>
 
       <StreakAtRisk streakDays={streakDays} todayTokens={tokensToday} />
 
-      <HeroBlock
-        tokensToday={tokensToday}
-        sessionsToday={sessionsToday}
-        deepWorkMinutes={0}
-        shipsToday={{ commits: shipsToday.commits ?? 0, repos: shipsToday.repos ?? 0 }}
-        projectsTouchedCount={projectsTouchedCount}
-        trendStats={dailyStats}
-        deltaVsYesterday={deltaVsYesterday}
-        deltaVs7dAvg={deltaVs7d}
-        deltaVs30dAvg={deltaVs30d}
-      />
+      <div style={{ marginBottom: 24 }}>
+        <HeroBlock
+          tokensToday={tokensToday}
+          sessionsToday={sessionsToday}
+          deepWorkMinutes={0}
+          shipsToday={{ commits: shipsToday.commits ?? 0, repos: shipsToday.repos ?? 0 }}
+          projectsTouchedCount={projectsTouchedCount}
+          trendStats={dailyStats}
+          deltaVsYesterday={deltaVsYesterday}
+          deltaVs7dAvg={deltaVs7d}
+          deltaVs30dAvg={deltaVs30d}
+        />
+      </div>
 
-      <LiveRankTile viewerId={user.id} date={today} initial={initialLiveRanking} />
+      <div className="cc-rank-pb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <LiveRankTile viewerId={user.id} date={today} initial={initialLiveRanking} />
+        <PersonalBests
+          bestDayTokens={pbs.bestDayTokens}
+          bestDayDate={pbs.bestDayDate}
+          bestShipsCount={pbs.bestShipsCount}
+          bestShipsDate={pbs.bestShipsDate}
+          bestSessionsCount={pbs.bestSessionsCount}
+          bestSessionsDate={pbs.bestSessionsDate}
+        />
+      </div>
 
-      <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={today} />
+      <div style={{ marginBottom: 24 }}>
+        <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={today} />
+      </div>
 
-      <RollupPills
-        weekTokens={weekTokens}
-        weekDelta={weekDelta}
-        monthTokens={monthTokens}
-        daysActiveThisMonth={daysActiveThisMonth}
-        daysInMonth={daysInMonth}
-        shipsThisMonth={monthShips}
-      />
+      <div style={{ marginBottom: 24 }}>
+        <RollupPills
+          weekTokens={weekTokens}
+          weekDelta={weekDelta}
+          monthTokens={monthTokens}
+          daysActiveThisMonth={daysActiveThisMonth}
+          daysInMonth={daysInMonth}
+          shipsThisMonth={monthShips}
+        />
+      </div>
 
-      <PersonalBests
-        bestDayTokens={pbs.bestDayTokens}
-        bestDayDate={pbs.bestDayDate}
-        bestShipsCount={pbs.bestShipsCount}
-        bestShipsDate={pbs.bestShipsDate}
-        bestSessionsCount={pbs.bestSessionsCount}
-        bestSessionsDate={pbs.bestSessionsDate}
-      />
+      <section style={{ marginTop: 32 }}>
+        <h2 style={{ fontSize: '0.65rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 12px' }}>rolling stats</h2>
+        <BentoGrid>
+          <BentoTile label="streak" sub="days in a row" colSpan={2}>
+            <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--chart-3)' }}>
+              <RollingNumber value={streakDays} />d
+            </span>
+          </BentoTile>
+          <BentoTile label="all-time" colSpan={4}>
+            <AllTimeTile
+              lifetimeTokens={allTime.tokens}
+              daysActive={allTime.daysActive}
+              lifetimeShips={allTime.ships}
+              nextMilestone={milestone}
+            />
+          </BentoTile>
+          <BentoTile label="30-day trend" colSpan={6}>
+            <TokenTrendChart stats={dailyStats} />
+          </BentoTile>
+        </BentoGrid>
+        <div style={{ marginTop: 12 }}>
+          <BentoTile label="52-week activity">
+            <ContributionHeatmap stats={dailyStats} />
+          </BentoTile>
+        </div>
+      </section>
 
-      <BentoGrid>
-        <BentoTile label="streak" sub="days in a row" colSpan={2}>
-          <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--chart-3)' }}>
-            <RollingNumber value={streakDays} />d
-          </span>
-        </BentoTile>
-        <BentoTile label="all-time" colSpan={4}>
-          <AllTimeTile
-            lifetimeTokens={allTime.tokens}
-            daysActive={allTime.daysActive}
-            lifetimeShips={allTime.ships}
-            nextMilestone={milestone}
-          />
-        </BentoTile>
-        <BentoTile label="30-day trend" colSpan={6}>
-          <TokenTrendChart stats={dailyStats} />
-        </BentoTile>
-      </BentoGrid>
-
-      <BentoTile label="52-week activity">
-        <ContributionHeatmap stats={dailyStats} />
-      </BentoTile>
-
-      <section style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <section style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <h2 style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>deep dive</h2>
         <StatsExplorer dailyStats={dailyStats} machineStats={initialData.machineStats} today={today} />
       </section>

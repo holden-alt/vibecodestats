@@ -38,7 +38,7 @@ export function HeroBlock({
       style={{
         position: 'relative',
         overflow: 'hidden',
-        padding: '14px 16px 12px',
+        padding: '32px 36px 28px',
         border: '1px solid var(--color-border)',
         borderLeft: '3px solid var(--chart-1)',
         background: 'linear-gradient(180deg, var(--color-bg-2), var(--color-bg))',

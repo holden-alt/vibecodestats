@@ -32,7 +32,7 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
   const max = ranked[0]?.value ?? 1;
 
   return (
-    <div style={{ border: '1px solid var(--chart-1)', borderRadius: 3, padding: '10px 12px', background: 'rgba(217, 119, 87, 0.03)' }}>
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 3, padding: '16px 20px', background: 'transparent' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
         <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           global leaderboard

@@ -80,7 +80,7 @@ a.bento-tile:hover {
 }
 
 .hero-token {
-  font-size: 2.4rem;
+  font-size: 4.5rem;
   font-weight: 700;
   color: var(--chart-1);
   letter-spacing: -0.02em;
@@ -90,7 +90,7 @@ a.bento-tile:hover {
 .cc-bento-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
+  gap: 12px;
 }
 @media (max-width: 768px) {
   .cc-bento-grid { grid-template-columns: 1fr; }
@@ -124,4 +124,8 @@ main > .bento-tile {
   main > .bento-tile :where([class*="HeatMap"], svg) {
     overflow-x: auto;
   }
+}
+
+@media (max-width: 768px) {
+  .cc-rank-pb-row { grid-template-columns: 1fr !important; }
 }

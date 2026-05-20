@@ -60,3 +60,13 @@ html, body {
 }
 
 ::selection { background: var(--color-orange); color: var(--color-bg); }
+
+.bento-tile { cursor: default; }
+a.bento-tile:hover {
+  border-color: var(--color-orange, #d97757) !important;
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 87, 0.15);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bento-tile { transition: none !important; }
+}

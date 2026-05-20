@@ -19,6 +19,8 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
         border: '1px solid var(--color-border)',
         background: 'var(--color-bg-2)',
         borderRadius: 3,
+        flexWrap: 'wrap',
+        rowGap: 6,
       }}
     >
       <div

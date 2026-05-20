@@ -119,3 +119,9 @@ main > .bento-tile {
   .cc-bento-grid > .bento-tile,
   main > .bento-tile { animation: none !important; }
 }
+
+@media (max-width: 768px) {
+  main > .bento-tile :where([class*="HeatMap"], svg) {
+    overflow-x: auto;
+  }
+}

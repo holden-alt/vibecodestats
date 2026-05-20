@@ -5,22 +5,22 @@ import { useMemo, useState } from 'react';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import { formatNumber } from '@/lib/format';
 
-type Props = { stats: DailyStat[]; weeks?: number };
+type Props = { stats: DailyStat[]; weeks?: number; today?: string };
 
 const HEAT_COLORS = ['#2e2820', '#3a2a1f', '#6b3e26', '#a8623f', '#d97757'];
 
 type Hovered = { date: string; tokens: number; x: number; y: number } | null;
 
-export function ContributionHeatmap({ stats, weeks = 52 }: Props) {
+export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
   const [hovered, setHovered] = useState<Hovered>(null);
   const values = useMemo(
     () =>
       stats.map((s) => ({ date: s.date.replace(/-/g, '/'), count: s.tokens_total })),
     [stats],
   );
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(today.getDate() - weeks * 7);
+  const todayDate = today ? new Date(today + 'T00:00:00Z') : new Date();
+  const start = new Date(todayDate);
+  start.setDate(todayDate.getDate() - weeks * 7);
 
   return (
     <div style={{ position: 'relative' }} onMouseLeave={() => setHovered(null)}>
@@ -29,7 +29,7 @@ export function ContributionHeatmap({ stats, weeks = 52 }: Props) {
         height={120}
         value={values}
         startDate={start}
-        endDate={today}
+        endDate={todayDate}
         space={2}
         rectSize={11}
         panelColors={{

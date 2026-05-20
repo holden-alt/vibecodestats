@@ -11,21 +11,27 @@ const config: ChartConfig = {
   avg7d: { label: '7d avg', color: 'var(--chart-3)' },
 };
 
-type Props = { stats: DailyStat[] };
+type Props = { stats: DailyStat[]; today?: string };
 
 type Range = '7d' | '30d' | '90d' | 'all';
 const RANGES: Range[] = ['7d', '30d', '90d', 'all'];
 const RANGE_DAYS: Record<Range, number> = { '7d': 7, '30d': 30, '90d': 90, 'all': 366 };
 
-export function TokenTrendChart({ stats }: Props) {
+export function TokenTrendChart({ stats, today }: Props) {
   const [range, setRange] = useState<Range>('30d');
   const data = useMemo(() => {
+    const sorted = [...stats].sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (range === 'all') return sorted.map((s) => ({ date: s.date, tokens: s.tokens_total }));
+    const anchor = today ?? sorted[sorted.length - 1]?.date;
+    if (!anchor) return [];
     const days = RANGE_DAYS[range];
-    return [...stats]
-      .sort((a, b) => (a.date < b.date ? -1 : 1))
-      .slice(-days)
+    const start = new Date(anchor + 'T00:00:00Z');
+    start.setUTCDate(start.getUTCDate() - days + 1);
+    const startKey = start.toISOString().slice(0, 10);
+    return sorted
+      .filter((s) => s.date >= startKey && s.date <= anchor)
       .map((s) => ({ date: s.date, tokens: s.tokens_total }));
-  }, [stats, range]);
+  }, [stats, range, today]);
 
   const enriched = useMemo(() => {
     // window-aware rolling 7d avg, marked best day in range

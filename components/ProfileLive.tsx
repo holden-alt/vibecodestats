@@ -144,7 +144,7 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
       </div>
 
       <div className="cc-rank-pb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-        <LiveRankTile viewerId={user.id} date={today} initial={initialLiveRanking} />
+        <LiveRankTile viewerId={user.id} date={effectiveToday} initial={initialLiveRanking} />
         <PersonalBests
           bestDayTokens={pbs.bestDayTokens}
           bestDayDate={pbs.bestDayDate}
@@ -156,7 +156,7 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={today} />
+        <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={effectiveToday} />
       </div>
 
       <div style={{ marginBottom: 24 }}>
@@ -187,19 +187,19 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
             />
           </BentoTile>
           <BentoTile label="30-day trend" colSpan={6}>
-            <TokenTrendChart stats={dailyStats} />
+            <TokenTrendChart stats={dailyStats} today={effectiveToday} />
           </BentoTile>
         </BentoGrid>
         <div style={{ marginTop: 12 }}>
           <BentoTile label="52-week activity">
-            <ContributionHeatmap stats={dailyStats} />
+            <ContributionHeatmap stats={dailyStats} today={effectiveToday} />
           </BentoTile>
         </div>
       </section>
 
       <section style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <h2 style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>deep dive</h2>
-        <StatsExplorer dailyStats={dailyStats} machineStats={initialData.machineStats} today={today} />
+        <StatsExplorer dailyStats={dailyStats} machineStats={initialData.machineStats} today={effectiveToday} />
       </section>
     </main>
   );

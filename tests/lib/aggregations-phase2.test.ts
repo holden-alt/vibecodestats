@@ -25,6 +25,11 @@ describe('computeRollingAverage', () => {
   it('returns 0 when no stats', () => {
     expect(computeRollingAverage([], '2026-05-19', 7)).toBe(0);
   });
+  it('divides by the number of days present, not the requested window size', () => {
+    const stats = [stat('2026-05-19', 100), stat('2026-05-18', 200)];
+    // only 2 days of data, but asked for 7d window → still returns mean of the 2 days
+    expect(computeRollingAverage(stats, '2026-05-19', 7)).toBe(150);
+  });
 });
 
 describe('computeWeekTotal', () => {

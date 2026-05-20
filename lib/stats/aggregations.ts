@@ -209,7 +209,7 @@ export function computeRollingAverage(stats: DailyStat[], anchor: string, days: 
   const window = stats.filter((s) => s.date >= startKey && s.date <= anchor);
   if (!window.length) return 0;
   const sum = window.reduce((acc, s) => acc + s.tokens_total, 0);
-  return Math.round(sum / days);
+  return Math.round(sum / window.length);
 }
 
 export function computeWeekTotal(stats: DailyStat[], anchor: string): number {

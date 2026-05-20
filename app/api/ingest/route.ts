@@ -28,21 +28,86 @@ type MachineRow = {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  const signature = request.headers.get('x-cc-signature');
-  if (!signature) {
-    return Response.json({ error: 'missing signature' }, { status: 401 });
+  const authHeader = request.headers.get('authorization');
+  const signatureHeader = request.headers.get('x-cc-signature');
+
+  // Must have at least one auth method present
+  const hasBearerToken = authHeader?.startsWith('Bearer ');
+  const hasHmacSignature = !!signatureHeader;
+
+  if (!hasBearerToken && !hasHmacSignature) {
+    return Response.json({ error: 'missing auth' }, { status: 401 });
   }
 
   const rawBody = await request.text();
-  const secret = process.env.INGEST_HMAC_SECRET;
-  if (!secret) {
-    return Response.json({ error: 'server misconfigured' }, { status: 500 });
+
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+
+  let authenticatedUserId: string;
+
+  if (hasBearerToken) {
+    // --- Token path (preferred) ---
+    const token = authHeader!.slice('Bearer '.length).trim();
+
+    const { data: tokenUser, error: tokenError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('ingest_token', token)
+      .maybeSingle();
+
+    if (tokenError) {
+      return Response.json({ error: 'user lookup failed' }, { status: 500 });
+    }
+    if (!tokenUser) {
+      return Response.json({ error: 'invalid token' }, { status: 401 });
+    }
+
+    authenticatedUserId = tokenUser.id;
+  } else {
+    // --- HMAC fallback (legacy, transitional) ---
+    const secret = process.env.INGEST_HMAC_SECRET;
+    if (!secret) {
+      return Response.json({ error: 'server misconfigured' }, { status: 500 });
+    }
+
+    if (!(await verifyPayload(rawBody, signatureHeader!, secret))) {
+      return Response.json({ error: 'invalid signature' }, { status: 401 });
+    }
+
+    // Parse payload early enough to do the github_handle lookup
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      return Response.json({ error: 'invalid json' }, { status: 400 });
+    }
+
+    const preValidation = validateIngestPayload(parsed);
+    if (!preValidation.ok) {
+      return Response.json({ error: preValidation.error }, { status: 400 });
+    }
+
+    const { data: handleUser, error: handleError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('github_handle', preValidation.value.github_handle)
+      .maybeSingle();
+
+    if (handleError) {
+      return Response.json({ error: 'user lookup failed' }, { status: 500 });
+    }
+    if (!handleUser) {
+      return Response.json({ error: 'unknown github_handle' }, { status: 404 });
+    }
+
+    authenticatedUserId = handleUser.id;
   }
 
-  if (!(await verifyPayload(rawBody, signature, secret))) {
-    return Response.json({ error: 'invalid signature' }, { status: 401 });
-  }
-
+  // Parse and validate the payload (may have already been parsed in HMAC branch, but
+  // we re-parse for the token branch; JSON.parse on the same string is cheap and safe).
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawBody);
@@ -56,28 +121,10 @@ export async function POST(request: Request): Promise<Response> {
   }
   const payload = validation.value;
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('github_handle', payload.github_handle)
-    .maybeSingle();
-
-  if (userError) {
-    return Response.json({ error: 'user lookup failed' }, { status: 500 });
-  }
-  if (!user) {
-    return Response.json({ error: 'unknown github_handle' }, { status: 404 });
-  }
-
   // 1. Replace this machine's sub-total for the day (repeated pushes just overwrite).
   const { error: machineUpsertError } = await supabase.from('machine_daily_stats').upsert(
     {
-      user_id: user.id,
+      user_id: authenticatedUserId,
       date: payload.date,
       machine: payload.machine,
       tokens_total: payload.tokens_total,
@@ -102,7 +149,7 @@ export async function POST(request: Request): Promise<Response> {
   const { data: machineRows, error: rollupSelectError } = await supabase
     .from('machine_daily_stats')
     .select('machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships, hourly_tokens')
-    .eq('user_id', user.id)
+    .eq('user_id', authenticatedUserId)
     .eq('date', payload.date);
   if (rollupSelectError || !machineRows) {
     return Response.json({ error: 'rollup select failed' }, { status: 500 });
@@ -111,7 +158,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // 3. Roll up across machines and upsert daily_stats.
   const rollup = {
-    user_id: user.id,
+    user_id: authenticatedUserId,
     date: payload.date,
     tokens_total: rows.reduce((s, r) => s + r.tokens_total, 0),
     tokens_by_model: rows.reduce<Record<string, number>>(

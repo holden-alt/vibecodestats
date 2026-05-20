@@ -13,6 +13,7 @@ export type Database = {
           avatar_url: string | null;
           primary_persona: string | null;
           secondary_personas: string[];
+          ingest_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -25,6 +26,7 @@ export type Database = {
           avatar_url?: string | null;
           primary_persona?: string | null;
           secondary_personas?: string[];
+          ingest_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -37,6 +39,7 @@ export type Database = {
           avatar_url?: string | null;
           primary_persona?: string | null;
           secondary_personas?: string[];
+          ingest_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };

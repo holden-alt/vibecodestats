@@ -96,3 +96,26 @@ a.bento-tile:hover {
   .cc-bento-grid { grid-template-columns: 1fr; }
   .cc-bento-grid > * { grid-column: span 1 !important; grid-row: span 1 !important; }
 }
+
+@keyframes cc-tile-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cc-bento-grid > .bento-tile,
+main > .bento-tile {
+  animation: cc-tile-in 400ms ease-out both;
+}
+.cc-bento-grid > .bento-tile:nth-child(1) { animation-delay: 0ms; }
+.cc-bento-grid > .bento-tile:nth-child(2) { animation-delay: 50ms; }
+.cc-bento-grid > .bento-tile:nth-child(3) { animation-delay: 100ms; }
+.cc-bento-grid > .bento-tile:nth-child(4) { animation-delay: 150ms; }
+.cc-bento-grid > .bento-tile:nth-child(5) { animation-delay: 200ms; }
+.cc-bento-grid > .bento-tile:nth-child(6) { animation-delay: 250ms; }
+.cc-bento-grid > .bento-tile:nth-child(7) { animation-delay: 300ms; }
+.cc-bento-grid > .bento-tile:nth-child(8) { animation-delay: 350ms; }
+.cc-bento-grid > .bento-tile:nth-child(9) { animation-delay: 400ms; }
+.cc-bento-grid > .bento-tile:nth-child(n+10) { animation-delay: 450ms; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-bento-grid > .bento-tile,
+  main > .bento-tile { animation: none !important; }
+}

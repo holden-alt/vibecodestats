@@ -2,7 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
-import { formatDelta, formatDuration } from '@/lib/format';
+import { formatDelta } from '@/lib/format';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 type Props = {
@@ -13,16 +13,20 @@ type Props = {
   projectsTouchedCount: number;
   trendStats: DailyStat[]; // last ~30 days for the ghosted sparkline
   deltaVsYesterday: number; // 0.38 → +38%
+  deltaVs7dAvg: number; // ratio (today / 7d avg - 1), 0 if no 7d avg
+  deltaVs30dAvg: number; // ratio, 0 if no 30d avg
 };
 
 export function HeroBlock({
   tokensToday,
   sessionsToday,
-  deepWorkMinutes,
+  deepWorkMinutes: _deepWorkMinutes,
   shipsToday,
   projectsTouchedCount,
   trendStats,
   deltaVsYesterday,
+  deltaVs7dAvg,
+  deltaVs30dAvg,
 }: Props) {
   const sparkData = [...trendStats]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -58,8 +62,20 @@ export function HeroBlock({
             {deltaVsYesterday >= 0 ? '▲' : '▼'} {formatDelta(deltaVsYesterday)} vs yesterday
           </span>
         </div>
-        <div style={{ fontSize: '0.65rem', opacity: 0.65, marginTop: 6 }}>
-          {sessionsToday} sessions · {formatDuration(deepWorkMinutes)} deep work · {shipsToday.commits} ships · across {projectsTouchedCount} projects
+        <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.6rem', flexWrap: 'wrap' }}>
+          {deltaVs7dAvg !== 0 && (
+            <span style={{ color: deltaVs7dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
+              {deltaVs7dAvg >= 0 ? '▲' : '▼'} {formatDelta(deltaVs7dAvg)} vs 7d avg
+            </span>
+          )}
+          {deltaVs30dAvg !== 0 && (
+            <span style={{ color: deltaVs30dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
+              {deltaVs30dAvg >= 0 ? '▲' : '▼'} {formatDelta(deltaVs30dAvg)} vs 30d avg
+            </span>
+          )}
+          <span style={{ opacity: 0.65 }}>
+            {sessionsToday} sessions · {shipsToday.commits} ships · {projectsTouchedCount} projects
+          </span>
         </div>
       </div>
     </div>

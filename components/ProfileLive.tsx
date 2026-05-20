@@ -117,6 +117,8 @@ export function ProfileLive({ initialData, leaderboardData, today }: ProfileLive
         projectsTouchedCount={projectsTouchedCount}
         trendStats={dailyStats}
         deltaVsYesterday={deltaVsYesterday}
+        deltaVs7dAvg={0}
+        deltaVs30dAvg={0}
       />
 
       <BentoGrid>

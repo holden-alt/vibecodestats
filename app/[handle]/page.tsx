@@ -35,8 +35,10 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   const daysActive = (stats ?? []).length;
 
   const name = user.display_name || `@${handle}`;
-  const title = `@${handle} on vibecodestats.dev`;
-  const description = `${name} · ${formatCompact(allTimeTokens)} tokens · ${daysActive} day${daysActive === 1 ? '' : 's'} vibecoding with Claude Code`;
+  const tokens = formatCompact(allTimeTokens);
+  const dayWord = daysActive === 1 ? 'day' : 'days';
+  const title = `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`;
+  const description = `${name} · ${tokens} tokens · ${daysActive} ${dayWord} vibecoding with Claude Code. See the global leaderboard of Claude Code power users at vibecodestats.dev.`;
 
   return {
     title,

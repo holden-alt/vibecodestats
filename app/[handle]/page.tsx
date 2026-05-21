@@ -45,7 +45,11 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   // opengraph-image.tsx file aren't enough, even though Facebook/LinkedIn handle them.
   // See: vercel/next.js#78511. Use an absolute URL so X has no path resolution to do.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
-  const ogImageUrl = `${siteUrl}/${handle}/opengraph-image`;
+  // Bump this when the image rendering changes. X aggressively caches OG image
+  // responses by URL; a new query param forces a fresh fetch the next time
+  // anyone shares this page on X (or LinkedIn, which is also sticky).
+  const ogImageVersion = 'v3';
+  const ogImageUrl = `${siteUrl}/${handle}/opengraph-image?${ogImageVersion}`;
   const ogImage = {
     url: ogImageUrl,
     secureUrl: ogImageUrl,

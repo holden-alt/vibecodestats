@@ -1,4 +1,4 @@
-# cc-dashboard
+# vibecodestats
 
 Public Claude Code usage stats — Strava-style global leaderboard, live token counter, persistent profiles.
 

@@ -78,7 +78,7 @@ export default async function HomePage() {
       </section>
 
       <footer style={{ borderTop: '1px solid var(--color-border)', paddingTop: 18, fontSize: '0.7rem', opacity: 0.55, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-        <a href="https://github.com/holden-alt/cc-dashboard" style={{ color: 'inherit' }}>github</a>
+        <a href="https://github.com/holden-alt/vibecodestats" style={{ color: 'inherit' }}>github</a>
         <Link href="/holden-alt" prefetch={false} style={{ color: 'inherit' }}>sample profile</Link>
         <span style={{ marginLeft: 'auto' }}>made by <a href="https://x.com/holdengr" style={{ color: 'inherit' }}>@holdengr</a></span>
       </footer>

@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev',
+  ),
   title: 'vibecodestats.dev',
   description: 'Your public Claude Code vibe-coding profile.',
 };

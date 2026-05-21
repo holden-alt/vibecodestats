@@ -40,11 +40,38 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   const title = `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`;
   const description = `${name} · ${tokens} tokens · ${daysActive} ${dayWord} vibecoding with Claude Code. See the global leaderboard of Claude Code power users at vibecodestats.dev.`;
 
+  // X's crawler requires the FULL image descriptor (type/width/height) to render
+  // summary_large_image cards reliably — inferred URLs from the colocated
+  // opengraph-image.tsx file aren't enough, even though Facebook/LinkedIn handle them.
+  // See: vercel/next.js#78511. Use an absolute URL so X has no path resolution to do.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+  const ogImageUrl = `${siteUrl}/${handle}/opengraph-image`;
+  const ogImage = {
+    url: ogImageUrl,
+    secureUrl: ogImageUrl,
+    type: 'image/png',
+    width: 1200,
+    height: 630,
+    alt: `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`,
+  };
+
   return {
     title,
     description,
-    openGraph: { title, description },
-    twitter: { card: 'summary_large_image', title, description },
+    openGraph: {
+      title,
+      description,
+      type: 'profile',
+      url: `${siteUrl}/${handle}`,
+      siteName: 'vibecodestats.dev',
+      images: [ogImage],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
+    },
   };
 }
 

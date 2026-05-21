@@ -21,16 +21,12 @@ const VALID_PAYLOAD = {
 //   .from(t).select(c).eq(k1,v1).eq(k2,v2)
 function makeSupabaseMock({
   tokenUserId,
-  handleUserId,
   tokenLookupError,
-  handleLookupError,
   machineRows,
   upsertError,
 }: {
   tokenUserId?: string | null;
-  handleUserId?: string | null;
   tokenLookupError?: boolean;
-  handleLookupError?: boolean;
   machineRows?: object[];
   upsertError?: boolean;
 } = {}) {
@@ -40,20 +36,17 @@ function makeSupabaseMock({
   const makeMaybeSingle = (data: unknown, error: unknown = null) =>
     vi.fn(async () => ({ data, error }));
 
-  // We need to distinguish .eq('ingest_token', ...) vs .eq('github_handle', ...)
-  // and multi-.eq() chains for machine_daily_stats select.
-  // We do this by tracking what table + field the select is on.
+  // Chainable .eq() mock — distinguishes ingest_token lookup from
+  // multi-.eq() chains used by machine_daily_stats select.
   const fromMock = vi.fn((table: string) => {
     const selectMock = vi.fn((_cols?: string) => {
       // Returns an object with .eq() that returns another .eq() / .maybeSingle() / direct data
       let eqCount = 0;
-      let resolvedField = '';
 
       const eqChain: Record<string, unknown> = {};
 
       const eqFn: ReturnType<typeof vi.fn> = vi.fn((field: string, _value: unknown) => {
         eqCount++;
-        resolvedField = field;
 
         if (eqCount === 1) {
           if (field === 'ingest_token') {
@@ -65,21 +58,6 @@ function makeSupabaseMock({
                   ? { id: tokenUserId }
                   : null;
             const err = tokenLookupError ? new Error('db error') : null;
-            eqChain['maybySingle'] = makeMaybeSingle(userData, err);
-            return {
-              maybeSingle: eqChain['maybySingle'],
-              eq: eqFn,
-            };
-          }
-          if (field === 'github_handle') {
-            const userData = handleLookupError
-              ? null
-              : handleUserId === undefined
-                ? null
-                : handleUserId
-                  ? { id: handleUserId }
-                  : null;
-            const err = handleLookupError ? new Error('db error') : null;
             eqChain['maybySingle'] = makeMaybeSingle(userData, err);
             return {
               maybeSingle: eqChain['maybySingle'],
@@ -124,12 +102,6 @@ function makeSupabaseMock({
   return { client: { from: fromMock }, upserted };
 }
 
-// ─── HMAC mock ────────────────────────────────────────────────────────────────
-// Default: signature is valid. Override per-test via vi.doMock before import.
-vi.mock('@/lib/ingest/hmac', () => ({
-  verifyPayload: vi.fn(async () => true),
-}));
-
 // ─── Supabase client mock ─────────────────────────────────────────────────────
 // We mock @supabase/supabase-js so createClient returns our controlled mock.
 // We use a module-level variable that each test overwrites before importing the route.
@@ -143,7 +115,6 @@ vi.mock('@supabase/supabase-js', () => ({
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co');
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-  vi.stubEnv('INGEST_HMAC_SECRET', 'test-hmac-secret');
   vi.resetModules();
 });
 
@@ -213,57 +184,8 @@ describe('POST /api/ingest', () => {
     });
   });
 
-  describe('HMAC fallback path (legacy)', () => {
-    it('returns 200 when HMAC signature is valid and github_handle is known', async () => {
-      _currentSupabaseMock = makeSupabaseMock({ handleUserId: 'user-hmac-456' });
-      // verifyPayload is already mocked to return true globally
-      const { POST } = await import('../../app/api/ingest/route');
-
-      const req = makeRequest(VALID_PAYLOAD, {
-        'x-cc-signature': 'valid-hmac-sig',
-      });
-      const res = await POST(req as any);
-      expect(res.status).toBe(200);
-
-      const machineUpsert = _currentSupabaseMock.upserted.find(
-        (u) => u.table === 'machine_daily_stats',
-      );
-      expect(machineUpsert).toBeDefined();
-      expect((machineUpsert!.data as any).user_id).toBe('user-hmac-456');
-    });
-
-    it('returns 401 when HMAC signature is invalid', async () => {
-      _currentSupabaseMock = makeSupabaseMock({ handleUserId: 'user-hmac-456' });
-
-      // Override verifyPayload to return false for this test
-      const hmacMod = await import('@/lib/ingest/hmac');
-      vi.mocked(hmacMod.verifyPayload).mockResolvedValueOnce(false);
-
-      const { POST } = await import('../../app/api/ingest/route');
-
-      const req = makeRequest(VALID_PAYLOAD, {
-        'x-cc-signature': 'bad-signature',
-      });
-      const res = await POST(req as any);
-      expect(res.status).toBe(401);
-      const json = await res.json();
-      expect(json.error).toBe('invalid signature');
-    });
-
-    it('returns 404 when HMAC is valid but github_handle is unknown', async () => {
-      _currentSupabaseMock = makeSupabaseMock({ handleUserId: null });
-      const { POST } = await import('../../app/api/ingest/route');
-
-      const req = makeRequest(VALID_PAYLOAD, {
-        'x-cc-signature': 'valid-hmac-sig',
-      });
-      const res = await POST(req as any);
-      expect(res.status).toBe(404);
-    });
-  });
-
   describe('No auth', () => {
-    it('returns 401 when neither Authorization nor x-cc-signature is present', async () => {
+    it('returns 401 when Authorization header is absent', async () => {
       _currentSupabaseMock = makeSupabaseMock({});
       const { POST } = await import('../../app/api/ingest/route');
 

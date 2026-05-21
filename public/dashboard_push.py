@@ -56,7 +56,13 @@ def short_project(cwd, home):
 
 
 def parse_day(jsonl_paths, target_date, home):
-    """Parse the given JSONL files, return aggregates for target_date (YYYY-MM-DD)."""
+    """Parse the given JSONL files, return aggregates for target_date (YYYY-MM-DD).
+
+    cwd is tracked PER EVENT (not pinned to the first cwd seen), because Claude
+    Code sessions frequently cd around — the session's first cwd is often the
+    user's home dir, not the project they end up working in. Each token-bearing
+    event is attributed to the most recent cwd seen up to that point.
+    """
     tokens_by_model = defaultdict(int)
     tokens_by_project = defaultdict(int)
     tokens_by_hour = defaultdict(int)
@@ -64,7 +70,7 @@ def parse_day(jsonl_paths, target_date, home):
     timestamps = []
     for path in jsonl_paths:
         session_id = os.path.basename(path).replace('.jsonl', '')
-        session_cwd = None
+        current_cwd = None  # updated on every event that carries a cwd
         try:
             with open(path) as f:
                 for line in f:
@@ -72,8 +78,8 @@ def parse_day(jsonl_paths, target_date, home):
                         d = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if session_cwd is None and d.get('cwd'):
-                        session_cwd = d['cwd']
+                    if d.get('cwd'):
+                        current_cwd = d['cwd']
                     ts = d.get('timestamp')
                     if not ts or ts[:10] != target_date:
                         continue
@@ -91,7 +97,7 @@ def parse_day(jsonl_paths, target_date, home):
                         continue
                     fresh = (usage.get('input_tokens') or 0) + (usage.get('output_tokens') or 0)
                     tokens_by_model[model] += fresh
-                    label = short_project(session_cwd, home)
+                    label = short_project(current_cwd, home)
                     tokens_by_project[label] += fresh
                     # Bucket by the user's LOCAL hour. ts is UTC ISO with a 'Z' suffix;
                     # .astimezone() (no arg) converts to the machine's local timezone.

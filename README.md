@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# cc-dashboard
 
-## Getting Started
+Public Claude Code usage stats — Strava-style global leaderboard, live token counter, persistent profiles.
 
-First, run the development server:
+Live at https://vibecodestats.dev. Pick any handle, e.g. https://vibecodestats.dev/holden-alt.
+
+## What it does
+
+- Reads your local Claude Code session logs (`~/.claude/projects/*/*.jsonl`)
+- Aggregates daily token totals, sessions, deep work, ships (git commits), per-project breakdowns
+- Pushes to a public profile page that updates live as you code
+- Ranks you against every other user on a global leaderboard
+
+## What it doesn't do
+
+- Does not read or upload your code, prompts, model responses, or anything else from the session logs
+- Only token counts, timestamps, model names, and the current project's directory name are sent
+- Per-user Bearer token authenticates each push — no shared secret
+
+## Install (macOS)
+
+After signing in with GitHub at https://vibecodestats.dev, you'll get a one-line command on `/setup`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+curl -fsSL https://vibecodestats.dev/install.sh | TOKEN=<your-token> HANDLE=<your-handle> URL=https://vibecodestats.dev bash
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+That installs the push script at `~/.config/cc-dashboard/dashboard_push.py`, drops a Stop hook into `~/.claude/settings.json`, and verifies the first push lands.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js 15 on Cloudflare Pages (edge runtime)
+- Supabase Postgres (with realtime publication on daily_stats)
+- Recharts + @uiw/react-heat-map
+- Tailwind 4
 
-## Learn More
+## Privacy
 
-To learn more about Next.js, take a look at the following resources:
+- Profiles are public by default. The whole point is sharing your stats.
+- Source data (Claude Code JSONL logs) never leaves your machine.
+- The push script POSTs aggregated daily totals + project names — no message content.
+- Tokens are per-user; revoke/regenerate from `/setup`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT — see LICENSE

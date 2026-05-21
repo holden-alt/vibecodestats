@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useLiveRank } from '@/hooks/useLiveRank';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import { PercentileBar } from './PercentileBar';
@@ -47,12 +48,12 @@ export function LiveRankTile({ viewerId, date, initial }: Props) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.65rem', minWidth: 200 }}>
           {r.closestAbove ? (
-            <div>↑ <strong>@{r.closestAbove.handle}</strong> is {formatCompact(r.closestAbove.tokensAhead)} ahead</div>
+            <div>↑ <Link href={`/${r.closestAbove.handle}`} prefetch={false} style={{ color: 'var(--chart-1)', textDecoration: 'underline' }}><strong>@{r.closestAbove.handle}</strong></Link> is {formatCompact(r.closestAbove.tokensAhead)} ahead</div>
           ) : (
             <div style={{ opacity: 0.6 }}>you&apos;re at the top — no one above</div>
           )}
           {r.closestBelow ? (
-            <div>↓ <strong>@{r.closestBelow.handle}</strong> is {formatCompact(r.closestBelow.tokensBehind)} behind</div>
+            <div>↓ <Link href={`/${r.closestBelow.handle}`} prefetch={false} style={{ color: 'var(--chart-1)', textDecoration: 'underline' }}><strong>@{r.closestBelow.handle}</strong></Link> is {formatCompact(r.closestBelow.tokensBehind)} behind</div>
           ) : (
             <div style={{ opacity: 0.5 }}>no one ranked below yet</div>
           )}

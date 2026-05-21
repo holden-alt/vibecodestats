@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { rankUsers } from '@/lib/stats/leaderboard';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { formatCompact } from '@/lib/format';
@@ -93,21 +94,24 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
 
 function Row({ rank, handle, value, max, viewer }: { rank: number; handle: string; value: number; max: number; viewer: boolean }) {
   return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums',
-        background: viewer ? 'rgba(217,119,87,0.08)' : 'transparent',
-        padding: '3px 4px', borderRadius: 2,
-      }}
-    >
-      <span style={{ width: 22, textAlign: 'right', opacity: 0.6 }}>#{rank}</span>
-      <span style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{handle}</span>
-      <div style={{ flex: 1, background: 'var(--color-bg-2)', height: 7, borderRadius: 1, overflow: 'hidden' }}>
-        <div style={{ width: `${(value / max) * 100}%`, background: viewer ? 'var(--chart-1)' : 'var(--chart-2)', height: '100%', transition: 'width 800ms ease-out' }} />
+    <Link href={`/${handle}`} prefetch={false} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums',
+          background: viewer ? 'rgba(217,119,87,0.08)' : 'transparent',
+          padding: '3px 4px', borderRadius: 2,
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ width: 22, textAlign: 'right', opacity: 0.6 }}>#{rank}</span>
+        <span style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{handle}</span>
+        <div style={{ flex: 1, background: 'var(--color-bg-2)', height: 7, borderRadius: 1, overflow: 'hidden' }}>
+          <div style={{ width: `${(value / max) * 100}%`, background: viewer ? 'var(--chart-1)' : 'var(--chart-2)', height: '100%', transition: 'width 800ms ease-out' }} />
+        </div>
+        <span style={{ opacity: 0.85, minWidth: 52, textAlign: 'right' }}>{formatCompact(value)}</span>
       </div>
-      <span style={{ opacity: 0.85, minWidth: 52, textAlign: 'right' }}>{formatCompact(value)}</span>
-    </div>
+    </Link>
   );
 }
 

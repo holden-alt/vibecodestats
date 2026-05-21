@@ -224,11 +224,17 @@ def post_payload(url, payload, token=None, secret=None):
 
 
 def today_jsonl_files(projects_dir):
-    """JSONL files modified since local midnight."""
+    """JSONL files modified since local midnight.
+
+    Recursive glob — Claude Code subagents log to
+    `projects/<dir>/<session-id>/subagents/agent-*.jsonl` (4-level deep),
+    and those events use haiku/sonnet while the main session is mostly
+    opus. A 2-level glob misses every non-opus token.
+    """
     midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff = midnight.timestamp()
     out = []
-    for path in glob.glob(os.path.join(projects_dir, '*', '*.jsonl')):
+    for path in glob.glob(os.path.join(projects_dir, '**', '*.jsonl'), recursive=True):
         try:
             if os.path.getmtime(path) >= cutoff:
                 out.append(path)
@@ -238,7 +244,8 @@ def today_jsonl_files(projects_dir):
 
 
 def all_jsonl_files(projects_dir):
-    return glob.glob(os.path.join(projects_dir, '*', '*.jsonl'))
+    """All JSONL files (recursive — includes subagent logs)."""
+    return glob.glob(os.path.join(projects_dir, '**', '*.jsonl'), recursive=True)
 
 
 def is_debounced(marker_path, window):

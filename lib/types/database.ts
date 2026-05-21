@@ -14,6 +14,7 @@ export type Database = {
           primary_persona: string | null;
           secondary_personas: string[];
           ingest_token: string | null;
+          private_project_names: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -27,6 +28,7 @@ export type Database = {
           primary_persona?: string | null;
           secondary_personas?: string[];
           ingest_token?: string | null;
+          private_project_names?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -40,6 +42,7 @@ export type Database = {
           primary_persona?: string | null;
           secondary_personas?: string[];
           ingest_token?: string | null;
+          private_project_names?: boolean;
           created_at?: string;
           updated_at?: string;
         };

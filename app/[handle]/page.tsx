@@ -14,12 +14,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const { handle } = await params;
   const supabase = await createClient();
 
-  const data = await getProfileData(supabase, handle);
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+
+  const data = await getProfileData(supabase, handle, authUser?.id ?? null);
   if (!data) {
     notFound();
   }
-
-  const { data: { user: authUser } } = await supabase.auth.getUser();
   const viewerIsOwner = !!authUser && data.user.auth_id === authUser.id;
   const hasEverPushed = data.dailyStats.length > 0;
 

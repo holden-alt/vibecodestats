@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { CopyButton } from './CopyButton';
 import { RegenerateButton } from './RegenerateButton';
+import { PrivacyToggle } from './PrivacyToggle';
 
 export const runtime = 'edge';
 
@@ -17,7 +18,7 @@ export default async function SetupPage() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('github_handle, ingest_token')
+    .select('github_handle, ingest_token, private_project_names')
     .eq('auth_id', authUser.id)
     .single();
 
@@ -123,6 +124,12 @@ export default async function SetupPage() {
           </a>
           . Your tokens-today number should start showing real values.
         </p>
+      </section>
+
+      {/* Privacy */}
+      <section style={sectionStyle}>
+        <div style={labelStyle}>privacy</div>
+        <PrivacyToggle initial={profile.private_project_names ?? false} />
       </section>
     </main>
   );

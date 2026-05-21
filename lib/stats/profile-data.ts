@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { computeLiveDailyRanking, type LiveRanking } from './leaderboard-live';
+import { fuzzProjects } from './privacy';
 
 export type ProfileUser = {
   id: string;
@@ -10,6 +11,7 @@ export type ProfileUser = {
   avatar_url: string | null;
   primary_persona: string | null;
   secondary_personas: string[];
+  private_project_names: boolean;
 };
 
 export type DailyStat = Database['public']['Tables']['daily_stats']['Row'];
@@ -26,33 +28,44 @@ const HISTORY_DAYS = 366;
 export async function getProfileData(
   supabase: SupabaseClient<Database>,
   handle: string,
+  viewerAuthId?: string | null,
 ): Promise<ProfileData | null> {
   const { data: user } = await supabase
     .from('users')
-    .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas')
+    .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas, private_project_names')
     .eq('github_handle', handle)
     .maybeSingle();
 
   if (!user) return null;
 
-  const { data: dailyStats } = await supabase
+  const { data: rawDailyStats } = await supabase
     .from('daily_stats')
     .select('*')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .limit(HISTORY_DAYS);
 
-  const { data: machineStats } = await supabase
+  const { data: rawMachineStats } = await supabase
     .from('machine_daily_stats')
     .select('*')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .limit(HISTORY_DAYS * 3); // up to ~3 machines per day
 
+  const isOwner = viewerAuthId != null && viewerAuthId === user.auth_id;
+
+  let dailyStats = rawDailyStats ?? [];
+  let machineStats = rawMachineStats ?? [];
+
+  if (user.private_project_names && !isOwner) {
+    dailyStats = fuzzProjects(dailyStats);
+    machineStats = fuzzProjects(machineStats);
+  }
+
   return {
     user,
-    dailyStats: dailyStats ?? [],
-    machineStats: machineStats ?? [],
+    dailyStats,
+    machineStats,
   };
 }
 

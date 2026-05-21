@@ -28,6 +28,7 @@ const initialData: ProfileData = {
     avatar_url: null,
     primary_persona: 'vibe-coder',
     secondary_personas: ['ai-builder'],
+    private_project_names: false,
   },
   dailyStats: [{
     user_id: 'u1', date: '2026-05-19', tokens_total: 487231,

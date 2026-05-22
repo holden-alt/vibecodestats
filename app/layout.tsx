@@ -3,12 +3,40 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+const SITE_OG_IMAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
+
+const siteOgImage = {
+  url: SITE_OG_IMAGE,
+  secureUrl: SITE_OG_IMAGE,
+  type: 'image/png',
+  width: 1200,
+  height: 630,
+  alt: 'vibecodestats.dev — Strava for Claude Code',
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev',
   ),
-  title: 'vibecodestats.dev',
-  description: 'Your public Claude Code vibe-coding profile.',
+  title: 'vibecodestats.dev — Strava for Claude Code',
+  description:
+    'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate. Free, open source, no email required.',
+  openGraph: {
+    title: 'vibecodestats.dev — Strava for Claude Code',
+    description:
+      'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate.',
+    type: 'website',
+    url: 'https://vibecodestats.dev',
+    siteName: 'vibecodestats.dev',
+    images: [siteOgImage],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'vibecodestats.dev — Strava for Claude Code',
+    description:
+      'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate.',
+    images: [siteOgImage],
+  },
 };
 
 async function AuthWidget() {

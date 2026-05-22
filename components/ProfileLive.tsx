@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
 import { StatsExplorer } from '@/components/StatsExplorer';
 import { IdentityStrip } from '@/components/dashboard/profile/IdentityStrip';
+import { ShareOnX } from '@/components/dashboard/profile/ShareOnX';
 import { HeroBlock } from '@/components/dashboard/profile/HeroBlock';
 import { BentoGrid } from '@/components/dashboard/profile/BentoGrid';
 import { BentoTile } from '@/components/dashboard/BentoTile';
@@ -120,13 +121,27 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
 
   return (
     <main style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 64px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <div style={{ marginBottom: 28 }}>
-        <IdentityStrip
-          user={user}
-          rank={null}
-          squadSize={null}
-          streakDays={streakDays}
-          nowProject={nowProject}
+      <div style={{
+        marginBottom: 28,
+        display: 'flex',
+        alignItems: 'stretch',
+        gap: 10,
+        flexWrap: 'wrap',
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <IdentityStrip
+            user={user}
+            rank={null}
+            squadSize={null}
+            streakDays={streakDays}
+            nowProject={nowProject}
+          />
+        </div>
+        <ShareOnX
+          handle={user.github_handle}
+          allTimeTokens={allTime.tokens}
+          rank={initialLiveRanking.rank}
+          viewerIsOwner={viewerIsOwner}
         />
       </div>
 

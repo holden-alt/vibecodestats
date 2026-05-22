@@ -201,6 +201,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      signup_events: {
+        Row: {
+          id: string;
+          created_at: string | null;
+          event_type: string;
+          auth_user_id: string | null;
+          user_id: string | null;
+          github_handle: string | null;
+          user_agent: string | null;
+          referer: string | null;
+          error_message: string | null;
+          is_new_user: boolean | null;
+          metadata: Json | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string | null;
+          event_type: string;
+          auth_user_id?: string | null;
+          user_id?: string | null;
+          github_handle?: string | null;
+          user_agent?: string | null;
+          referer?: string | null;
+          error_message?: string | null;
+          is_new_user?: boolean | null;
+          metadata?: Json | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string | null;
+          event_type?: string;
+          auth_user_id?: string | null;
+          user_id?: string | null;
+          github_handle?: string | null;
+          user_agent?: string | null;
+          referer?: string | null;
+          error_message?: string | null;
+          is_new_user?: boolean | null;
+          metadata?: Json | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

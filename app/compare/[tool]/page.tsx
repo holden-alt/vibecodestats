@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { compareTools, getCompareTool } from '@/lib/seo/compare-data';
 
+export const runtime = 'edge';
+
 type Props = {
   params: Promise<{ tool: string }>;
 };

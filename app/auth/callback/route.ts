@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   // Case 1: GitHub returned an OAuth error (user denied, app misconfigured, etc.)
   if (oauthError) {
-    void recordSignupEvent({
+    await recordSignupEvent({
       eventType: 'callback_oauth_error',
       userAgent,
       referer,
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
   // Case 2: Missing code AND no error param — someone hit the URL directly.
   if (!code) {
-    void recordSignupEvent({
+    await recordSignupEvent({
       eventType: 'callback_missing_code',
       userAgent,
       referer,
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
 
   if (exchangeError) {
-    void recordSignupEvent({
+    await recordSignupEvent({
       eventType: 'callback_exchange_error',
       userAgent,
       referer,

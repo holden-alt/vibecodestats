@@ -113,9 +113,15 @@ export async function emailOwnerForSignupEvent(e: LogSignupEvent): Promise<void>
   }
 }
 
-/** Combined helper: log + (gated) email. Use this from auth routes. */
+/**
+ * Combined helper: log + (gated) email. Use this from auth routes — and
+ * AWAIT it. On Cloudflare's edge runtime, fire-and-forget promises get
+ * aborted when the response is returned (no waitUntil in Next.js edge yet),
+ * so we have to actually await both calls. Adds ~100-300ms to signin path.
+ */
 export async function recordSignupEvent(e: LogSignupEvent): Promise<void> {
-  // Fire both, don't block on either.
-  void logSignupEvent(e);
-  void emailOwnerForSignupEvent(e);
+  await Promise.allSettled([
+    logSignupEvent(e),
+    emailOwnerForSignupEvent(e),
+  ]);
 }

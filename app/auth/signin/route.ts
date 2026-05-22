@@ -11,7 +11,8 @@ export async function GET(request: Request) {
   const origin = url.origin;
 
   // Log signin intent before redirect — funnel analytics.
-  void recordSignupEvent({
+  // Must await on edge runtime; fire-and-forget gets aborted on response return.
+  await recordSignupEvent({
     eventType: 'signin_started',
     userAgent: request.headers.get('user-agent'),
     referer: request.headers.get('referer'),

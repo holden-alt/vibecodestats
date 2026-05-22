@@ -30,6 +30,36 @@ function fallback(handle: string) {
   );
 }
 
+type Stat = { label: string; value: string; color: string };
+
+function StatBlock({ label, value, color }: Stat) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <div
+        style={{
+          display: 'flex',
+          fontSize: 20,
+          opacity: 0.55,
+          letterSpacing: '2px',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          fontSize: 64,
+          fontWeight: 700,
+          color,
+          marginTop: 6,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 export default async function OG({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
 
@@ -45,16 +75,56 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
       return fallback(handle);
     }
 
-    const { data: stats } = await supabase
+    // Pull every daily_stats row for EVERY user so we can compute all-time
+    // rank in one query. ~1K users × ~30 days = ~30K rows, cheap on edge.
+    const { data: allRows } = await supabase
       .from('daily_stats')
-      .select('tokens_total')
-      .eq('user_id', user.id);
+      .select('user_id, tokens_total, date');
 
-    const allTimeTokens = (stats ?? []).reduce(
-      (s, r) => s + Number(r.tokens_total ?? 0),
-      0,
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = allRows ?? [];
+
+    // Sum tokens per user (all-time) and find current user's rank.
+    const allTimeByUser = new Map<string, number>();
+    for (const r of rows) {
+      const cur = allTimeByUser.get(r.user_id) ?? 0;
+      allTimeByUser.set(r.user_id, cur + Number(r.tokens_total ?? 0));
+    }
+    const sortedAllTime = [...allTimeByUser.entries()].sort(
+      (a, b) => b[1] - a[1],
     );
-    const daysActive = (stats ?? []).length;
+    const rankIdx = sortedAllTime.findIndex(([id]) => id === user.id);
+    const rank = rankIdx >= 0 ? rankIdx + 1 : null;
+    const allTimeTokens = allTimeByUser.get(user.id) ?? 0;
+
+    // Filter for this user's rows to derive today + days active.
+    const userRows = rows.filter((r) => r.user_id === user.id);
+    const daysActive = userRows.length;
+    const todayRow = userRows.find((r) => r.date === today);
+    const todayTokens = todayRow ? Number(todayRow.tokens_total ?? 0) : 0;
+
+    const stats: Stat[] = [
+      {
+        label: 'ALL-TIME',
+        value: formatCompact(allTimeTokens),
+        color: '#d97757', // orange
+      },
+      {
+        label: 'RANK',
+        value: rank !== null ? `#${rank}` : '—',
+        color: '#6bbfd9', // cyan
+      },
+      {
+        label: 'TODAY',
+        value: todayTokens > 0 ? formatCompact(todayTokens) : '—',
+        color: '#7ad17a', // green
+      },
+      {
+        label: 'DAYS',
+        value: String(daysActive),
+        color: '#ece6dc', // bone
+      },
+    ];
 
     return new ImageResponse(
       (
@@ -107,60 +177,10 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
 
           <div style={{ display: 'flex', flex: 1 }} />
 
-          <div style={{ display: 'flex' }}>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                marginRight: 80,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 22,
-                  opacity: 0.55,
-                  letterSpacing: '2px',
-                }}
-              >
-                ALL-TIME TOKENS
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 84,
-                  fontWeight: 700,
-                  color: '#d97757',
-                  marginTop: 8,
-                }}
-              >
-                {formatCompact(allTimeTokens)}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 22,
-                  opacity: 0.55,
-                  letterSpacing: '2px',
-                }}
-              >
-                DAYS ACTIVE
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 84,
-                  fontWeight: 700,
-                  color: '#6bbfd9',
-                  marginTop: 8,
-                }}
-              >
-                {String(daysActive)}
-              </div>
-            </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            {stats.map((s) => (
+              <StatBlock key={s.label} {...s} />
+            ))}
           </div>
         </div>
       ),

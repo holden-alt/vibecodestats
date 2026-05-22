@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
+import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
 
 export const runtime = 'edge';
@@ -40,19 +41,20 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   const title = `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`;
   const description = `${name} · ${tokens} tokens · ${daysActive} ${dayWord} vibecoding with Claude Code. See the global leaderboard of Claude Code power users at vibecodestats.dev.`;
 
-  // X's crawler requires the FULL image descriptor (type/width/height) to render
-  // summary_large_image cards reliably — inferred URLs from the colocated
-  // opengraph-image.tsx file aren't enough, even though Facebook/LinkedIn handle them.
-  // See: vercel/next.js#78511. Use an absolute URL so X has no path resolution to do.
+  // Point at the pre-rendered static PNG in Supabase Storage rather than the
+  // edge-rendered route. X / LinkedIn / FB bots get a boring static asset
+  // from a CDN — no edge runtime, no Satori, no cache games. The PNG is
+  // refreshed on every /api/ingest push (fire-and-forget, see lib/og/regenerate).
+  //
+  // The og:image route at /[handle]/opengraph-image still exists as the
+  // canonical generator that /api/ingest fetches; we just don't expose it
+  // to social crawlers directly. See: vercel/next.js#78511 for the
+  // X-crawler-needs-explicit-descriptor regression we sidestep here.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
-  // Bump this when the image rendering changes. X aggressively caches OG image
-  // responses by URL; a new query param forces a fresh fetch the next time
-  // anyone shares this page on X (or LinkedIn, which is also sticky).
-  const ogImageVersion = 'v3';
-  const ogImageUrl = `${siteUrl}/${handle}/opengraph-image?${ogImageVersion}`;
+  const staticOgUrl = ogImageUrl(handle);
   const ogImage = {
-    url: ogImageUrl,
-    secureUrl: ogImageUrl,
+    url: staticOgUrl,
+    secureUrl: staticOgUrl,
     type: 'image/png',
     width: 1200,
     height: 630,

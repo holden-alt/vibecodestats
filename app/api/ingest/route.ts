@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { validateIngestPayload } from '@/lib/ingest/payload';
+import { regenerateOgImage } from '@/lib/og/regenerate';
 import type { Database } from '@/lib/types/database';
 
 export const runtime = 'edge';
@@ -45,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { data: tokenUser, error: tokenError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, github_handle')
     .eq('ingest_token', token)
     .maybeSingle();
 
@@ -57,6 +58,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const authenticatedUserId = tokenUser.id;
+  const authenticatedHandle = tokenUser.github_handle;
 
   // Parse and validate the payload.
   let parsed: unknown;
@@ -139,6 +141,14 @@ export async function POST(request: Request): Promise<Response> {
     .upsert(rollup, { onConflict: 'user_id,date' });
   if (upsertError) {
     return Response.json({ error: 'upsert failed', detail: upsertError.message }, { status: 500 });
+  }
+
+  // Fire-and-forget: regenerate the static OG share-card after a successful
+  // push. Awaited via waitUntil-style pattern so the response returns fast
+  // and X bots always see a fresh PNG when they unfurl a profile share.
+  // Errors are swallowed — a failed regen never blocks a successful ingest.
+  if (authenticatedHandle) {
+    void regenerateOgImage(authenticatedHandle, supabase).catch(() => {});
   }
 
   return Response.json({ ok: true }, { status: 200 });

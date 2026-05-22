@@ -1,17 +1,5 @@
 /**
- * Slug source for /help/[issue] pages.
- * Content lives in lib/seo/help-content/{slug}.ts (added per page).
+ * Slugs that have shipped content live. Only these end up in sitemap.xml.
+ * Master planned list lives in docs/pseo-100-page-list.md.
  */
-
-export const helpSlugs: string[] = [
-  'claude-code-not-working',
-  'claude-code-rate-limit',
-  'claude-code-missing-tokens',
-  'claude-code-stop-hook-not-firing',
-  'claude-code-permission-denied',
-  'claude-code-mcp-server-not-connecting',
-  'claude-code-skill-not-loading',
-  'claude-code-out-of-context',
-  'claude-code-token-counter-wrong',
-  'claude-code-billing-questions',
-];
+export const helpSlugs: string[] = [];

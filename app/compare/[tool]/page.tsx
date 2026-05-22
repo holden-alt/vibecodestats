@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { compareTools, getCompareTool } from '@/lib/seo/compare-data';
+import { getCompareTool } from '@/lib/seo/compare-data';
 
 export const runtime = 'edge';
 
@@ -10,10 +10,6 @@ type Props = {
 };
 
 const SITE = 'https://vibecodestats.dev';
-
-export async function generateStaticParams() {
-  return compareTools.map((t) => ({ tool: t.slug }));
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tool } = await params;

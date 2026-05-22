@@ -121,25 +121,19 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
 
   return (
     <main style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 64px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <div style={{
-        marginBottom: 28,
-        display: 'flex',
-        alignItems: 'stretch',
-        gap: 10,
-        flexWrap: 'wrap',
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <IdentityStrip
-            user={user}
-            rank={null}
-            squadSize={null}
-            streakDays={streakDays}
-            nowProject={nowProject}
-          />
-        </div>
+      <div style={{ marginBottom: 12 }}>
+        <IdentityStrip
+          user={user}
+          rank={null}
+          squadSize={null}
+          streakDays={streakDays}
+          nowProject={nowProject}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <ShareOnX
           handle={user.github_handle}
-          allTimeTokens={allTime.tokens}
+          tokensToday={tokensToday}
           rank={initialLiveRanking.rank}
           viewerIsOwner={viewerIsOwner}
         />

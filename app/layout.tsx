@@ -130,6 +130,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <AuthWidget />
+        {/* Spacer for the fixed-position AuthWidget so content doesn't render
+            under it on desktop. Height covers AuthWidget at typical font size. */}
+        <div aria-hidden="true" style={{ height: '2.75rem' }} />
         {children}
       </body>
     </html>

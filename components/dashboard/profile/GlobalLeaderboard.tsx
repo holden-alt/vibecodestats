@@ -6,10 +6,10 @@ import { rankUsers } from '@/lib/stats/leaderboard';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { formatCompact } from '@/lib/format';
 
-type Metric = 'tokens' | 'sessions' | 'ships';
+type Metric = 'tokens' | 'vbw' | 'sessions' | 'ships';
 type Window = 'today' | 'week' | 'month' | 'all';
 
-const METRICS: Metric[] = ['tokens', 'sessions', 'ships'];
+const METRICS: Metric[] = ['tokens', 'vbw', 'sessions', 'ships'];
 const WINDOWS: Window[] = ['today', 'week', 'month', 'all'];
 
 type Props = {

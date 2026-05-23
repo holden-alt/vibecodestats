@@ -64,8 +64,19 @@ function makeSupabaseMock({
               eq: eqFn,
             };
           }
+          if (field === 'user_id' && table === 'daily_stats') {
+            // streakBefore query on daily_stats:
+            //   .eq('user_id').lt('date').gte('date').order().limit()
+            // Returns empty (streak = 0) for tests.
+            const chain: Record<string, unknown> = {};
+            chain.lt = vi.fn(() => chain);
+            chain.gte = vi.fn(() => chain);
+            chain.order = vi.fn(() => chain);
+            chain.limit = vi.fn(async () => ({ data: [], error: null }));
+            return chain;
+          }
           if (field === 'user_id') {
-            // First eq in machine_daily_stats .select().eq('user_id').eq('date')
+            // machine_daily_stats select: .eq('user_id').eq('date')
             return {
               eq: vi.fn(async () => ({
                 data: machineRows ?? [
@@ -78,6 +89,10 @@ function makeSupabaseMock({
                     projects_touched: { 'cc-dashboard': 3 },
                     ships: { commits: 2, repos: 1 },
                     hourly_tokens: { '09': 500, '10': 500 },
+                    tool_calls: 0,
+                    ship_quality: 0,
+                    output_tokens: 0,
+                    cache_creation_tokens: 0,
                   },
                 ],
                 error: null,
@@ -143,7 +158,8 @@ describe('POST /api/ingest', () => {
       const res = await POST(req as any);
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json).toEqual({ ok: true });
+      expect(json.ok).toBe(true);
+      expect(typeof json.vbw).toBe('number');
 
       // Verify the upsert calls used the token-resolved user_id
       const machineUpsert = _currentSupabaseMock.upserted.find(

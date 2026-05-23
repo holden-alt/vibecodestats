@@ -154,6 +154,46 @@ class TestParseSessions(unittest.TestCase):
             result = dashboard_push.parse_day([p1, p2], target_date='2026-05-14', home='/Users/holden')
             self.assertEqual(result['tokens_total'], 500)
 
+    def test_counts_tool_use_blocks_per_turn(self):
+        # Multi-block turn: thinking + text + 3 tool_use. Streaming snapshot
+        # variants exist where tool_use count grows as content streams. Parser
+        # should report the MAX tool_use count seen across the snapshots.
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            write_jsonl(p, [
+                # Snapshot 1: only thinking visible
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r1',
+                 'message': {'id': 'mA', 'model': 'claude-opus-4-7',
+                             'content': [{'type': 'thinking'}],
+                             'usage': {'input_tokens': 10, 'output_tokens': 50}}},
+                # Snapshot 2: thinking + text + 1 tool_use
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:01.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r1',
+                 'message': {'id': 'mA', 'model': 'claude-opus-4-7',
+                             'content': [{'type': 'thinking'}, {'type': 'text'}, {'type': 'tool_use'}],
+                             'usage': {'input_tokens': 10, 'output_tokens': 150}}},
+                # Snapshot 3 (final): full turn with 3 tool_use blocks
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:02.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r1',
+                 'message': {'id': 'mA', 'model': 'claude-opus-4-7',
+                             'content': [{'type': 'thinking'}, {'type': 'text'},
+                                         {'type': 'tool_use'}, {'type': 'tool_use'},
+                                         {'type': 'tool_use'}],
+                             'usage': {'input_tokens': 10, 'output_tokens': 200}}},
+                # Different turn, 1 more tool_use
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:01:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r2',
+                 'message': {'id': 'mB', 'model': 'claude-opus-4-7',
+                             'content': [{'type': 'tool_use'}],
+                             'usage': {'input_tokens': 5, 'output_tokens': 5}}},
+            ])
+            result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
+            # tool_calls = 3 (final snapshot of mA) + 1 (mB) = 4
+            self.assertEqual(result['tool_calls'], 4)
+            # output_tokens = max of mA snapshots (200) + mB (5) = 205
+            self.assertEqual(result['output_tokens'], 205)
+
     def test_subagent_message_ids_count_independently(self):
         # Subagent JSONLs have their own message.ids, distinct from the parent.
         # Their tokens are genuine new API calls — must NOT be deduped away.
@@ -249,6 +289,32 @@ class TestCountShips(unittest.TestCase):
             )
             self.assertEqual(result['repos'], 1)
             self.assertEqual(result['commits'], 1)
+            # Single 1-line non-test file: log10(1+1) * 1 file * 1.0 non-test ≈ 0.301
+            self.assertAlmostEqual(result['ship_quality'], 0.30103, places=4)
+
+    def test_ship_quality_discounts_test_only_commits(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, 'Claude', 'demo-repo')
+            os.makedirs(repo)
+            env = {**os.environ, 'GIT_AUTHOR_NAME': 'H', 'GIT_AUTHOR_EMAIL': 'h@x.com',
+                   'GIT_COMMITTER_NAME': 'H', 'GIT_COMMITTER_EMAIL': 'h@x.com'}
+            subprocess.run(['git', 'init', '-q'], cwd=repo, check=True, env=env)
+            # All test files — should produce ship_quality = 0 (non_test_ratio = 0)
+            os.makedirs(os.path.join(repo, 'tests'))
+            with open(os.path.join(repo, 'tests', 'a.test.ts'), 'w') as f:
+                f.write('test_a\n')
+            with open(os.path.join(repo, 'tests', 'b.spec.ts'), 'w') as f:
+                f.write('test_b\n')
+            subprocess.run(['git', 'add', '.'], cwd=repo, check=True, env=env)
+            subprocess.run(['git', 'commit', '-q', '-m', 'tests only'], cwd=repo, check=True, env=env)
+            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            result = dashboard_push.count_ships(
+                claude_dir=os.path.join(d, 'Claude'),
+                target_date=today,
+                author_email='h@x.com',
+            )
+            self.assertEqual(result['commits'], 1)
+            self.assertEqual(result['ship_quality'], 0.0)
 
     def test_no_repos_returns_zero(self):
         with tempfile.TemporaryDirectory() as d:
@@ -258,7 +324,7 @@ class TestCountShips(unittest.TestCase):
                 target_date='2026-05-14',
                 author_email='h@x.com',
             )
-            self.assertEqual(result, {'commits': 0, 'repos': 0})
+            self.assertEqual(result, {'commits': 0, 'repos': 0, 'ship_quality': 0.0})
 
 
 class TestHourlyBucketing(unittest.TestCase):

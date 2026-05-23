@@ -24,7 +24,9 @@ import glob
 import hashlib
 import hmac
 import json
+import math
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -90,7 +92,7 @@ def parse_day(jsonl_paths, target_date, home):
     tokens_by_hour = defaultdict(int)
     sessions = set()
     timestamps = []
-    # (message.id, requestId) -> {total, model, project, hour}
+    # (message.id, requestId) -> {total, output, cache_creation, tool_uses, model, project, hour}
     by_msg = {}
     for path in jsonl_paths:
         session_id = os.path.basename(path).replace('.jsonl', '')
@@ -120,14 +122,22 @@ def parse_day(jsonl_paths, target_date, home):
                     if model == '<synthetic>':
                         continue
                     total = _usage_total(usage)
+                    output = usage.get('output_tokens') or 0
+                    cache_creation = usage.get('cache_creation_input_tokens') or 0
+                    content = msg.get('content')
+                    tool_uses = 0
+                    if isinstance(content, list):
+                        tool_uses = sum(
+                            1 for c in content
+                            if isinstance(c, dict) and c.get('type') == 'tool_use'
+                        )
                     label = short_project(current_cwd, home)
                     local_hour = datetime.fromisoformat(
                         ts.replace('Z', '+00:00')
                     ).astimezone().hour
                     mid = msg.get('id')
-                    rid = d.get('requestId') or msg.get('id')  # fallback if no requestId
+                    rid = d.get('requestId') or msg.get('id')
                     if mid is None:
-                        # No id to dedupe on — count as-is (defensive; rare).
                         tokens_by_model[model] += total
                         tokens_by_project[label] += total
                         tokens_by_hour[str(local_hour)] += total
@@ -136,18 +146,40 @@ def parse_day(jsonl_paths, target_date, home):
                     prev = by_msg.get(key)
                     if prev is None or total > prev['total']:
                         by_msg[key] = {
-                            'total': total, 'model': model,
-                            'project': label, 'hour': str(local_hour),
+                            'total': total,
+                            'output': output,
+                            'cache_creation': cache_creation,
+                            # tool_uses can vary across the duplicated lines —
+                            # take the MAX seen so we don't undercount when the
+                            # final cumulative line has more tool_use blocks
+                            # than the earlier streaming snapshots.
+                            'tool_uses': max(tool_uses, (prev or {}).get('tool_uses', 0)),
+                            'model': model,
+                            'project': label,
+                            'hour': str(local_hour),
                         }
+                    elif prev is not None and tool_uses > prev.get('tool_uses', 0):
+                        prev['tool_uses'] = tool_uses
         except OSError:
             continue
+
+    total_output = 0
+    total_cache_creation = 0
+    total_tool_uses = 0
     for rec in by_msg.values():
         tokens_by_model[rec['model']] += rec['total']
         tokens_by_project[rec['project']] += rec['total']
         tokens_by_hour[rec['hour']] += rec['total']
+        total_output += rec['output']
+        total_cache_creation += rec['cache_creation']
+        total_tool_uses += rec['tool_uses']
+
     return {
         'tokens_total': sum(tokens_by_model.values()),
         'tokens_by_model': dict(tokens_by_model),
+        'output_tokens': total_output,
+        'cache_creation_tokens': total_cache_creation,
+        'tool_calls': total_tool_uses,
         'sessions': len(sessions),
         'projects_touched': dict(tokens_by_project),
         'tokens_by_hour': dict(tokens_by_hour),
@@ -175,9 +207,53 @@ def deep_work_minutes(timestamps):
     return int(total_seconds // 60)
 
 
+_TEST_PATH_RE = re.compile(r'(^|/)(tests?|__tests__|spec|specs|e2e|fixtures?)(/|$)|\.test\.|\.spec\.', re.IGNORECASE)
+
+
+def _per_commit_quality(repo, sha):
+    """Compute ship_quality for one commit:
+        log10(lines_changed + 1) * unique_files * non_test_ratio
+    Capped at 20 to prevent one mega-commit gaming.
+    """
+    try:
+        out = subprocess.run(
+            ['git', 'show', '--numstat', '--format=', sha],
+            cwd=repo, capture_output=True, text=True, timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return 0.0
+    if out.returncode != 0:
+        return 0.0
+    files = []
+    total_lines = 0
+    for ln in out.stdout.splitlines():
+        parts = ln.split('\t')
+        if len(parts) < 3:
+            continue
+        add_str, del_str, path = parts[0], parts[1], parts[2]
+        try:
+            added = int(add_str) if add_str != '-' else 0
+            removed = int(del_str) if del_str != '-' else 0
+        except ValueError:
+            continue
+        files.append(path)
+        total_lines += added + removed
+    if not files:
+        return 0.0
+    file_count = len(files)
+    test_files = sum(1 for p in files if _TEST_PATH_RE.search(p))
+    non_test_ratio = (file_count - test_files) / file_count if file_count else 0
+    raw = math.log10(total_lines + 1) * file_count * non_test_ratio
+    return min(20.0, raw)
+
+
 def count_ships(claude_dir, target_date, author_email):
     """Count commits authored by author_email on target_date across git repos
-    directly under claude_dir and one level deeper (claude_dir/*/  and claude_dir/*/*/)."""
+    directly under claude_dir and one level deeper (claude_dir/*/  and claude_dir/*/*/).
+
+    Also computes ship_quality = sum over commits of
+      log10(lines_changed + 1) * unique_files * non_test_ratio    (per-commit cap 20)
+    """
     candidates = []
     for depth1 in glob.glob(os.path.join(claude_dir, '*')):
         if os.path.isdir(os.path.join(depth1, '.git')):
@@ -188,24 +264,28 @@ def count_ships(claude_dir, target_date, author_email):
 
     commits = 0
     repos_with_commits = 0
+    ship_quality = 0.0
     since = target_date + 'T00:00:00'
     until = target_date + 'T23:59:59'
     for repo in candidates:
         try:
             out = subprocess.run(
                 ['git', 'log', '--author=' + author_email,
-                 '--since=' + since, '--until=' + until, '--oneline'],
+                 '--since=' + since, '--until=' + until, '--format=%H'],
                 cwd=repo, capture_output=True, text=True, timeout=10,
             )
         except (subprocess.SubprocessError, OSError):
             continue
         if out.returncode != 0:
             continue
-        n = len([ln for ln in out.stdout.splitlines() if ln.strip()])
-        if n > 0:
-            commits += n
-            repos_with_commits += 1
-    return {'commits': commits, 'repos': repos_with_commits}
+        shas = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+        if not shas:
+            continue
+        commits += len(shas)
+        repos_with_commits += 1
+        for sha in shas:
+            ship_quality += _per_commit_quality(repo, sha)
+    return {'commits': commits, 'repos': repos_with_commits, 'ship_quality': ship_quality}
 
 
 def sign_body(body, secret):
@@ -224,8 +304,16 @@ def build_payload(day, ships, github_handle, machine, target_date):
         'sessions': day['sessions'],
         'deep_work_minutes': deep_work_minutes(day.get('timestamps', [])),
         'projects_touched': day['projects_touched'],
-        'ships': ships,
+        # ships payload keeps the {commits, repos} shape the endpoint expects;
+        # ship_quality is sent alongside, not inside ships, for backwards-compat.
+        'ships': {'commits': ships['commits'], 'repos': ships['repos']},
         'hourly_tokens': day.get('tokens_by_hour', {}),
+        # VBW raw inputs — endpoint sums these across machines and computes the
+        # 5 dimensions + final VBW server-side.
+        'output_tokens': day.get('output_tokens', 0),
+        'cache_creation_tokens': day.get('cache_creation_tokens', 0),
+        'tool_calls': day.get('tool_calls', 0),
+        'ship_quality': ships.get('ship_quality', 0.0),
     }
 
 

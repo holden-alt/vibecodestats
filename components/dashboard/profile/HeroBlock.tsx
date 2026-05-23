@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import { formatDelta } from '@/lib/format';
@@ -15,6 +16,7 @@ type Props = {
   deltaVsYesterday: number; // 0.38 → +38%
   deltaVs7dAvg: number; // ratio (today / 7d avg - 1), 0 if no 7d avg
   deltaVs30dAvg: number; // ratio, 0 if no 30d avg
+  vbwToday: number; // 0-10000 — VBW productivity score
 };
 
 export function HeroBlock({
@@ -27,6 +29,7 @@ export function HeroBlock({
   deltaVsYesterday,
   deltaVs7dAvg,
   deltaVs30dAvg,
+  vbwToday,
 }: Props) {
   const sparkData = [...trendStats]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -61,6 +64,18 @@ export function HeroBlock({
           <span style={{ fontSize: '0.75rem', color: deltaColor }}>
             {deltaVsYesterday >= 0 ? '▲' : '▼'} {formatDelta(deltaVsYesterday)} vs yesterday
           </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8, fontSize: '0.75rem' }}>
+          <span style={{ color: 'var(--chart-2, #f5c542)', fontFamily: 'var(--font-mono)' }}>
+            ⚡ {vbwToday.toLocaleString()} VBW
+          </span>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <Link
+            href="/methodology"
+            style={{ opacity: 0.55, fontSize: '0.7rem', textDecoration: 'underline', textUnderlineOffset: 2 }}
+          >
+            how this works
+          </Link>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.65rem', flexWrap: 'wrap' }}>
           {deltaVs7dAvg !== 0 && (

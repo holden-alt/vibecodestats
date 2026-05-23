@@ -56,7 +56,19 @@ vi.mock('@supabase/supabase-js', () => ({
           }),
         };
       }
-      // daily_stats
+      // daily_stats: handle both the streakBefore query (select chain) and
+      // the daily roll-up upsert.
+      if (table === 'daily_stats') {
+        const streakChain: Record<string, unknown> = {};
+        streakChain.lt = vi.fn(() => streakChain);
+        streakChain.gte = vi.fn(() => streakChain);
+        streakChain.order = vi.fn(() => streakChain);
+        streakChain.limit = vi.fn(async () => ({ data: [], error: null }));
+        return {
+          upsert: dailyUpsertMock,
+          select: () => ({ eq: () => streakChain }),
+        };
+      }
       return { upsert: dailyUpsertMock };
     },
   })),

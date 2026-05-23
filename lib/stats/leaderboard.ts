@@ -1,7 +1,7 @@
 import type { DailyStat } from '@/lib/stats/profile-data';
 import { type StatsWindow, filterByWindow, computeStreak } from '@/lib/stats/aggregations';
 
-export type LeaderboardMetric = 'tokens' | 'sessions' | 'deepwork' | 'streak' | 'ships';
+export type LeaderboardMetric = 'tokens' | 'vbw' | 'sessions' | 'deepwork' | 'streak' | 'ships';
 export type LeaderboardScope = 'global' | 'groups' | 'friends';
 
 // Group with full details + the user ids of its members. Used both for the
@@ -48,6 +48,13 @@ function cumulativeValue(stats: DailyStat[], metric: Exclude<LeaderboardMetric, 
   switch (metric) {
     case 'tokens':
       return stats.reduce((s, d) => s + d.tokens_total, 0);
+    case 'vbw':
+      // For "today" window this just reads today's vbw_total; for longer
+      // windows it sums per-day VBW. Cumulative VBW isn't a perfect metric
+      // for long windows (each day's score is bounded 0-10K, so a week's
+      // ceiling is 70K), but it's the cleanest cross-window ranking — bigger
+      // weekly total = more consistently productive days.
+      return stats.reduce((s, d) => s + (d.vbw_total ?? 0), 0);
     case 'sessions':
       return stats.reduce((s, d) => s + d.sessions, 0);
     case 'deepwork':

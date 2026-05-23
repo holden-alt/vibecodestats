@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { validateIngestPayload } from '@/lib/ingest/payload';
 import { regenerateOgImage } from '@/lib/og/regenerate';
+import { computeVbw } from '@/lib/stats/vbw';
 import type { Database } from '@/lib/types/database';
 
 export const runtime = 'edge';
@@ -25,7 +26,40 @@ type MachineRow = {
   projects_touched: Record<string, number>;
   ships: { commits: number; repos: number };
   hourly_tokens: Record<string, number>;
+  tool_calls: number;
+  ship_quality: number;
+  output_tokens: number;
+  cache_creation_tokens: number;
 };
+
+// Count consecutive prior days (excluding `date` itself) where the user had any
+// activity. Used as the streak multiplier input for VBW. Looks back 14 days max.
+async function streakBefore(
+  supabase: ReturnType<typeof createClient<Database>>,
+  userId: string,
+  date: string,
+): Promise<number> {
+  const { data } = await supabase
+    .from('daily_stats')
+    .select('date,tokens_total')
+    .eq('user_id', userId)
+    .lt('date', date)
+    .gte('date', new Date(Date.parse(date + 'T00:00:00Z') - 14 * 86400_000).toISOString().slice(0, 10))
+    .order('date', { ascending: false })
+    .limit(14);
+  if (!data || data.length === 0) return 0;
+
+  const targetMs = Date.parse(date + 'T00:00:00Z');
+  let streak = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (!row || row.tokens_total <= 0) break;
+    const expected = new Date(targetMs - (i + 1) * 86400_000).toISOString().slice(0, 10);
+    if (row.date !== expected) break;
+    streak++;
+  }
+  return streak;
+}
 
 export async function POST(request: Request): Promise<Response> {
   const authHeader = request.headers.get('authorization');
@@ -87,6 +121,10 @@ export async function POST(request: Request): Promise<Response> {
       projects_touched: payload.projects_touched,
       ships: payload.ships,
       hourly_tokens: payload.hourly_tokens,
+      tool_calls: payload.tool_calls,
+      ship_quality: payload.ship_quality,
+      output_tokens: payload.output_tokens,
+      cache_creation_tokens: payload.cache_creation_tokens,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,date,machine' },
@@ -101,7 +139,9 @@ export async function POST(request: Request): Promise<Response> {
   // 2. Read every machine's sub-total for the day.
   const { data: machineRows, error: rollupSelectError } = await supabase
     .from('machine_daily_stats')
-    .select('machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships, hourly_tokens')
+    .select(
+      'machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships, hourly_tokens, tool_calls, ship_quality, output_tokens, cache_creation_tokens',
+    )
     .eq('user_id', authenticatedUserId)
     .eq('date', payload.date);
   if (rollupSelectError || !machineRows) {
@@ -109,17 +149,41 @@ export async function POST(request: Request): Promise<Response> {
   }
   const rows = machineRows as MachineRow[];
 
-  // 3. Roll up across machines and upsert daily_stats.
+  // 3. Roll up across machines.
+  const summed = {
+    tokens_total: rows.reduce((s, r) => s + r.tokens_total, 0),
+    sessions: rows.reduce((s, r) => s + r.sessions, 0),
+    deep_work_minutes: rows.reduce((s, r) => s + r.deep_work_minutes, 0),
+    tool_calls: rows.reduce((s, r) => s + (r.tool_calls ?? 0), 0),
+    ship_quality: rows.reduce((s, r) => s + (r.ship_quality ?? 0), 0),
+    output_tokens: rows.reduce((s, r) => s + (r.output_tokens ?? 0), 0),
+    cache_creation_tokens: rows.reduce((s, r) => s + (r.cache_creation_tokens ?? 0), 0),
+  };
+
+  // 4. Compute VBW from the rolled-up inputs + streak.
+  const streak = await streakBefore(supabase, authenticatedUserId, payload.date);
+  const vbw = computeVbw(
+    {
+      output_tokens: summed.output_tokens,
+      cache_creation_tokens: summed.cache_creation_tokens,
+      tool_calls: summed.tool_calls,
+      ship_quality: summed.ship_quality,
+      deep_work_minutes: summed.deep_work_minutes,
+    },
+    streak,
+  );
+
+  // 5. Upsert daily_stats with the new VBW columns.
   const rollup = {
     user_id: authenticatedUserId,
     date: payload.date,
-    tokens_total: rows.reduce((s, r) => s + r.tokens_total, 0),
+    tokens_total: summed.tokens_total,
     tokens_by_model: rows.reduce<Record<string, number>>(
       (acc, r) => mergeNumberRecords(acc, r.tokens_by_model),
       {},
     ),
-    sessions: rows.reduce((s, r) => s + r.sessions, 0),
-    deep_work_minutes: rows.reduce((s, r) => s + r.deep_work_minutes, 0),
+    sessions: summed.sessions,
+    deep_work_minutes: summed.deep_work_minutes,
     machines: rows.map((r) => r.machine).sort(),
     projects_touched: rows.reduce<Record<string, number>>(
       (acc, r) => mergeNumberRecords(acc, r.projects_touched),
@@ -134,6 +198,12 @@ export async function POST(request: Request): Promise<Response> {
       {},
     ),
     source_synced_at: new Date().toISOString(),
+    tool_calls: summed.tool_calls,
+    ship_quality: summed.ship_quality,
+    output_tokens: summed.output_tokens,
+    cache_creation_tokens: summed.cache_creation_tokens,
+    vbw_total: vbw.total,
+    vbw_components: vbw.components,
   };
 
   const { error: upsertError } = await supabase
@@ -151,5 +221,5 @@ export async function POST(request: Request): Promise<Response> {
     void regenerateOgImage(authenticatedHandle, supabase).catch(() => {});
   }
 
-  return Response.json({ ok: true }, { status: 200 });
+  return Response.json({ ok: true, vbw: vbw.total }, { status: 200 });
 }

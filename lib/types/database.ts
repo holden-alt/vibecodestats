@@ -61,6 +61,14 @@ export type Database = {
           ships: Json;
           hourly_tokens: Json;
           source_synced_at: string | null;
+          // VBW columns added 2026-05-23 with DB defaults of 0/{}, so existing
+          // pre-VBW rows still read fine but the type stays tolerant of fixtures.
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_total?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Insert: {
           user_id: string;
@@ -74,6 +82,12 @@ export type Database = {
           ships?: Json;
           hourly_tokens?: Json;
           source_synced_at?: string | null;
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_total?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Update: {
           user_id?: string;
@@ -87,6 +101,12 @@ export type Database = {
           ships?: Json;
           hourly_tokens?: Json;
           source_synced_at?: string | null;
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_total?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Relationships: [];
       };
@@ -103,6 +123,11 @@ export type Database = {
           ships: Json;
           hourly_tokens: Json;
           updated_at: string;
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Insert: {
           user_id: string;
@@ -116,6 +141,11 @@ export type Database = {
           ships?: Json;
           hourly_tokens?: Json;
           updated_at?: string;
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Update: {
           user_id?: string;
@@ -129,6 +159,11 @@ export type Database = {
           ships?: Json;
           hourly_tokens?: Json;
           updated_at?: string;
+          tool_calls?: number;
+          ship_quality?: number;
+          vbw_components?: Json;
+          output_tokens?: number;
+          cache_creation_tokens?: number;
         };
         Relationships: [];
       };

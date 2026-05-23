@@ -471,6 +471,23 @@ def main():
     if status == 200:
         with open(LAST_PUSH_FILE, 'w') as f:
             f.write(str(time.time()))
+        # Cache today's VBW for the statusline. Stays out of the hot render
+        # path — statusline just reads this file (no HTTP per render).
+        try:
+            resp = json.loads(text)
+            vbw_val = resp.get('vbw')
+            if isinstance(vbw_val, (int, float)):
+                cache_dir = os.path.join(HOME, '.claude', 'daily-tokens')
+                os.makedirs(cache_dir, exist_ok=True)
+                cache_path = os.path.join(cache_dir, 'vbw-today.json')
+                with open(cache_path, 'w') as f:
+                    json.dump({
+                        'vbw': int(vbw_val),
+                        'date': target_date,
+                        'ts': int(time.time()),
+                    }, f)
+        except (json.JSONDecodeError, OSError, TypeError):
+            pass
     else:
         print(f'dashboard-push: ingest returned {status}: {text[:200]}', file=sys.stderr)
     return 0 if status == 200 else 1

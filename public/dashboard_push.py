@@ -471,20 +471,30 @@ def main():
     if status == 200:
         with open(LAST_PUSH_FILE, 'w') as f:
             f.write(str(time.time()))
-        # Cache today's VBW for the statusline. Stays out of the hot render
-        # path — statusline just reads this file (no HTTP per render).
+        # Cache today's VBW + token total for the statusline. Both share the
+        # same dashboard formula, so the statusline always matches vibecodestats
+        # exactly (no diverging per-session-delta accounting). Refreshed every
+        # Stop hook (which is every CC turn end).
         try:
+            cache_dir = os.path.join(HOME, '.claude', 'daily-tokens')
+            os.makedirs(cache_dir, exist_ok=True)
+            now_ts = int(time.time())
+            # tokens-today.json — authoritative ccusage daily total for this Mac.
+            with open(os.path.join(cache_dir, 'tokens-today.json'), 'w') as f:
+                json.dump({
+                    'tokens': int(payload['tokens_total']),
+                    'date': target_date,
+                    'ts': now_ts,
+                }, f)
+            # vbw-today.json — parsed from the API response.
             resp = json.loads(text)
             vbw_val = resp.get('vbw')
             if isinstance(vbw_val, (int, float)):
-                cache_dir = os.path.join(HOME, '.claude', 'daily-tokens')
-                os.makedirs(cache_dir, exist_ok=True)
-                cache_path = os.path.join(cache_dir, 'vbw-today.json')
-                with open(cache_path, 'w') as f:
+                with open(os.path.join(cache_dir, 'vbw-today.json'), 'w') as f:
                     json.dump({
                         'vbw': int(vbw_val),
                         'date': target_date,
-                        'ts': int(time.time()),
+                        'ts': now_ts,
                     }, f)
         except (json.JSONDecodeError, OSError, TypeError):
             pass

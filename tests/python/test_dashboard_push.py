@@ -7,7 +7,7 @@ import unittest
 import sys
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'public'))
 import dashboard_push  # noqa: E402
 
 
@@ -25,24 +25,29 @@ class TestParseSessions(unittest.TestCase):
             write_jsonl(os.path.join(proj, 'sess-1.jsonl'), [
                 {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
                  'cwd': '/Users/holden/Claude/holden-alt/cc-dashboard', 'sessionId': 'sess-1',
-                 'message': {'model': 'claude-opus-4-7',
+                 'message': {'id': 'm1', 'model': 'claude-opus-4-7',
                              'usage': {'input_tokens': 100, 'output_tokens': 200,
-                                       'cache_read_input_tokens': 9999}}},
+                                       'cache_creation_input_tokens': 500,
+                                       'cache_read_input_tokens': 9999}},
+                 'requestId': 'r1'},
                 {'type': 'assistant', 'timestamp': '2026-05-14T10:05:00.000Z',
                  'cwd': '/Users/holden/Claude/holden-alt/cc-dashboard', 'sessionId': 'sess-1',
-                 'message': {'model': 'claude-opus-4-7',
-                             'usage': {'input_tokens': 50, 'output_tokens': 50}}},
+                 'message': {'id': 'm2', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 50, 'output_tokens': 50}},
+                 'requestId': 'r2'},
                 # different day — must be ignored
                 {'type': 'assistant', 'timestamp': '2026-05-13T10:00:00.000Z',
                  'cwd': '/Users/holden/Claude/holden-alt/cc-dashboard', 'sessionId': 'sess-1',
-                 'message': {'model': 'claude-opus-4-7',
-                             'usage': {'input_tokens': 1, 'output_tokens': 1}}},
+                 'message': {'id': 'm3', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 1, 'output_tokens': 1}},
+                 'requestId': 'r3'},
             ])
             write_jsonl(os.path.join(proj, 'sess-2.jsonl'), [
                 {'type': 'assistant', 'timestamp': '2026-05-14T12:00:00.000Z',
                  'cwd': '/Users/holden/Claude/realsavvy/agnt-portal', 'sessionId': 'sess-2',
-                 'message': {'model': 'claude-sonnet-4-6',
-                             'usage': {'input_tokens': 10, 'output_tokens': 5}}},
+                 'message': {'id': 'm4', 'model': 'claude-sonnet-4-6',
+                             'usage': {'input_tokens': 10, 'output_tokens': 5}},
+                 'requestId': 'r4'},
             ])
 
             result = dashboard_push.parse_day(
@@ -51,17 +56,17 @@ class TestParseSessions(unittest.TestCase):
                 home='/Users/holden',
             )
 
-            # fresh tokens only: (100+200) + (50+50) = 400 opus, (10+5)=15 sonnet
-            self.assertEqual(result['tokens_total'], 415)
+            # ccusage formula: input + output + cache_creation + cache_read
+            # opus turn 1: 100+200+500+9999 = 10799; turn 2: 50+50 = 100 → 10899
+            # sonnet:      10+5 = 15
+            self.assertEqual(result['tokens_total'], 10914)
             self.assertEqual(result['tokens_by_model'], {
-                'claude-opus-4-7': 400,
+                'claude-opus-4-7': 10899,
                 'claude-sonnet-4-6': 15,
             })
-            # two distinct session ids active on the target date
             self.assertEqual(result['sessions'], 2)
-            # project labels are home-relative under ~/Claude
             self.assertEqual(result['projects_touched'], {
-                'holden-alt/cc-dashboard': 400,
+                'holden-alt/cc-dashboard': 10899,
                 'realsavvy/agnt-portal': 15,
             })
 
@@ -76,6 +81,103 @@ class TestParseSessions(unittest.TestCase):
             ])
             result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
             self.assertEqual(result['tokens_total'], 0)
+
+    def test_dedupes_repeated_message_id_within_a_turn(self):
+        # A single API turn that returns thinking + text + 2 tool_use blocks
+        # is written to the JSONL as 4 lines — same message.id, same usage
+        # object on every line. The parser must count usage once per id.
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            write_jsonl(p, [
+                # turn 1: 4 blocks (thinking/text/tool/tool), all share msg id
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_aaa', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 500}}},
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:01.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_aaa', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 500}}},
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:02.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_aaa', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 500}}},
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:03.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_aaa', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 500}}},
+                # turn 2: separate id, counts independently
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:01:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_bbb', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 10, 'output_tokens': 20}}},
+            ])
+            result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
+            # msg_aaa counted once (600) + msg_bbb (30) = 630
+            self.assertEqual(result['tokens_total'], 630)
+            self.assertEqual(result['tokens_by_model'], {'claude-opus-4-7': 630})
+
+    def test_keeps_max_usage_when_streaming_snapshots_vary(self):
+        # During streaming, CC writes intermediate usage snapshots. Earlier
+        # lines for the same message.id carry partial output_tokens; the LAST
+        # line carries the final cumulative total. We must keep the MAX.
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            write_jsonl(p, [
+                # streaming snapshot 1: small output (text just landed)
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_x', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 6, 'output_tokens': 1}}},
+                # streaming snapshot 2: final total (tool_use finished streaming)
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:01.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_x', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 6, 'output_tokens': 341}}},
+            ])
+            result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
+            # Should pick the max: 6 + 341 = 347, not the first snapshot (7).
+            self.assertEqual(result['tokens_total'], 347)
+
+    def test_dedupes_message_id_across_files(self):
+        # Session resume / file copy: same message.id appears in 2 files.
+        # Should still count once.
+        with tempfile.TemporaryDirectory() as d:
+            p1 = os.path.join(d, 'sess-a.jsonl')
+            p2 = os.path.join(d, 'sess-b.jsonl')
+            rec = {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                   'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                   'message': {'id': 'msg_shared', 'model': 'claude-opus-4-7',
+                               'usage': {'input_tokens': 200, 'output_tokens': 300}}}
+            write_jsonl(p1, [rec])
+            write_jsonl(p2, [rec])
+            result = dashboard_push.parse_day([p1, p2], target_date='2026-05-14', home='/Users/holden')
+            self.assertEqual(result['tokens_total'], 500)
+
+    def test_subagent_message_ids_count_independently(self):
+        # Subagent JSONLs have their own message.ids, distinct from the parent.
+        # Their tokens are genuine new API calls — must NOT be deduped away.
+        with tempfile.TemporaryDirectory() as d:
+            parent = os.path.join(d, 'sess.jsonl')
+            sub = os.path.join(d, 'sess', 'subagents', 'agent-1.jsonl')
+            os.makedirs(os.path.dirname(sub))
+            write_jsonl(parent, [
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'msg_parent', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 200}}},
+            ])
+            write_jsonl(sub, [
+                {'type': 'assistant', 'timestamp': '2026-05-14T10:00:01.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 'sa',
+                 'message': {'id': 'msg_subagent', 'model': 'claude-sonnet-4-6',
+                             'usage': {'input_tokens': 50, 'output_tokens': 75}}},
+            ])
+            result = dashboard_push.parse_day([parent, sub], target_date='2026-05-14', home='/Users/holden')
+            self.assertEqual(result['tokens_total'], 425)
+            self.assertEqual(result['tokens_by_model'], {
+                'claude-opus-4-7': 300, 'claude-sonnet-4-6': 125,
+            })
 
 
 class TestDeepWork(unittest.TestCase):

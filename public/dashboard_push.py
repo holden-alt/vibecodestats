@@ -55,6 +55,14 @@ def short_project(cwd, home):
     return cwd
 
 
+def _usage_total(usage):
+    """Total tokens for one usage row, ccusage convention: sum all four fields."""
+    return ((usage.get('input_tokens') or 0)
+            + (usage.get('output_tokens') or 0)
+            + (usage.get('cache_creation_input_tokens') or 0)
+            + (usage.get('cache_read_input_tokens') or 0))
+
+
 def parse_day(jsonl_paths, target_date, home):
     """Parse the given JSONL files, return aggregates for target_date (YYYY-MM-DD).
 
@@ -62,15 +70,31 @@ def parse_day(jsonl_paths, target_date, home):
     Code sessions frequently cd around — the session's first cwd is often the
     user's home dir, not the project they end up working in. Each token-bearing
     event is attributed to the most recent cwd seen up to that point.
+
+    Token formula matches ccusage (the canonical community parser):
+      total = input_tokens + output_tokens
+            + cache_creation_input_tokens + cache_read_input_tokens
+
+    Dedupe handling: a single API response with multiple content blocks
+    (thinking + text + each tool_use) is written to the JSONL as one line per
+    block. All lines share the same `(message.id, requestId)`. Usage is often
+    identical across lines; sometimes earlier lines carry partial output_tokens
+    (streaming snapshots) and the last line carries the cumulative total. We
+    dedupe by `(message.id, requestId)` and keep the row with the LARGEST
+    usage-sum so streaming snapshots collapse to the final value. Subagent
+    JSONLs use distinct message.ids from the parent, so this does not erase
+    real subagent work.
     """
     tokens_by_model = defaultdict(int)
     tokens_by_project = defaultdict(int)
     tokens_by_hour = defaultdict(int)
     sessions = set()
     timestamps = []
+    # (message.id, requestId) -> {total, model, project, hour}
+    by_msg = {}
     for path in jsonl_paths:
         session_id = os.path.basename(path).replace('.jsonl', '')
-        current_cwd = None  # updated on every event that carries a cwd
+        current_cwd = None
         try:
             with open(path) as f:
                 for line in f:
@@ -95,18 +119,32 @@ def parse_day(jsonl_paths, target_date, home):
                     model = msg.get('model') or 'unknown'
                     if model == '<synthetic>':
                         continue
-                    fresh = (usage.get('input_tokens') or 0) + (usage.get('output_tokens') or 0)
-                    tokens_by_model[model] += fresh
+                    total = _usage_total(usage)
                     label = short_project(current_cwd, home)
-                    tokens_by_project[label] += fresh
-                    # Bucket by the user's LOCAL hour. ts is UTC ISO with a 'Z' suffix;
-                    # .astimezone() (no arg) converts to the machine's local timezone.
                     local_hour = datetime.fromisoformat(
                         ts.replace('Z', '+00:00')
                     ).astimezone().hour
-                    tokens_by_hour[str(local_hour)] += fresh
+                    mid = msg.get('id')
+                    rid = d.get('requestId') or msg.get('id')  # fallback if no requestId
+                    if mid is None:
+                        # No id to dedupe on — count as-is (defensive; rare).
+                        tokens_by_model[model] += total
+                        tokens_by_project[label] += total
+                        tokens_by_hour[str(local_hour)] += total
+                        continue
+                    key = (mid, rid)
+                    prev = by_msg.get(key)
+                    if prev is None or total > prev['total']:
+                        by_msg[key] = {
+                            'total': total, 'model': model,
+                            'project': label, 'hour': str(local_hour),
+                        }
         except OSError:
             continue
+    for rec in by_msg.values():
+        tokens_by_model[rec['model']] += rec['total']
+        tokens_by_project[rec['project']] += rec['total']
+        tokens_by_hour[rec['hour']] += rec['total']
     return {
         'tokens_total': sum(tokens_by_model.values()),
         'tokens_by_model': dict(tokens_by_model),

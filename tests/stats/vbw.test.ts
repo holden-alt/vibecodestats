@@ -72,7 +72,7 @@ describe('computeVbw', () => {
     expect(r.total).toBeLessThan(10001);
   });
 
-  it('applies streak multiplier up to 1.5x at 10+ days', () => {
+  it('applies streak multiplier up to 1.1x at 10+ days (mild on purpose)', () => {
     const inputs = {
       output_tokens: 500_000,
       cache_creation_tokens: 50_000_000,
@@ -83,8 +83,8 @@ describe('computeVbw', () => {
     const day1 = computeVbw(inputs, 0);
     const day10 = computeVbw(inputs, 10);
     const day30 = computeVbw(inputs, 30);
-    expect(day10.persistence).toBeCloseTo(1.5, 5);
-    expect(day30.persistence).toBeCloseTo(1.5, 5);
+    expect(day10.persistence).toBeCloseTo(1.1, 5);
+    expect(day30.persistence).toBeCloseTo(1.1, 5);
     expect(day10.total).toBeGreaterThan(day1.total);
     expect(day30.total).toBe(day10.total);
   });

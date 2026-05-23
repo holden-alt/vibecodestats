@@ -38,8 +38,12 @@ const D2_SUBSTANCE_SCALE = 12.5;   // log10(1e8) * 12.5 = 100
 const D3_TOOLS_SCALE = 25;         // log10(1e4) * 25 = 100
 const D5_DEPTH_DIVISOR = 6;        // 600 min / 6 = 100
 
-const STREAK_STEP = 0.05;          // each day in streak adds 5%
-const STREAK_MAX_BONUS = 0.5;      // capped at 1.5x
+// Streak multiplier deliberately mild: at 1.5x it warped real-data calibration
+// (most heavy days saturated at 10K and the leaderboard stopped distinguishing).
+// 10 days of consistent activity = 10% bonus, which feels earned without flattening
+// the top-end. Below 100% — never compresses or penalizes a no-streak day.
+const STREAK_STEP = 0.01;          // each day adds 1%
+const STREAK_MAX_BONUS = 0.1;      // capped at 1.1x at day 10+
 const FINAL_SCALE = 100;           // turns 0-100 base into 0-10000
 
 const VBW_HARD_CAP = 10000;

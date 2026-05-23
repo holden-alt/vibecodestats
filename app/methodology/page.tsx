@@ -130,7 +130,7 @@ export default function MethodologyPage() {
       <section style={sectionStyle}>
         <h2 style={h2Style}>The formula</h2>
         <pre style={codeBlock}>{`base    = geo_mean(Output, Substance, Tools, Ships, Depth)
-streak  = 1.0 + min(0.5, consecutive_days × 0.05)   # max 1.5× at 10 days
+streak  = 1.0 + min(0.1, consecutive_days × 0.01)   # max 1.1× at 10 days
 VBW     = clamp(0, 10000)( base × streak × 100 )`}</pre>
         <p style={{ marginTop: 14 }}>
           The <strong>geometric mean</strong> is the load-bearing choice. A zero on

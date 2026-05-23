@@ -122,7 +122,7 @@ export function hourlyTotals(stats: DailyStat[]): number[] {
 
 export type StatsWindow = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
 
-const WINDOW_DAYS: Record<Exclude<StatsWindow, 'all'>, number> = {
+export const WINDOW_DAYS: Record<Exclude<StatsWindow, 'all'>, number> = {
   today: 1,
   week: 7,
   month: 30,

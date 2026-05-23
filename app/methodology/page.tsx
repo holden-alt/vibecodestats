@@ -198,6 +198,41 @@ VBW     = clamp(0, 10000)( base × streak × 100 )`}</pre>
       </section>
 
       <section style={sectionStyle}>
+        <h2 style={h2Style}>How VBW aggregates across time</h2>
+        <p>
+          Tokens, sessions, and ships are <em>cumulative volumes</em> — summing
+          them across a week gives a meaningful weekly total. VBW is different:
+          it&apos;s a normalized 0–10,000 daily score, so summing it would produce
+          an arbitrary unbounded number that scales with window length.
+        </p>
+        <p style={{ marginTop: 8 }}>
+          Instead, week / month / year VBW is the <strong>mean across every day
+          in the window</strong> (rest days included). That keeps every window
+          on the same 0–10,000 scale and gives an honest read of typical daily
+          productivity: a 9,000-VBW Tuesday gets dragged down by a Sunday off.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2 style={h2Style}>Threshold calibration & recalibration</h2>
+        <p>
+          The dimension thresholds (10⁶ output, 10⁸ cache_creation, 10⁴ tools,
+          100 ship_quality, 600 min depth) are <strong>absolute ceilings</strong>{' '}
+          chosen to represent a physically heavy day on Claude Code, not a
+          population percentile. With one active user on the platform, that&apos;s
+          the only honest anchor.
+        </p>
+        <p style={{ marginTop: 8 }}>
+          When the platform crosses <strong>50+ active users for 30+ days</strong>,
+          these thresholds will <strong>rebase to the population</strong>: the
+          95th percentile of daily scores will become the new dimension cap,
+          recomputed quarterly. This is what FICO and ESPN QBR do as their
+          underlying populations shift. Until then: thresholds stay fixed and
+          this section gets updated when they change.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
         <h2 style={h2Style}>What this is not</h2>
         <p>
           VBW is not a measure of <em>code quality</em>. It’s not a substitute for

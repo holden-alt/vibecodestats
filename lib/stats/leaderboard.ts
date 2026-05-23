@@ -1,5 +1,5 @@
 import type { DailyStat } from '@/lib/stats/profile-data';
-import { type StatsWindow, filterByWindow, computeStreak } from '@/lib/stats/aggregations';
+import { type StatsWindow, filterByWindow, computeStreak, WINDOW_DAYS } from '@/lib/stats/aggregations';
 
 export type LeaderboardMetric = 'tokens' | 'vbw' | 'sessions' | 'deepwork' | 'streak' | 'ships';
 export type LeaderboardScope = 'global' | 'groups' | 'friends';
@@ -44,17 +44,37 @@ type RankOptions = {
 
 // Cumulative metrics sum over the (already window-filtered) stats. Streak is
 // handled separately because it is inherently "current streak ending today".
-function cumulativeValue(stats: DailyStat[], metric: Exclude<LeaderboardMetric, 'streak'>): number {
+// VBW is the only non-cumulative metric — it's a normalized 0-10K daily score,
+// so we take the mean across the full calendar window (rest days included),
+// keeping the result on the same 0-10K scale across today/week/month/etc.
+function cumulativeValue(
+  stats: DailyStat[],
+  metric: Exclude<LeaderboardMetric, 'streak'>,
+  window: StatsWindow,
+  allStatsForUser: DailyStat[],
+): number {
   switch (metric) {
     case 'tokens':
       return stats.reduce((s, d) => s + d.tokens_total, 0);
-    case 'vbw':
-      // For "today" window this just reads today's vbw_total; for longer
-      // windows it sums per-day VBW. Cumulative VBW isn't a perfect metric
-      // for long windows (each day's score is bounded 0-10K, so a week's
-      // ceiling is 70K), but it's the cleanest cross-window ranking — bigger
-      // weekly total = more consistently productive days.
-      return stats.reduce((s, d) => s + (d.vbw_total ?? 0), 0);
+    case 'vbw': {
+      // Divisor is the FULL window length (e.g. 7 for week, 30 for month) so
+      // that rest days legitimately pull the average down — VBW measures
+      // typical daily productivity over the window, not just the days you
+      // happened to log activity. For "all", use the user's actual range
+      // (earliest stat → today) so we don't divide by years of pre-launch days.
+      const sum = stats.reduce((s, d) => s + (d.vbw_total ?? 0), 0);
+      let divisor: number;
+      if (window === 'all') {
+        if (allStatsForUser.length === 0) return 0;
+        const dates = allStatsForUser.map((s) => s.date).sort();
+        const firstMs = Date.parse(dates[0]! + 'T00:00:00Z');
+        const lastMs = Date.parse(dates[dates.length - 1]! + 'T00:00:00Z');
+        divisor = Math.max(1, Math.round((lastMs - firstMs) / 86400_000) + 1);
+      } else {
+        divisor = WINDOW_DAYS[window];
+      }
+      return Math.round(sum / divisor);
+    }
     case 'sessions':
       return stats.reduce((s, d) => s + d.sessions, 0);
     case 'deepwork':
@@ -95,7 +115,7 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
       const value =
         metric === 'streak'
           ? computeStreak(allStats, today)
-          : cumulativeValue(filterByWindow(allStats, today, window), metric);
+          : cumulativeValue(filterByWindow(allStats, today, window), metric, window, allStats);
       return { userId: u.id, handle: u.github_handle, displayName: u.display_name, value };
     });
 

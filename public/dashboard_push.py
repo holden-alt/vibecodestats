@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 
 HOME = os.path.expanduser('~')
 PROJECTS_DIR = os.path.join(HOME, '.claude', 'projects')
+CODEX_SESSIONS_DIR = os.path.join(HOME, '.codex', 'sessions')
 LAST_PUSH_FILE = os.path.join(HOME, '.claude', '.cc-dashboard-last-push')
 DEBOUNCE_SECONDS = 90
 DEEP_WORK_GAP_SECONDS = 15 * 60
@@ -207,6 +208,162 @@ def deep_work_minutes(timestamps):
     return int(total_seconds // 60)
 
 
+def parse_codex_day(jsonl_paths, target_date, home):
+    """Parse Codex CLI session files for target_date. Same return shape as
+    parse_day() so the two can be merged additively.
+
+    Codex JSONL schema (different from Claude's, fully decoded):
+      - Each line: {type: "response_item"|"event_msg"|"turn_context"|"session_meta",
+                    payload: {type: "...", ...}}
+      - token_count event (event_msg) carries per-turn marginal usage in
+        payload.info.last_token_usage:
+            input_tokens (ALREADY includes cached portion)
+            cached_input_tokens (subset of input — analog of cache_read)
+            output_tokens
+            reasoning_output_tokens (thinking — added to output for our purposes)
+            total_tokens (= input + output, EXCLUDES reasoning)
+      - turn_context event carries the current model (e.g. "gpt-5.5") and cwd.
+        Both can change per turn within a session.
+      - function_call + custom_tool_call response_items = tool invocations.
+      - user_message + agent_message event_msgs = turn boundaries for sessions
+        and deep_work timestamp collection.
+
+    No dedupe needed (one token_count per turn, marginal, no streaming
+    snapshots). We DO carry forward the most-recent (model, cwd) seen so each
+    token_count is attributed correctly even on long sessions that switch
+    cwd mid-stream.
+    """
+    tokens_by_model = defaultdict(int)
+    tokens_by_project = defaultdict(int)
+    tokens_by_hour = defaultdict(int)
+    sessions = set()
+    timestamps = []
+    total_output = 0
+    total_cache_creation = 0  # Codex doesn't expose cache_creation explicitly;
+                              # use (input - cached) as the "new input fed" proxy.
+    total_tool_calls = 0
+    grand_total = 0
+
+    for path in jsonl_paths:
+        # Session id = filename UUID after "rollout-<timestamp>-".
+        base = os.path.basename(path)
+        session_id = base.replace('rollout-', '').replace('.jsonl', '')
+        current_model = None
+        current_cwd = None
+        try:
+            with open(path) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    payload = d.get('payload')
+                    if not isinstance(payload, dict):
+                        continue
+                    top = d.get('type')
+                    kind = payload.get('type')
+
+                    # Pick up cwd from session_meta (one-time, session-wide
+                    # default) — turn_context.cwd overrides on the fly.
+                    if top == 'session_meta':
+                        if payload.get('cwd'):
+                            current_cwd = payload['cwd']
+                        continue
+
+                    if top == 'turn_context':
+                        if payload.get('model'):
+                            current_model = payload['model']
+                        if payload.get('cwd'):
+                            current_cwd = payload['cwd']
+                        continue
+
+                    ts = d.get('timestamp')
+                    if not ts or ts[:10] != target_date:
+                        continue
+
+                    if kind in ('user_message', 'agent_message'):
+                        sessions.add(session_id)
+                        timestamps.append(ts)
+
+                    if kind in ('function_call', 'custom_tool_call'):
+                        total_tool_calls += 1
+                        continue
+
+                    if kind != 'token_count':
+                        continue
+
+                    info = payload.get('info') or {}
+                    last = info.get('last_token_usage') or {}
+                    in_tok = int(last.get('input_tokens') or 0)
+                    cached = int(last.get('cached_input_tokens') or 0)
+                    out_tok = int(last.get('output_tokens') or 0)
+                    reason = int(last.get('reasoning_output_tokens') or 0)
+                    # Codex "input_tokens" already includes cached portion — so
+                    # ccusage-equivalent total is input + output + reasoning.
+                    turn_total = in_tok + out_tok + reason
+                    if turn_total <= 0:
+                        continue
+
+                    model = current_model or 'gpt-unknown'
+                    label = short_project(current_cwd, home)
+                    local_hour = datetime.fromisoformat(
+                        ts.replace('Z', '+00:00')
+                    ).astimezone().hour
+
+                    tokens_by_model[model] += turn_total
+                    tokens_by_project[label] += turn_total
+                    tokens_by_hour[str(local_hour)] += turn_total
+                    total_output += out_tok + reason
+                    new_input = max(0, in_tok - cached)
+                    total_cache_creation += new_input
+                    grand_total += turn_total
+        except OSError:
+            continue
+
+    return {
+        'tokens_total': grand_total,
+        'tokens_by_model': dict(tokens_by_model),
+        'output_tokens': total_output,
+        'cache_creation_tokens': total_cache_creation,
+        'tool_calls': total_tool_calls,
+        'sessions': len(sessions),
+        'projects_touched': dict(tokens_by_project),
+        'tokens_by_hour': dict(tokens_by_hour),
+        'timestamps': timestamps,
+    }
+
+
+def merge_days(a, b):
+    """Combine two parsed-day dicts (Claude + Codex) into one summed dict.
+
+    Scalar fields sum. Dict fields merge by key (summing values). Sets and
+    lists union. Used to produce a single ingest payload that represents
+    ALL AI usage on this Mac for the day, regardless of tool.
+    """
+    if not a:
+        return b
+    if not b:
+        return a
+
+    def merge_records(x, y):
+        out = dict(x or {})
+        for k, v in (y or {}).items():
+            out[k] = (out.get(k, 0) or 0) + v
+        return out
+
+    return {
+        'tokens_total': (a.get('tokens_total', 0) or 0) + (b.get('tokens_total', 0) or 0),
+        'tokens_by_model': merge_records(a.get('tokens_by_model'), b.get('tokens_by_model')),
+        'output_tokens': (a.get('output_tokens', 0) or 0) + (b.get('output_tokens', 0) or 0),
+        'cache_creation_tokens': (a.get('cache_creation_tokens', 0) or 0) + (b.get('cache_creation_tokens', 0) or 0),
+        'tool_calls': (a.get('tool_calls', 0) or 0) + (b.get('tool_calls', 0) or 0),
+        'sessions': (a.get('sessions', 0) or 0) + (b.get('sessions', 0) or 0),
+        'projects_touched': merge_records(a.get('projects_touched'), b.get('projects_touched')),
+        'tokens_by_hour': merge_records(a.get('tokens_by_hour'), b.get('tokens_by_hour')),
+        'timestamps': (a.get('timestamps') or []) + (b.get('timestamps') or []),
+    }
+
+
 _TEST_PATH_RE = re.compile(r'(^|/)(tests?|__tests__|spec|specs|e2e|fixtures?)(/|$)|\.test\.|\.spec\.', re.IGNORECASE)
 
 
@@ -374,6 +531,31 @@ def all_jsonl_files(projects_dir):
     return glob.glob(os.path.join(projects_dir, '**', '*.jsonl'), recursive=True)
 
 
+def today_codex_files(codex_sessions_dir):
+    """Codex session JSONL files modified since local midnight. Codex stores
+    sessions at ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl. Returns [] if
+    the directory doesn't exist — Codex is opt-in, not every user has it."""
+    if not os.path.isdir(codex_sessions_dir):
+        return []
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = midnight.timestamp()
+    out = []
+    for path in glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True):
+        try:
+            if os.path.getmtime(path) >= cutoff:
+                out.append(path)
+        except OSError:
+            continue
+    return out
+
+
+def all_codex_files(codex_sessions_dir):
+    """All Codex session JSONL files (full backfill set)."""
+    if not os.path.isdir(codex_sessions_dir):
+        return []
+    return glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True)
+
+
 def is_debounced(marker_path, window):
     """True if the last push was less than `window` seconds ago."""
     try:
@@ -435,10 +617,11 @@ def main():
     author_email = git_author_email()
 
     if backfill:
-        # one row per date present across all sessions
-        all_files = all_jsonl_files(PROJECTS_DIR)
+        # one row per date present across either Claude OR Codex sessions.
+        all_claude = all_jsonl_files(PROJECTS_DIR)
+        all_codex = all_codex_files(CODEX_SESSIONS_DIR)
         dates = set()
-        for path in all_files:
+        for path in all_claude:
             try:
                 with open(path) as f:
                     for line in f:
@@ -450,20 +633,41 @@ def main():
                             dates.add(ts[:10])
             except OSError:
                 continue
+        # Codex stores by-date in the path itself: .../YYYY/MM/DD/rollout-*.jsonl
+        for path in all_codex:
+            parts = path.split(os.sep)
+            try:
+                # last three dirs before filename are Y / M / D
+                yy, mm, dd = parts[-4], parts[-3], parts[-2]
+                if yy.isdigit() and mm.isdigit() and dd.isdigit():
+                    dates.add(f'{yy}-{mm}-{dd}')
+            except (IndexError, ValueError):
+                continue
         for target_date in sorted(dates):
-            day = parse_day(all_files, target_date, HOME)
+            claude_day = parse_day(all_claude, target_date, HOME)
+            codex_day = parse_codex_day(all_codex, target_date, HOME)
+            day = merge_days(claude_day, codex_day)
             if day['tokens_total'] == 0:
                 continue
             ships = count_ships(claude_dir, target_date, author_email)
             payload = build_payload(day, ships, handle, machine, target_date)
             status, text = post_payload(url, payload, token=token, secret=secret)
-            print(f'  {target_date}: {status} {text[:80]}')
+            sources = []
+            if claude_day['tokens_total'] > 0:
+                sources.append(f'cc={claude_day["tokens_total"]:,}')
+            if codex_day['tokens_total'] > 0:
+                sources.append(f'codex={codex_day["tokens_total"]:,}')
+            src_label = ' + '.join(sources) if sources else 'empty'
+            print(f'  {target_date}: {status} [{src_label}] {text[:60]}')
         return 0
 
-    # default: today only, incremental
+    # default: today only, incremental (Claude + Codex merged per push)
     target_date = datetime.now().strftime('%Y-%m-%d')
-    files = today_jsonl_files(PROJECTS_DIR)
-    day = parse_day(files, target_date, HOME)
+    claude_files = today_jsonl_files(PROJECTS_DIR)
+    codex_files = today_codex_files(CODEX_SESSIONS_DIR)
+    claude_day = parse_day(claude_files, target_date, HOME)
+    codex_day = parse_codex_day(codex_files, target_date, HOME)
+    day = merge_days(claude_day, codex_day)
     ships = count_ships(claude_dir, target_date, author_email)
     payload = build_payload(day, ships, handle, machine, target_date)
     status, text = post_payload(url, payload, token=token, secret=secret)

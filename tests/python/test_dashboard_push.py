@@ -220,6 +220,139 @@ class TestParseSessions(unittest.TestCase):
             })
 
 
+class TestParseCodexDay(unittest.TestCase):
+    """Codex JSONL parser — same return shape as parse_day, but a totally
+    different on-disk schema (event_msg / response_item wrappers, token_count
+    events, turn_context for model+cwd)."""
+
+    def _write_codex_jsonl(self, path, records):
+        with open(path, 'w') as f:
+            for r in records:
+                f.write(json.dumps(r) + '\n')
+
+    def test_sums_token_count_events_with_model_and_cwd(self):
+        with tempfile.TemporaryDirectory() as d:
+            sess_dir = os.path.join(d, '2026', '05', '14')
+            os.makedirs(sess_dir)
+            p = os.path.join(sess_dir, 'rollout-2026-05-14T10-00-00-aaa.jsonl')
+            self._write_codex_jsonl(p, [
+                # session_meta — establishes initial cwd
+                {'type': 'session_meta', 'timestamp': '2026-05-14T10:00:00.000Z',
+                 'payload': {'id': 'aaa', 'cwd': '/Users/holden/Claude/codex-proj',
+                             'originator': 'codex-cli'}},
+                # turn_context — sets model + cwd for this turn
+                {'type': 'turn_context', 'timestamp': '2026-05-14T10:00:00.500Z',
+                 'payload': {'turn_id': 't1', 'model': 'gpt-5.5',
+                             'cwd': '/Users/holden/Claude/codex-proj'}},
+                # user_message
+                {'type': 'event_msg', 'timestamp': '2026-05-14T10:00:01.000Z',
+                 'payload': {'type': 'user_message', 'message': 'hi'}},
+                # function_call — tool invocation
+                {'type': 'response_item', 'timestamp': '2026-05-14T10:00:02.000Z',
+                 'payload': {'type': 'function_call', 'name': 'exec_command',
+                             'arguments': '{}', 'call_id': 'c1'}},
+                # custom_tool_call — apply_patch counts too
+                {'type': 'response_item', 'timestamp': '2026-05-14T10:00:02.500Z',
+                 'payload': {'type': 'custom_tool_call', 'name': 'apply_patch',
+                             'call_id': 'c2', 'input': '*** Begin Patch'}},
+                # agent_message
+                {'type': 'event_msg', 'timestamp': '2026-05-14T10:00:03.000Z',
+                 'payload': {'type': 'agent_message', 'message': 'done'}},
+                # token_count — turn 1
+                {'type': 'event_msg', 'timestamp': '2026-05-14T10:00:03.100Z',
+                 'payload': {'type': 'token_count',
+                             'info': {'last_token_usage': {
+                                 'input_tokens': 1000, 'cached_input_tokens': 200,
+                                 'output_tokens': 300, 'reasoning_output_tokens': 50,
+                                 'total_tokens': 1300}}}},
+                # turn_context — model switches mid-session
+                {'type': 'turn_context', 'timestamp': '2026-05-14T10:01:00.000Z',
+                 'payload': {'turn_id': 't2', 'model': 'gpt-5-mini',
+                             'cwd': '/Users/holden/Claude/codex-proj'}},
+                # token_count — turn 2 attributed to new model
+                {'type': 'event_msg', 'timestamp': '2026-05-14T10:01:01.000Z',
+                 'payload': {'type': 'token_count',
+                             'info': {'last_token_usage': {
+                                 'input_tokens': 500, 'cached_input_tokens': 100,
+                                 'output_tokens': 80, 'reasoning_output_tokens': 0,
+                                 'total_tokens': 580}}}},
+                # wrong-day token_count — must be ignored
+                {'type': 'event_msg', 'timestamp': '2026-05-13T10:00:00.000Z',
+                 'payload': {'type': 'token_count',
+                             'info': {'last_token_usage': {
+                                 'input_tokens': 9999, 'cached_input_tokens': 0,
+                                 'output_tokens': 9999, 'reasoning_output_tokens': 0,
+                                 'total_tokens': 19998}}}},
+            ])
+            result = dashboard_push.parse_codex_day(
+                [p], target_date='2026-05-14', home='/Users/holden')
+            # ccusage-canonical for Codex = input + output + reasoning per turn
+            # turn 1: 1000 + 300 + 50 = 1350
+            # turn 2:  500 +  80 +  0 =  580
+            self.assertEqual(result['tokens_total'], 1930)
+            self.assertEqual(result['tokens_by_model'], {
+                'gpt-5.5': 1350, 'gpt-5-mini': 580,
+            })
+            self.assertEqual(result['output_tokens'], 300 + 50 + 80)  # 430
+            # cache_creation analog = new input (input - cached) per turn
+            # turn 1: 1000-200=800; turn 2: 500-100=400
+            self.assertEqual(result['cache_creation_tokens'], 1200)
+            # tool_calls = function_call + custom_tool_call
+            self.assertEqual(result['tool_calls'], 2)
+            # projects_touched attributed via short_project()
+            self.assertEqual(result['projects_touched'], {'codex-proj': 1930})
+            self.assertEqual(result['sessions'], 1)
+
+    def test_empty_when_no_codex_files(self):
+        result = dashboard_push.parse_codex_day([], target_date='2026-05-14',
+                                                home='/Users/holden')
+        self.assertEqual(result['tokens_total'], 0)
+        self.assertEqual(result['tool_calls'], 0)
+
+
+class TestMergeDays(unittest.TestCase):
+    """merge_days combines Claude and Codex per-day stats into one payload."""
+
+    def test_merges_scalars_and_dicts(self):
+        a = {
+            'tokens_total': 1000, 'output_tokens': 300, 'cache_creation_tokens': 100,
+            'tool_calls': 5, 'sessions': 2,
+            'tokens_by_model': {'claude-opus-4-7': 1000},
+            'projects_touched': {'cc-dashboard': 700, 'shared': 300},
+            'tokens_by_hour': {'10': 1000},
+            'timestamps': ['2026-05-14T10:00:00Z'],
+        }
+        b = {
+            'tokens_total': 500, 'output_tokens': 80, 'cache_creation_tokens': 400,
+            'tool_calls': 2, 'sessions': 1,
+            'tokens_by_model': {'gpt-5.5': 500},
+            'projects_touched': {'codex-proj': 200, 'shared': 300},
+            'tokens_by_hour': {'10': 500, '11': 0},
+            'timestamps': ['2026-05-14T10:30:00Z'],
+        }
+        merged = dashboard_push.merge_days(a, b)
+        self.assertEqual(merged['tokens_total'], 1500)
+        self.assertEqual(merged['output_tokens'], 380)
+        self.assertEqual(merged['cache_creation_tokens'], 500)
+        self.assertEqual(merged['tool_calls'], 7)
+        self.assertEqual(merged['sessions'], 3)
+        self.assertEqual(merged['tokens_by_model'], {
+            'claude-opus-4-7': 1000, 'gpt-5.5': 500,
+        })
+        # Overlapping project key sums; distinct ones preserved
+        self.assertEqual(merged['projects_touched'], {
+            'cc-dashboard': 700, 'shared': 600, 'codex-proj': 200,
+        })
+        self.assertEqual(merged['tokens_by_hour']['10'], 1500)
+        self.assertEqual(len(merged['timestamps']), 2)
+
+    def test_handles_missing_side(self):
+        a = {'tokens_total': 100, 'tokens_by_model': {'claude-opus-4-7': 100}}
+        # Empty codex side (Codex-not-installed user) preserves Claude data.
+        result = dashboard_push.merge_days(a, None)
+        self.assertEqual(result, a)
+
+
 class TestDeepWork(unittest.TestCase):
     def test_continuous_block_under_15min_gap(self):
         # three messages 5 min apart -> one 10-minute block

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { formatCompact } from '@/lib/format';
+import { ShareSiteOnX } from '@/components/ShareSiteOnX';
 
 export const runtime = 'edge';
 
@@ -26,10 +27,10 @@ export default async function HomePage() {
           vibecodestats.dev
         </div>
         <h1 style={{ fontSize: '3rem', fontWeight: 700, margin: '8px 0 16px', letterSpacing: '-0.02em', lineHeight: 1.05 }}>
-          Strava for Claude Code.
+          Strava for AI coding.
         </h1>
         <p style={{ fontSize: '1.1rem', opacity: 0.8, lineHeight: 1.5, margin: '0 0 28px', maxWidth: 640 }}>
-          Public stats profiles, global leaderboard, live token counter. See where you rank against every other Claude Code user in the world.
+          Public stats profiles, global leaderboard, live token counter. Track Claude Code + Codex daily usage and your VBW productivity score against every other AI-coding power user.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <Link
@@ -39,6 +40,7 @@ export default async function HomePage() {
           >
             sign in with github →
           </Link>
+          <ShareSiteOnX />
           <Link href="/holden-alt" prefetch={false} style={{ color: 'var(--chart-1)', fontSize: '0.85rem', textDecoration: 'underline' }}>
             see a sample profile
           </Link>

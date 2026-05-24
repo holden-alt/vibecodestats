@@ -11,7 +11,11 @@ type Props = {
 };
 
 export function ShareOnX({ handle, tokensToday, vbwToday, rank, viewerIsOwner }: Props) {
-  const url = `https://vibecodestats.dev/${handle}`;
+  // Daily cache-bust so Twitter/X treats every day's share as a fresh URL
+  // and re-fetches the OG image. Without this they cache the bare URL
+  // forever and your card never updates after the first share.
+  const v = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const url = `https://vibecodestats.dev/${handle}?v=${v}`;
   const tokens = formatCompact(tokensToday);
   const vbwPart = vbwToday > 0 ? ` · ⚡ ${vbwToday.toLocaleString()} VBW` : '';
   const rankPart = rank != null ? ` (#${rank} today)` : '';

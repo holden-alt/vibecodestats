@@ -34,9 +34,11 @@ jobs:
       # specifying it again here conflicts with action-setup v4.
       - uses: pnpm/action-setup@v4
 
+      # Node 22+ — Supabase JS v2 requires native WebSocket (added in Node 22).
+      # Node 20 throws "Node.js 20 detected without native WebSocket support."
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
 
       - name: Install deps (Playwright + Supabase only)

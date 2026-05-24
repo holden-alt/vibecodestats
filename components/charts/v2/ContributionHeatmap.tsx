@@ -7,9 +7,17 @@ import { formatNumber } from '@/lib/format';
 
 type Props = { stats: DailyStat[]; weeks?: number; today?: string };
 
-// Strava-style spectrum: cold (zero) → cool → warm → hot (monster days).
-// 6 stops so a power-law token distribution actually fans out across hues.
-const HEAT_COLORS = ['#1a2a4a', '#2d5a8a', '#2d9a8a', '#c9a64a', '#d97757', '#c04545'];
+// Single-hue intensity ramp (chart-1 orange) — quieter than the prior
+// cold-blue-to-hot-red spectrum. Reads as "this much activity" instead of
+// "fire alarm". Lowest stop matches the dashboard bg so empty days disappear.
+const HEAT_COLORS = [
+  'rgba(217, 119, 87, 0.05)',  // empty — barely-there orange wash
+  'rgba(217, 119, 87, 0.20)',  // p20
+  'rgba(217, 119, 87, 0.38)',  // p40
+  'rgba(217, 119, 87, 0.58)',  // p60
+  'rgba(217, 119, 87, 0.80)',  // p80
+  'rgb(217, 119, 87)',         // p95+ — full chart-1
+];
 
 // Linear fallback used when there aren't enough active days to derive quantiles.
 const FALLBACK_THRESHOLDS = [100_000, 500_000, 1_500_000, 3_000_000, 6_000_000];

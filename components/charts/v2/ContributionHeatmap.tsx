@@ -7,7 +7,29 @@ import { formatNumber } from '@/lib/format';
 
 type Props = { stats: DailyStat[]; weeks?: number; today?: string };
 
-const HEAT_COLORS = ['#2e2820', '#3a2a1f', '#6b3e26', '#a8623f', '#d97757'];
+// Strava-style spectrum: cold (zero) → cool → warm → hot (monster days).
+// 6 stops so a power-law token distribution actually fans out across hues.
+const HEAT_COLORS = ['#1a2a4a', '#2d5a8a', '#2d9a8a', '#c9a64a', '#d97757', '#c04545'];
+
+// Linear fallback used when there aren't enough active days to derive quantiles.
+const FALLBACK_THRESHOLDS = [100_000, 500_000, 1_500_000, 3_000_000, 6_000_000];
+
+function computeThresholds(tokens: number[]): number[] {
+  const nonzero = tokens.filter((v) => v > 0).sort((a, b) => a - b);
+  if (nonzero.length < 7) return FALLBACK_THRESHOLDS;
+  const q = (p: number) => nonzero[Math.floor((nonzero.length - 1) * p)]!;
+  const raw = [q(0.2), q(0.4), q(0.6), q(0.8), q(0.95)];
+  // panelColors keys must be strictly increasing; bump duplicates so collapsed
+  // quantiles (e.g. lots of identical values) still produce distinct bins.
+  const out: number[] = [];
+  let prev = 0;
+  for (const v of raw) {
+    const adj = Math.max(v, prev + 1);
+    out.push(adj);
+    prev = adj;
+  }
+  return out;
+}
 
 type Hovered = { date: string; tokens: number; x: number; y: number } | null;
 
@@ -18,6 +40,17 @@ export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
       stats.map((s) => ({ date: s.date.replace(/-/g, '/'), count: s.tokens_total })),
     [stats],
   );
+  const panelColors = useMemo(() => {
+    const t = computeThresholds(stats.map((s) => s.tokens_total));
+    return {
+      0: HEAT_COLORS[0]!,
+      [t[0]!]: HEAT_COLORS[1]!,
+      [t[1]!]: HEAT_COLORS[2]!,
+      [t[2]!]: HEAT_COLORS[3]!,
+      [t[3]!]: HEAT_COLORS[4]!,
+      [t[4]!]: HEAT_COLORS[5]!,
+    };
+  }, [stats]);
   const todayDate = today ? new Date(today + 'T00:00:00Z') : new Date();
   const start = new Date(todayDate);
   start.setDate(todayDate.getDate() - weeks * 7);
@@ -32,13 +65,7 @@ export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
         endDate={todayDate}
         space={2}
         rectSize={11}
-        panelColors={{
-          0: HEAT_COLORS[0]!,
-          100_000: HEAT_COLORS[1]!,
-          500_000: HEAT_COLORS[2]!,
-          1_500_000: HEAT_COLORS[3]!,
-          3_000_000: HEAT_COLORS[4]!,
-        }}
+        panelColors={panelColors}
         legendCellSize={0}
         rectRender={(props, data) => {
           const tokens = (data as { count?: number }).count ?? 0;

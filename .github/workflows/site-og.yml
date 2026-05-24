@@ -1,0 +1,54 @@
+name: Refresh site OG image
+
+# Runs scripts/generate-site-og.mjs every 4 hours. Renders the
+# live-aggregate-stats card with Playwright/Chromium and uploads it to
+# Supabase Storage as og/_root.png. Every share of vibecodestats.dev
+# unfurls with whatever's currently there, so this keeps the numbers
+# fresh without an inline edge route (the inline route version pushed
+# CF Pages past its 25 MiB bundle limit).
+#
+# Cost: public repo → unlimited free GitHub Actions minutes. Each run
+# is ~1-2 min wall time, ~6 runs/day, ~36-72 min/month total. $0.
+
+on:
+  schedule:
+    # Every 4 hours, on the hour. 6 runs per day, evenly spaced.
+    - cron: '0 */4 * * *'
+  # Manual trigger so you can force a refresh after a big day.
+  workflow_dispatch:
+
+# Don't pile up if a run takes longer than the cron interval.
+concurrency:
+  group: site-og
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # Capped at 5 min — the render itself takes ~10s; rest is install.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install deps (Playwright + Supabase only)
+        # We don't need the full app deps — just the two libs the script imports.
+        # Frozen lockfile to keep this reproducible.
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Render + upload site OG
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/generate-site-og.mjs

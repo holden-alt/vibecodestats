@@ -95,6 +95,12 @@ export default async function SetupPage() {
           <code>{installCmd}</code>
         </pre>
         <CopyButton text={installCmd} label="copy command" />
+        <p style={{ ...bodyStyle, marginTop: 12, opacity: 0.7, fontSize: '0.75rem' }}>
+          <strong>Codex CLI users:</strong> if you also have Codex installed at{' '}
+          <code>~/.codex/sessions/</code>, the push script auto-detects it and
+          includes your Codex tokens, tool calls, and per-model usage in the
+          same daily total. Zero extra setup if you use both tools.
+        </p>
       </section>
 
       {/* Step 2 — token */}
@@ -123,6 +129,54 @@ export default async function SetupPage() {
             your profile
           </a>
           . Your tokens-today number should start showing real values.
+        </p>
+      </section>
+
+      {/* Codex-only users — optional schedule trigger */}
+      <section style={sectionStyle}>
+        <div style={labelStyle}>codex-only? (optional)</div>
+        <p style={bodyStyle}>
+          If you use Codex CLI <em>without</em> Claude Code, the Stop hook
+          won&apos;t fire — there&apos;s no Claude Code to attach it to. Run the
+          push on a schedule instead with a single launchd entry:
+        </p>
+        <pre style={preStyle}>
+          <code>{`# Codex-only push schedule — runs every 5 minutes
+cat > ~/Library/LaunchAgents/dev.vibecodestats.push.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>dev.vibecodestats.push</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>source ~/.config/cc-dashboard/config && python3 ~/.config/cc-dashboard/dashboard_push.py</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+EOF
+launchctl load ~/Library/LaunchAgents/dev.vibecodestats.push.plist`}</code>
+        </pre>
+        <CopyButton text={`cat > ~/Library/LaunchAgents/dev.vibecodestats.push.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>dev.vibecodestats.push</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>source ~/.config/cc-dashboard/config && python3 ~/.config/cc-dashboard/dashboard_push.py</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+EOF
+launchctl load ~/Library/LaunchAgents/dev.vibecodestats.push.plist`} label="copy launchd setup" />
+        <p style={{ ...bodyStyle, marginTop: 12, opacity: 0.7, fontSize: '0.75rem' }}>
+          The install command above still runs first — it downloads{' '}
+          <code>dashboard_push.py</code> and writes the config. Codex-only
+          users will see the Stop-hook install step fail silently if Claude
+          Code isn&apos;t installed, which is fine; the launchd entry takes
+          over the trigger.
         </p>
       </section>
 

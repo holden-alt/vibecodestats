@@ -3,13 +3,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
-// The site-level OG image is rendered live by app/opengraph-image.tsx
-// (Next.js convention auto-discovers it). The edge route queries the DB
-// on each request so the card always reflects the latest aggregate stats.
-// Bot caches mean a given share's preview is whatever was current when
-// the bot first fetched — but new shares always get fresh numbers.
+// The site-level OG image is a STATIC PNG in Supabase Storage. The image
+// renders the same live-aggregate-stats layout as per-profile cards
+// (developers / active today / tokens today / top VBW), but is generated
+// out-of-band by scripts/generate-site-og.mjs and re-uploaded periodically
+// rather than per-request. Tried an inline edge route — pushed CF Pages
+// bundle past its 25 MiB limit. Storage path is stable; we just overwrite
+// the bytes when we want to refresh the stats.
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
-const SITE_OG_IMAGE = `${SITE_URL}/opengraph-image`;
+const SITE_OG_IMAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
 
 const siteOgImage = {
   url: SITE_OG_IMAGE,

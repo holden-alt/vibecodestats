@@ -3,7 +3,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
-const SITE_OG_IMAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
+// The site-level OG image is rendered live by app/opengraph-image.tsx
+// (Next.js convention auto-discovers it). The edge route queries the DB
+// on each request so the card always reflects the latest aggregate stats.
+// Bot caches mean a given share's preview is whatever was current when
+// the bot first fetched — but new shares always get fresh numbers.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+const SITE_OG_IMAGE = `${SITE_URL}/opengraph-image`;
 
 const siteOgImage = {
   url: SITE_OG_IMAGE,
@@ -11,30 +17,29 @@ const siteOgImage = {
   type: 'image/png',
   width: 1200,
   height: 630,
-  alt: 'vibecodestats.dev — Strava for Claude Code',
+  alt: 'vibecodestats.dev — Strava for AI coding',
 };
 
+const SITE_TITLE = 'vibecodestats.dev — Strava for AI coding';
+const SITE_DESCRIPTION =
+  'Public leaderboard + live profiles for Claude Code + Codex power users. Track your daily tokens, VBW productivity score, rank, and ship rate. Free, open source, no email required.';
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev',
-  ),
-  title: 'vibecodestats.dev — Strava for Claude Code',
-  description:
-    'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate. Free, open source, no email required.',
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   openGraph: {
-    title: 'vibecodestats.dev — Strava for Claude Code',
-    description:
-      'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate.',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     type: 'website',
-    url: 'https://vibecodestats.dev',
+    url: SITE_URL,
     siteName: 'vibecodestats.dev',
     images: [siteOgImage],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'vibecodestats.dev — Strava for Claude Code',
-    description:
-      'Public leaderboard + live profiles for Claude Code power users. Track your tokens, rank, days active, and ship rate.',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: [siteOgImage],
   },
 };

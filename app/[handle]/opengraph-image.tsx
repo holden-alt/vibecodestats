@@ -30,36 +30,6 @@ function fallback(handle: string) {
   );
 }
 
-type Stat = { label: string; value: string; color: string };
-
-function StatBlock({ label, value, color }: Stat) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-      <div
-        style={{
-          display: 'flex',
-          fontSize: 20,
-          opacity: 0.55,
-          letterSpacing: '2px',
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          fontSize: 64,
-          fontWeight: 700,
-          color,
-          marginTop: 6,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
 export default async function OG({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
 
@@ -75,56 +45,33 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
       return fallback(handle);
     }
 
-    // Pull every daily_stats row for EVERY user so we can compute all-time
-    // rank in one query. ~1K users × ~30 days = ~30K rows, cheap on edge.
-    const { data: allRows } = await supabase
-      .from('daily_stats')
-      .select('user_id, tokens_total, date');
-
     const today = new Date().toISOString().slice(0, 10);
-    const rows = allRows ?? [];
 
-    // Sum tokens per user (all-time) and find current user's rank.
-    const allTimeByUser = new Map<string, number>();
-    for (const r of rows) {
-      const cur = allTimeByUser.get(r.user_id) ?? 0;
-      allTimeByUser.set(r.user_id, cur + Number(r.tokens_total ?? 0));
-    }
-    const sortedAllTime = [...allTimeByUser.entries()].sort(
-      (a, b) => b[1] - a[1],
-    );
-    const rankIdx = sortedAllTime.findIndex(([id]) => id === user.id);
+    // Pull TODAY's row for every user — we need this user's tokens + VBW +
+    // their rank among the cohort that actually pushed today (for percentile).
+    const { data: todayRows } = await supabase
+      .from('daily_stats')
+      .select('user_id, tokens_total, vbw_total')
+      .eq('date', today);
+
+    const rows = todayRows ?? [];
+    const meRow = rows.find((r) => r.user_id === user.id);
+    const tokensToday = meRow ? Number(meRow.tokens_total ?? 0) : 0;
+    const vbwToday = meRow ? Number(meRow.vbw_total ?? 0) : 0;
+
+    // Today's rank + percentile, computed against everyone who pushed today.
+    // Sort descending by tokens; resolves rank by ordinal position. If no
+    // activity yet, fall back to a clean "no rank today" state on the card.
+    const activeToday = rows.filter((r) => Number(r.tokens_total ?? 0) > 0);
+    activeToday.sort((a, b) => Number(b.tokens_total ?? 0) - Number(a.tokens_total ?? 0));
+    const rankIdx = activeToday.findIndex((r) => r.user_id === user.id);
     const rank = rankIdx >= 0 ? rankIdx + 1 : null;
-    const allTimeTokens = allTimeByUser.get(user.id) ?? 0;
-
-    // Filter for this user's rows to derive today + days active.
-    const userRows = rows.filter((r) => r.user_id === user.id);
-    const daysActive = userRows.length;
-    const todayRow = userRows.find((r) => r.date === today);
-    const todayTokens = todayRow ? Number(todayRow.tokens_total ?? 0) : 0;
-
-    const stats: Stat[] = [
-      {
-        label: 'ALL-TIME',
-        value: formatCompact(allTimeTokens),
-        color: '#d97757', // orange
-      },
-      {
-        label: 'RANK',
-        value: rank !== null ? `#${rank}` : '—',
-        color: '#6bbfd9', // cyan
-      },
-      {
-        label: 'TODAY',
-        value: todayTokens > 0 ? formatCompact(todayTokens) : '—',
-        color: '#7ad17a', // green
-      },
-      {
-        label: 'DAYS',
-        value: String(daysActive),
-        color: '#ece6dc', // bone
-      },
-    ];
+    const cohort = activeToday.length;
+    // Percentile: 1 / N → top N%; smaller is better. Top of leaderboard = "top 1%".
+    // Floor at 1% so it never reads "top 0%" which is confusing.
+    const percentile = rank != null && cohort > 0
+      ? Math.max(1, Math.ceil((rank / cohort) * 100))
+      : null;
 
     return new ImageResponse(
       (
@@ -137,50 +84,117 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
             background: '#0d0d0d',
             color: '#ece6dc',
             fontFamily: 'monospace',
-            padding: '64px 72px',
+            padding: '60px 72px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              fontSize: 28,
-              color: '#d97757',
-              letterSpacing: '4px',
-            }}
-          >
-            VIBECODESTATS.DEV
+          {/* top row: site + handle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  fontSize: 26,
+                  color: '#d97757',
+                  letterSpacing: '4px',
+                }}
+              >
+                VIBECODESTATS.DEV
+              </div>
+              <div style={{ display: 'flex', fontSize: 64, fontWeight: 700, marginTop: 18 }}>
+                @{handle}
+              </div>
+              {user.display_name ? (
+                <div style={{ display: 'flex', fontSize: 24, opacity: 0.55, marginTop: 4 }}>
+                  {user.display_name}
+                </div>
+              ) : null}
+            </div>
+            {/* VBW badge — top right */}
+            {vbwToday > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  border: '2px solid #e3c466',
+                  borderRadius: 6,
+                  padding: '14px 22px',
+                  background: 'rgba(227, 196, 102, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', fontSize: 18, opacity: 0.65, letterSpacing: '2px' }}>
+                  ⚡ VBW TODAY
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    fontSize: 64,
+                    fontWeight: 700,
+                    color: '#e3c466',
+                    marginTop: 2,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {vbwToday.toLocaleString()}
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              fontSize: 80,
-              fontWeight: 700,
-              marginTop: 28,
-            }}
-          >
-            @{handle}
-          </div>
+          {/* spacer — push tokens block to vertical center */}
+          <div style={{ display: 'flex', flex: 1 }} />
 
-          {user.display_name ? (
+          {/* tokens today — the hero number */}
+          <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 12 }}>
             <div
               style={{
                 display: 'flex',
-                fontSize: 32,
-                opacity: 0.6,
-                marginTop: 6,
+                fontSize: 22,
+                opacity: 0.55,
+                letterSpacing: '4px',
               }}
             >
-              {user.display_name}
+              TOKENS TODAY
             </div>
-          ) : null}
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 140,
+                fontWeight: 700,
+                color: '#d97757',
+                lineHeight: 1,
+                marginTop: 6,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {tokensToday > 0 ? formatCompact(tokensToday) : '—'}
+            </div>
+          </div>
 
-          <div style={{ display: 'flex', flex: 1 }} />
-
-          <div style={{ display: 'flex', gap: 24 }}>
-            {stats.map((s) => (
-              <StatBlock key={s.label} {...s} />
-            ))}
+          {/* footer row — percentile + rank */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 18,
+              fontSize: 24,
+              opacity: 0.75,
+              marginTop: 18,
+            }}
+          >
+            {percentile != null ? (
+              <div style={{ display: 'flex', color: '#6bbfd9' }}>top {percentile}% today</div>
+            ) : (
+              <div style={{ display: 'flex', opacity: 0.5 }}>no activity today yet</div>
+            )}
+            {rank != null && cohort > 0 ? (
+              <>
+                <div style={{ display: 'flex', opacity: 0.4 }}>·</div>
+                <div style={{ display: 'flex' }}>
+                  #{rank} of {cohort.toLocaleString()}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ),

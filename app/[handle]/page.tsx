@@ -27,19 +27,25 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
     return { title: `${handle} not found · vibecodestats.dev` };
   }
 
-  const { data: stats } = await supabase
+  // Today-only metadata — cards advertise today's number, not lifetime.
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: todayStats } = await supabase
     .from('daily_stats')
-    .select('tokens_total')
-    .eq('user_id', user.id);
+    .select('tokens_total, vbw_total')
+    .eq('user_id', user.id)
+    .eq('date', today)
+    .maybeSingle();
 
-  const allTimeTokens = (stats ?? []).reduce((s, r) => s + r.tokens_total, 0);
-  const daysActive = (stats ?? []).length;
-
+  const tokensToday = Number(todayStats?.tokens_total ?? 0);
+  const vbwToday = Number(todayStats?.vbw_total ?? 0);
   const name = user.display_name || `@${handle}`;
-  const tokens = formatCompact(allTimeTokens);
-  const dayWord = daysActive === 1 ? 'day' : 'days';
-  const title = `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`;
-  const description = `${name} · ${tokens} tokens · ${daysActive} ${dayWord} vibecoding with Claude Code. See the global leaderboard of Claude Code power users at vibecodestats.dev.`;
+  const tokens = tokensToday > 0 ? formatCompact(tokensToday) : null;
+  const title = tokens
+    ? `@${handle} — ${tokens} AI tokens today${vbwToday > 0 ? ` · ${vbwToday.toLocaleString()} VBW` : ''}`
+    : `@${handle} on vibecodestats.dev`;
+  const description = tokens
+    ? `${name} pushed ${tokens} AI tokens today${vbwToday > 0 ? ` for ${vbwToday.toLocaleString()} VBW` : ''}. Live on the vibecodestats.dev leaderboard — track your own Claude Code + Codex usage too.`
+    : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage and VBW productivity score.`;
 
   // Point at the pre-rendered static PNG in Supabase Storage rather than the
   // edge-rendered route. X / LinkedIn / FB bots get a boring static asset
@@ -58,7 +64,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
     type: 'image/png',
     width: 1200,
     height: 630,
-    alt: `@${handle} on vibecodestats.dev — ${tokens} Claude Code tokens`,
+    alt: title,
   };
 
   return {

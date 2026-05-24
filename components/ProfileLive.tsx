@@ -138,6 +138,7 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
         <ShareOnX
           handle={user.github_handle}
           tokensToday={tokensToday}
+          vbwToday={vbwToday}
           rank={initialLiveRanking.rank}
           viewerIsOwner={viewerIsOwner}
         />

@@ -5,28 +5,31 @@ import { formatCompact } from '@/lib/format';
 type Props = {
   handle: string;
   tokensToday: number;
+  vbwToday: number;
   rank: number | null;
   viewerIsOwner: boolean;
 };
 
-export function ShareOnX({ handle, tokensToday, rank, viewerIsOwner }: Props) {
+export function ShareOnX({ handle, tokensToday, vbwToday, rank, viewerIsOwner }: Props) {
   const url = `https://vibecodestats.dev/${handle}`;
   const tokens = formatCompact(tokensToday);
-  const rankPart = rank != null ? `, ranked #${rank} today` : '';
+  const vbwPart = vbwToday > 0 ? ` · ⚡ ${vbwToday.toLocaleString()} VBW` : '';
+  const rankPart = rank != null ? ` (#${rank} today)` : '';
 
-  // Build the share text. Falls back to a rank-only flex when today's tokens
-  // is zero so we don't broadcast '0 tokens today' on the share card.
+  // Build the share text. Lead with today's tokens, append VBW badge if
+  // present, append rank if present. Fall back to a rank-only flex when
+  // today's tokens are zero so we don't broadcast '0 tokens today'.
   let text: string;
   if (viewerIsOwner) {
     text = tokensToday > 0
-      ? `${tokens} Claude Code tokens today${rankPart}. Live on vibecodestats.dev`
+      ? `${tokens} AI tokens today${vbwPart}${rankPart} on vibecodestats.dev`
       : rank != null
-        ? `I'm ranked #${rank} on vibecodestats.dev's live Claude Code leaderboard`
-        : `Tracking my Claude Code stats on vibecodestats.dev`;
+        ? `Ranked #${rank} on vibecodestats.dev's leaderboard today`
+        : `Tracking my AI coding stats on vibecodestats.dev`;
   } else {
     text = tokensToday > 0
-      ? `@${handle} hit ${tokens} Claude Code tokens today${rankPart} on vibecodestats.dev`
-      : `@${handle} on vibecodestats.dev's Claude Code leaderboard`;
+      ? `@${handle} pushed ${tokens} AI tokens today${vbwPart}${rankPart} on vibecodestats.dev`
+      : `@${handle} on vibecodestats.dev's leaderboard`;
   }
 
   const intentUrl = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;

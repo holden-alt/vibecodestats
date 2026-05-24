@@ -6,6 +6,14 @@ import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import { formatDelta } from '@/lib/format';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
+type VbwDims = {
+  output?: number;
+  substance?: number;
+  tools?: number;
+  ships?: number;
+  depth?: number;
+};
+
 type Props = {
   tokensToday: number;
   sessionsToday: number;
@@ -17,6 +25,7 @@ type Props = {
   deltaVs7dAvg: number; // ratio (today / 7d avg - 1), 0 if no 7d avg
   deltaVs30dAvg: number; // ratio, 0 if no 30d avg
   vbwToday: number; // 0-10000 — VBW productivity score
+  vbwDimensions: VbwDims; // 5 sub-scores, each 0-100
 };
 
 export function HeroBlock({
@@ -30,6 +39,7 @@ export function HeroBlock({
   deltaVs7dAvg,
   deltaVs30dAvg,
   vbwToday,
+  vbwDimensions,
 }: Props) {
   const sparkData = [...trendStats]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -65,18 +75,6 @@ export function HeroBlock({
             {deltaVsYesterday >= 0 ? '▲' : '▼'} {formatDelta(deltaVsYesterday)} vs yesterday
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8, fontSize: '0.75rem' }}>
-          <span style={{ color: 'var(--chart-2, #f5c542)', fontFamily: 'var(--font-mono)' }}>
-            ⚡ {vbwToday.toLocaleString()} VBW
-          </span>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <Link
-            href="/methodology"
-            style={{ opacity: 0.55, fontSize: '0.7rem', textDecoration: 'underline', textUnderlineOffset: 2 }}
-          >
-            how this works
-          </Link>
-        </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.65rem', flexWrap: 'wrap' }}>
           {deltaVs7dAvg !== 0 && (
             <span style={{ color: deltaVs7dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
@@ -92,6 +90,107 @@ export function HeroBlock({
             {sessionsToday} sessions · {shipsToday.commits} ships · {projectsTouchedCount} projects
           </span>
         </div>
+        <VbwHeroBlock vbw={vbwToday} dims={vbwDimensions} />
+      </div>
+    </div>
+  );
+}
+
+// VBW sub-block — secondary hero. Number is prominent (medium, gold), with
+// the 5 dimension sub-scores rendered as compact horizontal bars so the user
+// can see which axis drove the score without leaving the page.
+function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
+  const dimOrder: { key: keyof VbwDims; label: string }[] = [
+    { key: 'output', label: 'output' },
+    { key: 'substance', label: 'substance' },
+    { key: 'tools', label: 'tools' },
+    { key: 'ships', label: 'ships' },
+    { key: 'depth', label: 'depth' },
+  ];
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        padding: '12px 14px',
+        background: 'var(--color-bg-2)',
+        border: '1px solid var(--color-border)',
+        borderLeft: '2px solid var(--chart-2, #f5c542)',
+        borderRadius: 3,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <span
+          style={{
+            fontSize: '0.6rem',
+            opacity: 0.55,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}
+        >
+          vbw today
+        </span>
+        <span
+          style={{
+            fontSize: '1.6rem',
+            fontWeight: 700,
+            color: 'var(--chart-2, #f5c542)',
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1,
+          }}
+        >
+          ⚡ {vbw.toLocaleString()}
+        </span>
+        <Link
+          href="/methodology"
+          style={{
+            opacity: 0.55,
+            fontSize: '0.68rem',
+            textDecoration: 'underline',
+            textUnderlineOffset: 2,
+            marginLeft: 'auto',
+          }}
+        >
+          how this works
+        </Link>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          gap: 10,
+          marginTop: 10,
+          fontSize: '0.62rem',
+        }}
+      >
+        {dimOrder.map(({ key, label }) => {
+          const v = Math.max(0, Math.min(100, Math.round(dims[key] ?? 0)));
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.75 }}>
+                <span>{label}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+              </div>
+              <div
+                style={{
+                  height: 4,
+                  background: 'var(--color-bg)',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${v}%`,
+                    height: '100%',
+                    background: v >= 90 ? 'var(--chart-2)' : v >= 50 ? 'var(--chart-3)' : 'var(--chart-1)',
+                    transition: 'width 800ms ease-out',
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

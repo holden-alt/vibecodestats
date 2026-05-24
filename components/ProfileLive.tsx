@@ -84,6 +84,9 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
 
   const tokensToday = todayRow?.tokens_total ?? 0;
   const vbwToday = todayRow?.vbw_total ?? 0;
+  const vbwDimensions = (todayRow?.vbw_components ?? {}) as {
+    output?: number; substance?: number; tools?: number; ships?: number; depth?: number;
+  };
   const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
   const deltaVsYesterday = tokensYesterday > 0 ? (tokensToday - tokensYesterday) / tokensYesterday : 0;
   const avg7d = computeRollingAverage(dailyStats, effectiveToday, 7);
@@ -177,6 +180,7 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           deltaVs7dAvg={deltaVs7d}
           deltaVs30dAvg={deltaVs30d}
           vbwToday={vbwToday}
+          vbwDimensions={vbwDimensions}
         />
       </div>
 

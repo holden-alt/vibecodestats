@@ -28,6 +28,7 @@ import {
   computePersonalBests,
   computeNextMilestone,
 } from '@/lib/stats/aggregations';
+import { buildDimsMeta } from '@/lib/stats/dim-meta';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -87,6 +88,20 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   const vbwDimensions = (todayRow?.vbw_components ?? {}) as {
     output?: number; substance?: number; tools?: number; ships?: number; depth?: number;
   };
+  // Personal-percentile + intraday-pace metadata for the dimension rows.
+  // Recomputed on the client when stats change; cheap enough (≤30 rows).
+  const [currentUtcHour, setCurrentUtcHour] = useState(() => new Date().getUTCHours());
+  useEffect(() => {
+    const t = setInterval(() => setCurrentUtcHour(new Date().getUTCHours()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const dimsMeta = useMemo(
+    () => buildDimsMeta(dailyStats, effectiveToday, currentUtcHour),
+    [dailyStats, effectiveToday, currentUtcHour],
+  );
+  // "Provisional" if today's row is the actual current UTC date (still in progress).
+  const todayUtcDate = new Date().toISOString().slice(0, 10);
+  const isProvisional = effectiveToday === todayUtcDate;
   const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
   const deltaVsYesterday = tokensYesterday > 0 ? (tokensToday - tokensYesterday) / tokensYesterday : 0;
   const avg7d = computeRollingAverage(dailyStats, effectiveToday, 7);
@@ -182,6 +197,8 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           deltaVs30dAvg={deltaVs30d}
           vbwToday={vbwToday}
           vbwDimensions={vbwDimensions}
+          dimsMeta={dimsMeta}
+          isProvisional={isProvisional}
         />
       </div>
 

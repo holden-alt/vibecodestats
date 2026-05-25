@@ -29,10 +29,13 @@ const data: LeaderboardData = {
 };
 
 describe('Leaderboard', () => {
-  it('renders the rank-list view by default, ranked by tokens', () => {
+  it('renders the rank-list view by default (vbw+week), then ranks by tokens when selected', () => {
     const { container } = render(<Leaderboard data={data} viewerId="u1" today="2026-05-14" />);
+    expect(container.querySelectorAll('[data-rank-row]').length).toBe(3);
+    // Click the tokens metric to verify token-volume ranking still works.
+    fireEvent.click(container.querySelector('[data-segment="tokens"]')!);
+    fireEvent.click(container.querySelector('[data-segment="all"]')!);
     const rows = container.querySelectorAll('[data-rank-row]');
-    expect(rows.length).toBe(3);
     expect(rows[0]?.getAttribute('data-handle')).toBe('mira-builds'); // 500 tokens
   });
 

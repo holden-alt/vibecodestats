@@ -15,6 +15,7 @@ export type Database = {
           secondary_personas: string[];
           ingest_token: string | null;
           private_project_names: boolean;
+          timezone: string;
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +30,7 @@ export type Database = {
           secondary_personas?: string[];
           ingest_token?: string | null;
           private_project_names?: boolean;
+          timezone?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -43,6 +45,7 @@ export type Database = {
           secondary_personas?: string[];
           ingest_token?: string | null;
           private_project_names?: boolean;
+          timezone?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -275,6 +278,81 @@ export type Database = {
           error_message?: string | null;
           is_new_user?: boolean | null;
           metadata?: Json | null;
+        };
+        Relationships: [];
+      };
+      dim_anchor: {
+        Row: {
+          dim: string;
+          anchor: number;
+          k: number;
+          notes: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          dim: string;
+          anchor: number;
+          k: number;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          dim?: string;
+          anchor?: number;
+          k?: number;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_dim_baseline: {
+        Row: {
+          user_id: string;
+          dim: string;
+          m_hat: number;
+          s_hat: number;
+          n: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          dim: string;
+          m_hat: number;
+          s_hat: number;
+          n: number;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          dim?: string;
+          m_hat?: number;
+          s_hat?: number;
+          n?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_intraday_share: {
+        Row: {
+          user_id: string;
+          dim: string;
+          hour: number;
+          share: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          dim: string;
+          hour: number;
+          share: number;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          dim?: string;
+          hour?: number;
+          share?: number;
+          updated_at?: string;
         };
         Relationships: [];
       };

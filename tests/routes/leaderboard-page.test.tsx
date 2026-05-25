@@ -2,18 +2,20 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
 // Mock the server supabase client + the data fetch so the page renders synchronously.
+// Use today's UTC date so the stats fall inside the default vbw+week window.
+const TODAY = new Date().toISOString().slice(0, 10);
 const leaderboardData = {
   users: [
     { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },
     { id: 'u2', github_handle: 'mira-builds', display_name: 'Mira' },
   ],
   statsByUser: {
-    u1: [{ user_id: 'u1', date: '2026-05-14', tokens_total: 100, tokens_by_model: {},
+    u1: [{ user_id: 'u1', date: TODAY, tokens_total: 100, tokens_by_model: {},
       sessions: 1, deep_work_minutes: 0, machines: [], projects_touched: {},
-      ships: {}, hourly_tokens: {}, source_synced_at: null }],
-    u2: [{ user_id: 'u2', date: '2026-05-14', tokens_total: 500, tokens_by_model: {},
+      ships: {}, hourly_tokens: {}, source_synced_at: null, vbw_total: 1000 }],
+    u2: [{ user_id: 'u2', date: TODAY, tokens_total: 500, tokens_by_model: {},
       sessions: 1, deep_work_minutes: 0, machines: [], projects_touched: {},
-      ships: {}, hourly_tokens: {}, source_synced_at: null }],
+      ships: {}, hourly_tokens: {}, source_synced_at: null, vbw_total: 5000 }],
   },
   groupMemberUserIds: ['u1', 'u2'],
   friendUserIds: [],
@@ -38,7 +40,7 @@ describe('/leaderboard route', () => {
     const { container } = render(ui);
     expect(container.querySelector('[data-leaderboard]')).toBeTruthy();
     expect(container.querySelectorAll('[data-rank-row]').length).toBe(2);
-    // mira (500) ranked above holden (100)
+    // Default metric is vbw + week (7d rolling mean). mira has vbw 5000, holden 1000.
     expect(container.querySelector('[data-rank-row]')?.getAttribute('data-handle')).toBe('mira-builds');
   });
 });

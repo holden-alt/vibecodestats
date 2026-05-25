@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { validateIngestPayload } from '@/lib/ingest/payload';
 import { regenerateOgImage } from '@/lib/og/regenerate';
-import { computeVbw } from '@/lib/stats/vbw';
+import { computeVbw, DEFAULT_ANCHORS, type AnchorsByDim, type DimKey } from '@/lib/stats/vbw';
 import type { Database } from '@/lib/types/database';
 
 export const runtime = 'edge';
@@ -31,6 +31,27 @@ type MachineRow = {
   output_tokens: number;
   cache_creation_tokens: number;
 };
+
+// Fetch the platform-wide dim anchors from the DB. Falls back to DEFAULT_ANCHORS
+// if the table is missing, errors out, or returns no rows. Defensive: in test
+// environments the supabase mock typically only stubs the tables under test.
+async function fetchAnchors(
+  supabase: ReturnType<typeof createClient<Database>>,
+): Promise<AnchorsByDim> {
+  try {
+    const { data } = await supabase.from('dim_anchor').select('dim, anchor, k');
+    if (!data || data.length === 0) return DEFAULT_ANCHORS;
+    const out = { ...DEFAULT_ANCHORS };
+    for (const row of data as { dim: string; anchor: number; k: number }[]) {
+      if (row.dim in out) {
+        out[row.dim as DimKey] = { anchor: row.anchor, k: row.k };
+      }
+    }
+    return out;
+  } catch {
+    return DEFAULT_ANCHORS;
+  }
+}
 
 // Count consecutive prior days (excluding `date` itself) where the user had any
 // activity. Used as the streak multiplier input for VBW. Looks back 14 days max.
@@ -160,8 +181,12 @@ export async function POST(request: Request): Promise<Response> {
     cache_creation_tokens: rows.reduce((s, r) => s + (r.cache_creation_tokens ?? 0), 0),
   };
 
-  // 4. Compute VBW from the rolled-up inputs + streak.
-  const streak = await streakBefore(supabase, authenticatedUserId, payload.date);
+  // 4. Compute VBW from the rolled-up inputs + streak. Anchors come from the
+  //    dim_anchor table so they can be retuned without a redeploy.
+  const [streak, anchors] = await Promise.all([
+    streakBefore(supabase, authenticatedUserId, payload.date),
+    fetchAnchors(supabase),
+  ]);
   const vbw = computeVbw(
     {
       output_tokens: summed.output_tokens,
@@ -171,6 +196,7 @@ export async function POST(request: Request): Promise<Response> {
       deep_work_minutes: summed.deep_work_minutes,
     },
     streak,
+    anchors,
   );
 
   // 5. Upsert daily_stats with the new VBW columns.

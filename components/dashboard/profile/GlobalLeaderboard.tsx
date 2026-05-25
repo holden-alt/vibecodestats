@@ -19,8 +19,11 @@ type Props = {
 };
 
 export function GlobalLeaderboard({ data, viewerId, today }: Props) {
-  const [metric, setMetric] = useState<Metric>('tokens');
-  const [window, setWindow] = useState<Window>('today');
+  // Default: VBW + week (7d rolling mean) — the canonical "who's most productive
+  // over a meaningful window" view. Smooths single-day anomalies, rewards
+  // consistency, and keeps the leaderboard on the 0–10K scale users know.
+  const [metric, setMetric] = useState<Metric>('vbw');
+  const [window, setWindow] = useState<Window>('week');
   const [expanded, setExpanded] = useState(false);
 
   const ranked = useMemo(

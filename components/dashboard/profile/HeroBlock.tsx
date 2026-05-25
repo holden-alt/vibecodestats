@@ -5,6 +5,7 @@ import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import { formatDelta } from '@/lib/format';
 import type { DailyStat } from '@/lib/stats/profile-data';
+import type { DimsMeta } from '@/lib/stats/dim-meta';
 
 type VbwDims = {
   output?: number;
@@ -26,6 +27,8 @@ type Props = {
   deltaVs30dAvg: number; // ratio, 0 if no 30d avg
   vbwToday: number; // 0-10000 — VBW productivity score
   vbwDimensions: VbwDims; // 5 sub-scores, each 0-100
+  dimsMeta?: DimsMeta; // optional "vs You" + intraday pace + sparklines per dim
+  isProvisional?: boolean; // show "Provisional (projected to EOD)" badge if today is still active
 };
 
 export function HeroBlock({
@@ -40,6 +43,8 @@ export function HeroBlock({
   deltaVs30dAvg,
   vbwToday,
   vbwDimensions,
+  dimsMeta,
+  isProvisional,
 }: Props) {
   const sparkData = [...trendStats]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -90,16 +95,29 @@ export function HeroBlock({
             {sessionsToday} sessions · {shipsToday.commits} ships · {projectsTouchedCount} projects
           </span>
         </div>
-        <VbwHeroBlock vbw={vbwToday} dims={vbwDimensions} />
+        <VbwHeroBlock vbw={vbwToday} dims={vbwDimensions} meta={dimsMeta} isProvisional={isProvisional} />
       </div>
     </div>
   );
 }
 
-// VBW sub-block — secondary hero. Number is prominent (medium, gold), with
-// the 5 dimension sub-scores rendered as compact horizontal bars so the user
-// can see which axis drove the score without leaving the page.
-function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
+// VBW sub-block — secondary hero. The headline VBW number is the absolute
+// (cross-user-comparable) score that ranks the leaderboard. Under each
+// dimension we also show "P64 vs you" — the personal-baseline percentile,
+// which is purely informational and does NOT feed the score (so the
+// leaderboard stays a real competition where the top spot belongs to the
+// person with the actually-best stats).
+function VbwHeroBlock({
+  vbw,
+  dims,
+  meta,
+  isProvisional,
+}: {
+  vbw: number;
+  dims: VbwDims;
+  meta?: DimsMeta | undefined;
+  isProvisional?: boolean | undefined;
+}) {
   const dimOrder: { key: keyof VbwDims; label: string }[] = [
     { key: 'output', label: 'output' },
     { key: 'substance', label: 'substance' },
@@ -107,6 +125,7 @@ function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
     { key: 'ships', label: 'ships' },
     { key: 'depth', label: 'depth' },
   ];
+  const sharedPace = meta?.output.pace ?? null;
   return (
     <div
       style={{
@@ -140,6 +159,35 @@ function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
         >
           ⚡ {vbw.toLocaleString()}
         </span>
+        {isProvisional && (
+          <span
+            title="UTC day still in progress — score may rise as more activity rolls up"
+            style={{
+              fontSize: '0.6rem',
+              padding: '2px 6px',
+              borderRadius: 2,
+              border: '1px dashed var(--chart-1)',
+              color: 'var(--chart-1)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
+            }}
+          >
+            provisional
+          </span>
+        )}
+        {sharedPace && (
+          <span
+            title="Token volume so far today vs your typical cumulative-by-this-hour over the last 30 days"
+            style={{
+              fontSize: '0.65rem',
+              opacity: 0.7,
+              color: 'var(--color-text)',
+            }}
+          >
+            {sharedPace}
+          </span>
+        )}
         <Link
           href="/methodology"
           style={{
@@ -164,6 +212,7 @@ function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
       >
         {dimOrder.map(({ key, label }) => {
           const v = Math.max(0, Math.min(100, Math.round(dims[key] ?? 0)));
+          const m = meta?.[key as keyof DimsMeta];
           return (
             <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.75 }}>
@@ -188,10 +237,42 @@ function VbwHeroBlock({ vbw, dims }: { vbw: number; dims: VbwDims }) {
                   }}
                 />
               </div>
+              {m && (m.pxx != null || m.trend.length > 0) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  {m.pxx != null && (
+                    <span
+                      title={`Your ${label} today is in the P${m.pxx} of your last 30 days`}
+                      style={{
+                        fontSize: '0.55rem',
+                        opacity: 0.65,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      P{m.pxx} vs you
+                    </span>
+                  )}
+                  {m.trend.length > 1 && (
+                    <span style={{ flex: 1, height: 10 }}>
+                      <DimSparkline values={m.trend} />
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function DimSparkline({ values }: { values: number[] }) {
+  const data = values.map((v, i) => ({ i, v }));
+  return (
+    <ResponsiveContainer width="100%" height={10}>
+      <LineChart data={data} margin={{ left: 0, right: 0, top: 1, bottom: 1 }}>
+        <Line dataKey="v" stroke="var(--chart-2, #f5c542)" strokeWidth={1} dot={false} isAnimationActive={false} />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }

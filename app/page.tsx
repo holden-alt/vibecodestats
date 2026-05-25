@@ -42,7 +42,7 @@ export default async function HomePage() {
           </Link>
           <ShareSiteOnX />
           <Link href="/holden-alt" prefetch={false} style={{ color: 'var(--chart-1)', fontSize: '0.85rem', textDecoration: 'underline' }}>
-            see a sample profile
+            see my profile
           </Link>
         </div>
       </section>
@@ -81,7 +81,7 @@ export default async function HomePage() {
 
       <footer style={{ borderTop: '1px solid var(--color-border)', paddingTop: 18, fontSize: '0.7rem', opacity: 0.55, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
         <a href="https://github.com/holden-alt/vibecodestats" style={{ color: 'inherit' }}>github</a>
-        <Link href="/holden-alt" prefetch={false} style={{ color: 'inherit' }}>sample profile</Link>
+        <Link href="/holden-alt" prefetch={false} style={{ color: 'inherit' }}>my profile</Link>
         <span style={{ marginLeft: 'auto' }}>made by <a href="https://x.com/holdengr" style={{ color: 'inherit' }}>@holdengr</a></span>
       </footer>
     </main>

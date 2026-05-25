@@ -7,6 +7,7 @@ import type { Database } from '@/lib/types/database';
  */
 export type SignupEventType =
   | 'signin_started'
+  | 'signin_blocked_in_app_browser'
   | 'callback_success'
   | 'callback_oauth_error'
   | 'callback_exchange_error'

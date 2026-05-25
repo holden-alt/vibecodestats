@@ -6,7 +6,7 @@ export const SITE_INTRO = `# vibecodestats.dev
 
 > Strava for AI coding. Public stats profiles, a global leaderboard, and a live token counter for Claude Code + Codex power users.
 
-vibecodestats.dev tracks daily AI-coding usage — tokens, sessions, deep-work minutes, machines — and surfaces a Vibewatts (VBW) productivity score for every signed-in user. Built by Holden Richardson ([@holdengr](https://x.com/holdengr)). The project is in active recruitment of its first non-founder user; if you ship code with Claude Code, you are exactly the right person.`;
+vibecodestats.dev tracks daily AI-coding usage — tokens, sessions, deep-work minutes, machines — and surfaces a Vibewatts (VBW) productivity score for every signed-in user. Built by Holden Richardson ([@realholdengr](https://x.com/realholdengr)). The project is in active recruitment of its first non-founder user; if you ship code with Claude Code, you are exactly the right person.`;
 
 export const MAIN_PAGES: { url: string; title: string; description: string }[] = [
   {

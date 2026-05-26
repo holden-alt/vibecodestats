@@ -43,6 +43,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.18",
     "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
     "supabase": "^2.98.2",
     "tailwindcss": "^4",
     "typescript": "^5",

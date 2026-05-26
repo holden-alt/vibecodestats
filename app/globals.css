@@ -172,3 +172,10 @@ main > .bento-tile {
    contain it rather than horizontal-scrolling the entire page. Individual
    children that need to scroll (heatmap) use their own overflow-x:auto. */
 html, body { overflow-x: hidden; }
+
+/* On mobile the .cc-auth-widget is fixed top-right and wraps to ~2 lines
+   (~50px tall). Add extra top padding to the profile main so the first
+   row (IdentityStrip + PersonalBests etc.) isn't covered by the widget. */
+@media (max-width: 768px) {
+  .cc-profile-main { padding-top: 64px !important; }
+}

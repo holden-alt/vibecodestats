@@ -1,7 +1,7 @@
 'use client';
 
 import HeatMap from '@uiw/react-heat-map';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import { formatNumber } from '@/lib/format';
 
@@ -51,6 +51,18 @@ type Hovered = { date: string; tokens: number; x: number; y: number } | null;
 
 export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
   const [hovered, setHovered] = useState<Hovered>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // On mobile the 720px heatmap exceeds the ~393px viewport, so the wrapper
+  // scrolls horizontally. Default that scroll position to the far right so
+  // the user sees their RECENT activity (the colored cells), not the empty
+  // pre-launch months sitting on the left edge.
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const el = wrapRef.current;
+    if (el.scrollWidth > el.clientWidth) {
+      el.scrollLeft = el.scrollWidth - el.clientWidth;
+    }
+  }, [stats.length]);
   const values = useMemo(
     () =>
       stats.map((s) => ({ date: s.date.replace(/-/g, '/'), count: s.tokens_total })),
@@ -73,6 +85,7 @@ export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
 
   return (
     <div
+      ref={wrapRef}
       className="cc-heatmap-wrap"
       style={{ position: 'relative' }}
       onMouseLeave={() => setHovered(null)}

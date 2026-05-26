@@ -139,7 +139,14 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   const milestone = useMemo(() => computeNextMilestone(allTime.tokens), [allTime.tokens]);
 
   return (
-    <main style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 64px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <main className="cc-profile-main" style={{
+      maxWidth: 1400,
+      margin: '0 auto',
+      padding: '24px 24px 64px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 0,
+    }}>
       <div style={{ marginBottom: 12 }}>
         <IdentityStrip
           user={user}

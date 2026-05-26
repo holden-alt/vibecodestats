@@ -5,6 +5,14 @@ import { useMemo, useState } from 'react';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import { formatNumber } from '@/lib/format';
 
+// 52 weeks × (rectSize 11 + space 2) = 676 + ~40px day labels ≈ 720px.
+// Hardcoding a NUMERIC width because @uiw/react-heat-map silently fails to
+// render colored cells when handed `'100%' as unknown as number` — the
+// internal layout math hits NaN and the SVG rect fills are empty (the bug we
+// saw in mobile screenshots). Container has overflow-x:auto so the heatmap
+// scrolls horizontally on narrow viewports instead of stretching to fit.
+const HEATMAP_WIDTH = 720;
+
 type Props = { stats: DailyStat[]; weeks?: number; today?: string };
 
 // Single-hue intensity ramp (chart-1 orange) — quieter than the prior
@@ -64,9 +72,13 @@ export function ContributionHeatmap({ stats, weeks = 52, today }: Props) {
   start.setDate(todayDate.getDate() - weeks * 7);
 
   return (
-    <div style={{ position: 'relative' }} onMouseLeave={() => setHovered(null)}>
+    <div
+      className="cc-heatmap-wrap"
+      style={{ position: 'relative' }}
+      onMouseLeave={() => setHovered(null)}
+    >
       <HeatMap
-        width={'100%' as unknown as number}
+        width={HEATMAP_WIDTH}
         height={120}
         value={values}
         startDate={start}

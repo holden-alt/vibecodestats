@@ -56,7 +56,7 @@ export function HeroBlock({
       style={{
         position: 'relative',
         overflow: 'hidden',
-        padding: '32px 36px 28px',
+        padding: 'clamp(20px, 5vw, 32px) clamp(16px, 5vw, 36px) clamp(20px, 4vw, 28px)',
         border: '1px solid var(--color-border)',
         borderLeft: '3px solid var(--chart-1)',
         background: 'linear-gradient(180deg, var(--color-bg-2), var(--color-bg))',

@@ -80,11 +80,21 @@ a.bento-tile:hover {
 }
 
 .hero-token {
-  font-size: 4.5rem;
+  /* Responsive: scale with viewport so a 9-digit token total doesn't blow past
+     the right edge on mobile. ~9 chars × ~0.55em width ≈ 5em, plus the page
+     padding. 11vw fits "206,833,XXX" on a 393px iPhone (~43px font ≈ 240px text
+     in 345px content area). Capped at 4.5rem on desktop, floored at 2rem so the
+     headline never disappears entirely. */
+  font-size: clamp(2rem, 11vw, 4.5rem);
   font-weight: 700;
   color: var(--chart-1);
   letter-spacing: -0.02em;
   line-height: 1;
+  /* Tabular-num so leading commas don't drift while the number animates */
+  font-variant-numeric: tabular-nums;
+  /* Last-resort: if it still doesn't fit, clip at the container edge instead of
+     pushing the page width. HeroBlock already sets overflow:hidden. */
+  word-break: break-all;
 }
 
 .cc-bento-grid {
@@ -120,12 +130,45 @@ main > .bento-tile {
   main > .bento-tile { animation: none !important; }
 }
 
+/* Old rule below was a no-op — overflow on the SVG itself does nothing. The
+   real fix is overflow-x:auto on the wrapper <div>, which ContributionHeatmap
+   now sets directly. Keeping the rule removed to avoid confusion. */
+
+/* Use minmax(0, 1fr) so the grid columns can shrink below their content's
+   min-content size. Without this, a wide flex child (like PersonalBests' 3
+   tiles with min-width:120) would force the column wider than the viewport
+   and make the whole page horizontally scrollable. */
+.cc-rank-pb-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
 @media (max-width: 768px) {
-  main > .bento-tile :where([class*="HeatMap"], svg) {
-    overflow-x: auto;
+  .cc-rank-pb-row { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* AuthWidget: position:fixed in layout.tsx. On narrow viewports the default
+   sizing pushed the widget past the right edge ("[ sign in with github ]"
+   wrapped weirdly). Allow it to wrap and stay within the viewport. */
+.cc-auth-widget {
+  max-width: 100vw;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+@media (max-width: 480px) {
+  .cc-auth-widget {
+    font-size: 0.65rem !important;
+    padding: 0.35rem 0.55rem !important;
+    gap: 0.4rem !important;
   }
 }
 
-@media (max-width: 768px) {
-  .cc-rank-pb-row { grid-template-columns: 1fr !important; }
+/* Heatmap wrapper — give it a horizontal scroll on narrow viewports so the
+   720-px wide HeatMap SVG can scroll instead of overflowing the page. */
+.cc-heatmap-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* Defensive: nothing inside main should ever burst the viewport. If we slip,
+   contain it rather than horizontal-scrolling the entire page. Individual
+   children that need to scroll (heatmap) use their own overflow-x:auto. */
+html, body { overflow-x: hidden; }

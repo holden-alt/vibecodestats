@@ -46,7 +46,16 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
       {user.secondary_personas.slice(0, 2).map((p) => (
         <span key={p} style={pill('var(--chart-2)', false)}>{p}</span>
       ))}
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+      <div style={{
+        marginLeft: 'auto',
+        display: 'flex',
+        gap: 6,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        rowGap: 4,
+        minWidth: 0,
+        maxWidth: '100%',
+      }}>
         {rank != null && squadSize != null && (
           <span style={pill('var(--chart-5)', true)}>rank #{rank} / {squadSize}</span>
         )}
@@ -58,9 +67,14 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
+            minWidth: 0,
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--chart-4)', animation: 'cc-pulse 1.5s ease-in-out infinite' }} />
-            now: {nowProject}
+            <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: 'var(--chart-4)', animation: 'cc-pulse 1.5s ease-in-out infinite' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>now: {nowProject}</span>
           </span>
         )}
       </div>

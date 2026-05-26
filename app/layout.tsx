@@ -89,6 +89,7 @@ async function AuthWidget() {
   if (!user) {
     return (
       <div
+        className="cc-auth-widget"
         style={{
           ...wrapStyle,
           background: '#2a1818',
@@ -100,7 +101,7 @@ async function AuthWidget() {
         <span style={dot('#ff5a5a')} />
         <span>not signed in</span>
         <SignInWithGithubButton>
-          [ sign in with github ]
+          [ sign in ]
         </SignInWithGithubButton>
       </div>
     );
@@ -114,6 +115,7 @@ async function AuthWidget() {
 
   return (
     <div
+      className="cc-auth-widget"
       style={{
         ...wrapStyle,
         background: '#142214',
@@ -124,10 +126,12 @@ async function AuthWidget() {
       data-handle={handle}
     >
       <span style={dot('#5ade5a')} />
-      <span>signed in as <strong>@{handle}</strong></span>
-      <Link href="/me" prefetch={false} style={linkStyle}>[ my profile ]</Link>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '50vw' }}>
+        @{handle}
+      </span>
+      <Link href="/me" prefetch={false} style={linkStyle}>[ profile ]</Link>
       <form method="post" action="/auth/signout" style={{ display: 'inline' }}>
-        <button type="submit" style={buttonStyle}>[ sign out ]</button>
+        <button type="submit" style={buttonStyle}>[ out ]</button>
       </form>
     </div>
   );

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { formatCompact } from '@/lib/format';
 import { ShareSiteOnX } from '@/components/ShareSiteOnX';
+import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 
 export const runtime = 'edge';
 
@@ -33,13 +34,7 @@ export default async function HomePage() {
           Public stats profiles, global leaderboard, live token counter. Track Claude Code + Codex daily usage and your VBW productivity score against every other AI-coding power user.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Link
-            href="/auth/signin"
-            prefetch={false}
-            style={{ background: 'var(--chart-1)', color: 'var(--color-bg)', padding: '12px 22px', borderRadius: 3, fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}
-          >
-            sign in with github →
-          </Link>
+          <SignInWithGithubButton />
           <ShareSiteOnX />
           <Link href="/holden-alt" prefetch={false} style={{ color: 'var(--chart-1)', fontSize: '0.85rem', textDecoration: 'underline' }}>
             see my profile

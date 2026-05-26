@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 
 // The site-level OG image is a STATIC PNG in Supabase Storage. The image
 // renders the same live-aggregate-stats layout as per-profile cards
@@ -98,9 +99,9 @@ async function AuthWidget() {
       >
         <span style={dot('#ff5a5a')} />
         <span>not signed in</span>
-        <Link href="/auth/signin" prefetch={false} style={linkStyle}>
+        <SignInWithGithubButton>
           [ sign in with github ]
-        </Link>
+        </SignInWithGithubButton>
       </div>
     );
   }

@@ -595,5 +595,77 @@ class TestDebounce(unittest.TestCase):
         self.assertFalse(dashboard_push.is_debounced('/nonexistent/marker', window=90))
 
 
+class TestIncrementalWindow(unittest.TestCase):
+    """Incremental pushes must re-cover a window of recent UTC days using a
+    time-windowed file glob, so day-boundary events living in files that have
+    gone cold (mtime before local midnight) are still captured. This is the
+    class of bug that silently dropped ~94M tokens from 2026-05-27: a heavy
+    block of work whose UTC date was 05-27 sat in a session file that went cold
+    before local 05-27 midnight, so the mtime>=midnight glob never re-read it
+    and no push ever targeted 05-27 over the full file set."""
+
+    def _ts(self, iso_z):
+        return datetime.fromisoformat(iso_z.replace('Z', '+00:00')).timestamp()
+
+    def test_recent_jsonl_files_includes_cold_but_recent(self):
+        with tempfile.TemporaryDirectory() as d:
+            projects = os.path.join(d, 'projects')
+            proj = os.path.join(projects, 'p')
+            os.makedirs(proj)
+            warm = os.path.join(proj, 'warm.jsonl')
+            cold = os.path.join(proj, 'cold.jsonl')
+            ancient = os.path.join(proj, 'ancient.jsonl')
+            for f in (warm, cold, ancient):
+                open(f, 'w').close()
+            now_ts = 1_700_000_000.0
+            os.utime(warm, (now_ts - 3600, now_ts - 3600))          # 1h ago
+            os.utime(cold, (now_ts - 30 * 3600, now_ts - 30 * 3600))  # 30h ago — within 48h window
+            os.utime(ancient, (now_ts - 5 * 86400, now_ts - 5 * 86400))  # 5 days ago
+            picked = dashboard_push.recent_jsonl_files(projects, now_ts, hours=48)
+            self.assertIn(warm, picked)
+            self.assertIn(cold, picked)        # the file today_jsonl_files would miss
+            self.assertNotIn(ancient, picked)
+
+    def test_incremental_payloads_captures_yesterday_boundary_events(self):
+        with tempfile.TemporaryDirectory() as d:
+            projects = os.path.join(d, 'projects')
+            proj = os.path.join(projects, 'p')
+            os.makedirs(proj)
+            now_ts = self._ts('2026-05-28T16:00:00Z')  # UTC today = 05-28, yesterday = 05-27
+
+            # Cold file: a heavy 05-27 (UTC) turn in a session that went cold 30h ago.
+            cold = os.path.join(proj, 'cold.jsonl')
+            write_jsonl(cold, [
+                {'type': 'assistant', 'timestamp': '2026-05-27T12:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's1',
+                 'message': {'id': 'mY', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 1000, 'output_tokens': 2000,
+                                       'cache_creation_input_tokens': 0,
+                                       'cache_read_input_tokens': 5000}}}])
+            os.utime(cold, (now_ts - 30 * 3600, now_ts - 30 * 3600))
+
+            # Warm file: today's (05-28 UTC) work.
+            warm = os.path.join(proj, 'warm.jsonl')
+            write_jsonl(warm, [
+                {'type': 'assistant', 'timestamp': '2026-05-28T15:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's2',
+                 'message': {'id': 'mT', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 10, 'output_tokens': 20}}}])
+            os.utime(warm, (now_ts - 1800, now_ts - 1800))
+
+            codex_dir = os.path.join(d, 'codex')  # not present — Codex-less user
+            payloads = dashboard_push.incremental_payloads(
+                projects, codex_dir, now_ts, home='/Users/holden',
+                back_days=1, window_hours=48)
+            by_date = {date: day for date, day in payloads}
+
+            self.assertIn('2026-05-27', by_date)
+            self.assertIn('2026-05-28', by_date)
+            # 05-27 must include the cold-file turn: 1000+2000+0+5000 = 8000
+            self.assertEqual(by_date['2026-05-27']['tokens_total'], 8000)
+            # 05-28 picks up the warm turn: 10+20 = 30
+            self.assertEqual(by_date['2026-05-28']['tokens_total'], 30)
+
+
 if __name__ == '__main__':
     unittest.main()

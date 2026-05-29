@@ -23,10 +23,11 @@ export function RankList({ entries }: RankListProps) {
           data-handle={e.handle}
           data-viewer={e.isViewer}
           role="listitem"
-          className="flex items-center gap-2 text-[0.62rem] px-2 py-1 rounded-[2px]"
+          className="foil-hover flex items-center gap-2 text-[0.62rem] px-2 py-1 rounded-[2px]"
           style={{
             background: e.isViewer ? 'var(--color-bg-2)' : 'transparent',
             color: 'var(--color-text)',
+            transition: 'background-image 150ms',
           }}
         >
           <span

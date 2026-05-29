@@ -33,6 +33,13 @@
   --chart-3: #8fbc8f; /* green — sessions, haiku, positive deltas */
   --chart-4: #c47cb8; /* magenta — persona, "now" indicators */
   --chart-5: #e3c466; /* yellow — rank, ships */
+
+  /* Holo foil / glow — ported from the Phase 4 OG card so the browser foil
+     matches the share card. CC = warm, CX = cyan (Phase 4 OG team-chip colors). */
+  --foil-gradient: linear-gradient(110deg, #ff2db3 0%, #ff8a3c 18%, #ffe93c 34%, #3cff8a 52%, #3cd8ff 70%, #9b5cff 86%, #ff2db3 100%);
+  --glow-color: rgba(255, 233, 60, 0.35);
+  --team-cc-color: #ff8a3c;
+  --team-cx-color: #3cd8ff;
 }
 
 @theme inline {
@@ -128,6 +135,59 @@ main > .bento-tile {
 @media (prefers-reduced-motion: reduce) {
   .cc-bento-grid > .bento-tile,
   main > .bento-tile { animation: none !important; }
+}
+
+/* ── Holo foil / glow aesthetic (Phase 5 T4) ─────────────────────────────
+   GPU-only: animates background-position / transform / opacity only.
+   Every keyframe below has a matching prefers-reduced-motion kill block. */
+@keyframes foil-shimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes tier-reveal {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Continuous holo sheen — background-position only (compositor-friendly). */
+.foil {
+  background-image: var(--foil-gradient);
+  background-size: 200% 100%;
+  animation: foil-shimmer 4s linear infinite;
+}
+/* Badge scale-in + glow on mount (transform/opacity only). */
+.tier-reveal {
+  animation: tier-reveal 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* S-tier gets the longer holographic sweep (SPEC line 103). */
+.tier-reveal-s {
+  animation-duration: 800ms;
+}
+/* One-shot divider slide to the live split on load (single transform transition). */
+.scoreboard-divider {
+  transition: transform 1000ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Leaderboard row foil-shift on hover only. Idle is static, no looping
+   animation, and no foil on touch (no hover capability) — SPEC line 106. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .foil-hover:hover {
+    background-image: var(--foil-gradient);
+    background-size: 200% 100%;
+    animation: foil-shimmer 600ms linear;
+  }
+}
+
+/* REQUIRED reduced-motion kill block — mirrors lines 78-80 / 128-131.
+   Static foil shows the rainbow gradient placed (SPEC line 102). */
+@media (prefers-reduced-motion: reduce) {
+  .foil {
+    animation: none !important;
+    background-position: center !important;
+  }
+  .tier-reveal,
+  .tier-reveal-s { animation: none !important; }
+  .scoreboard-divider { transition: none !important; }
+  .foil-hover:hover { animation: none !important; }
 }
 
 /* Old rule below was a no-op — overflow on the SVG itself does nothing. The

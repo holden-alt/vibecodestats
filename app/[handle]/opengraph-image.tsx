@@ -241,7 +241,7 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
                   {formatCompact(card.allTimeTokens)}
                 </div>
                 <div style={{ display: 'flex', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 26, color: TEXT_LABEL, letterSpacing: '3px', marginTop: 8 }}>
-                  ALL-TIME TOKENS · No. {card.rank} GLOBAL · TOP {card.topPercentLabel}%
+                  ALL-TIME TOKENS · No. {card.rank} GLOBAL
                 </div>
                 <div style={{ display: 'flex', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 26, color: '#aab0bd', marginTop: 10 }}>
                   bottom 10%, still mostly raw dogging it

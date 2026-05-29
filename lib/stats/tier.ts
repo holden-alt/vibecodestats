@@ -18,7 +18,7 @@ const BANDS: { tier: Exclude<Tier, 'handcoder'>; maxPercentile: number }[] = [
   { tier: 'A', maxPercentile: 0.10 },
   { tier: 'B', maxPercentile: 0.40 },
   { tier: 'C', maxPercentile: 0.75 },
-  { tier: 'D', maxPercentile: Infinity },
+  { tier: 'D', maxPercentile: 0.90 },
 ]
 
 export function computeTier(allTimeTokens: number, allUsersAllTime: number[]): TierResult {
@@ -30,10 +30,13 @@ export function computeTier(allTimeTokens: number, allUsersAllTime: number[]): T
   const ahead = cohort.filter((t) => t > allTimeTokens).length
   const rank = ahead + 1
   const percentile = cohortSize > 0 ? ahead / cohortSize : 0
-  // Empty cohort yields percentile 0 (sole user = S); .find always matches because last band is Infinity.
-  const band = BANDS.find((b) => percentile < b.maxPercentile)!
+  // Empty cohort yields percentile 0 (sole user = S).
+  // No band match means percentile >= 0.90 => bottom 10% of field => handcoder.
+  const band = BANDS.find((b) => percentile < b.maxPercentile)
+  const tier: Tier = band ? band.tier : 'handcoder' // percentile >= 0.90 => bottom 10% => handcoder
+  const isHandcoder = tier === 'handcoder'
   const topPercentLabel = Math.max(1, Math.ceil(percentile * 100))
-  return { tier: band.tier, isHandcoder: false, rank, cohortSize, percentile, topPercentLabel }
+  return { tier, isHandcoder, rank, cohortSize, percentile, topPercentLabel }
 }
 
 export interface TierGap {
@@ -44,11 +47,6 @@ export interface TierGap {
 export function gapToNextTier(allTimeTokens: number, allUsersAllTime: number[]): TierGap {
   const current = computeTier(allTimeTokens, allUsersAllTime)
   if (current.tier === 'S') return { nextTier: null, tokensNeeded: 0 }
-  // Handcoder: any positive token leaves the floor and makes you ranked.
-  if (current.isHandcoder) {
-    const needed = 1
-    return { nextTier: computeTier(needed, allUsersAllTime).tier, tokensNeeded: needed }
-  }
   // Walk past the nearest competitors one at a time until your tier actually
   // changes. Computing the resulting tier via computeTier guarantees the
   // round-trip invariant (allTimeTokens + tokensNeeded actually lands in nextTier)

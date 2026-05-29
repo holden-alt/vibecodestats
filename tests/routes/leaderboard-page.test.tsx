@@ -14,10 +14,10 @@ const leaderboardData = {
   statsByUser: {
     u1: [{ user_id: 'u1', date: TODAY, tokens_total: 100, tokens_by_model: {},
       sessions: 1, deep_work_minutes: 0, machines: [], projects_touched: {},
-      ships: {}, hourly_tokens: {}, source_synced_at: null, vbw_total: 1000 }],
+      ships: {}, hourly_tokens: {}, source_synced_at: null }],
     u2: [{ user_id: 'u2', date: TODAY, tokens_total: 500, tokens_by_model: {},
       sessions: 1, deep_work_minutes: 0, machines: [], projects_touched: {},
-      ships: {}, hourly_tokens: {}, source_synced_at: null, vbw_total: 5000 }],
+      ships: {}, hourly_tokens: {}, source_synced_at: null }],
   },
   groupMemberUserIds: ['u1', 'u2'],
   friendUserIds: [],

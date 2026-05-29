@@ -28,12 +28,17 @@ export async function POST(request: Request) {
   //    service-role writes that must target exactly their own row.
   const { data: publicUser } = await supabase
     .from('users')
-    .select('id, github_handle')
+    .select('id, github_handle, team')
     .eq('auth_id', user.id)
     .single();
 
   if (!publicUser) {
     return Response.json({ error: 'user not found' }, { status: 404 });
+  }
+
+  // 2a. Onboarding is initial-set only — block re-onboarding via this endpoint.
+  if (publicUser.team != null) {
+    return Response.json({ ok: false, error: 'already onboarded' }, { status: 409 });
   }
 
   // 3. Parse + validate the form body.
@@ -69,6 +74,7 @@ export async function POST(request: Request) {
   }
 
   // Write user_private only when opted in with a non-empty email.
+  let emailSaved = false;
   if (emailOptIn && email) {
     const { error: privErr } = await svc
       .from('user_private')
@@ -83,11 +89,18 @@ export async function POST(request: Request) {
       );
 
     if (privErr) {
-      // Non-fatal — team was already set; log but don't abort.
+      // Non-fatal — team was already set; log but surface to client.
       console.error('user_private upsert failed:', privErr.message);
+    } else {
+      emailSaved = true;
     }
   }
 
   // 5. Return the handle so the client can redirect.
-  return Response.json({ ok: true, handle: publicUser.github_handle });
+  return Response.json({
+    ok: true,
+    handle: publicUser.github_handle,
+    emailOptIn,
+    email_saved: emailSaved,
+  });
 }

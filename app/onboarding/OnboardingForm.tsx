@@ -8,6 +8,7 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
   const [optIn, setOptIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailWarning, setEmailWarning] = useState<{ handle: string } | null>(null);
 
   const btnBase: React.CSSProperties = {
     fontFamily: 'inherit',
@@ -50,8 +51,19 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
         setBusy(false);
         return;
       }
-      const json = (await res.json()) as { handle?: string };
+      const json = (await res.json()) as {
+        handle?: string;
+        emailOptIn?: boolean;
+        email_saved?: boolean;
+      };
       const handle = json.handle ?? '';
+      // If the user opted in but the email save failed, surface a warning
+      // instead of silently redirecting. Team is saved either way.
+      if (json.emailOptIn === true && json.email_saved === false) {
+        setEmailWarning({ handle: handle || '' });
+        setBusy(false);
+        return;
+      }
       window.location.href = handle ? `/${handle}` : '/';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'something went wrong');
@@ -153,6 +165,33 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {emailWarning && (
+        <div
+          style={{
+            fontSize: '0.8rem',
+            color: 'var(--color-dim)',
+            padding: '10px 12px',
+            border: '1px solid var(--color-border)',
+            borderRadius: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <span>Team locked. Your email did not save, you can add it later.</span>
+          <a
+            href={emailWarning.handle ? `/${emailWarning.handle}` : '/'}
+            style={{
+              color: 'var(--color-orange)',
+              textDecoration: 'none',
+              fontWeight: 700,
+            }}
+          >
+            Continue to your card
+          </a>
         </div>
       )}
 

@@ -34,7 +34,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 HOME = os.path.expanduser('~')
 PROJECTS_DIR = os.path.join(HOME, '.claude', 'projects')
@@ -556,6 +556,81 @@ def all_codex_files(codex_sessions_dir):
     return glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True)
 
 
+def recent_jsonl_files(projects_dir, now_ts=None, hours=48):
+    """JSONL files modified within the last `hours` (default 48).
+
+    Wider than today_jsonl_files' since-local-midnight cutoff on purpose: an
+    event whose UTC date is "today" can occur as early as local yesterday
+    evening (UTC midnight = ~20:00 in US timezones), and if that session goes
+    cold before local midnight its file's mtime falls *before* the midnight
+    cutoff. The narrow glob then never re-reads it, so the day's tokens are
+    silently dropped (the 2026-05-27 ~94M undercount). A 48h window covers the
+    boundary for any timezone; parse_day still filters events by date, so
+    over-including files only costs a little parse time.
+    """
+    if now_ts is None:
+        now_ts = time.time()
+    cutoff = now_ts - hours * 3600
+    out = []
+    for path in glob.glob(os.path.join(projects_dir, '**', '*.jsonl'), recursive=True):
+        try:
+            if os.path.getmtime(path) >= cutoff:
+                out.append(path)
+        except OSError:
+            continue
+    return out
+
+
+def recent_codex_files(codex_sessions_dir, now_ts=None, hours=48):
+    """Codex session JSONL files modified within the last `hours`. Same
+    boundary rationale as recent_jsonl_files. [] if Codex isn't installed."""
+    if not os.path.isdir(codex_sessions_dir):
+        return []
+    if now_ts is None:
+        now_ts = time.time()
+    cutoff = now_ts - hours * 3600
+    out = []
+    for path in glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True):
+        try:
+            if os.path.getmtime(path) >= cutoff:
+                out.append(path)
+        except OSError:
+            continue
+    return out
+
+
+def utc_date_window(now_ts, back_days=1):
+    """UTC date strings 'YYYY-MM-DD' from (today - back_days) .. today inclusive.
+
+    Day totals are keyed by UTC date (parse_day filters on ts[:10], the UTC
+    day). Re-covering yesterday as well as today means a day's late-arriving or
+    boundary events get re-pushed by the next day's runs instead of being
+    stranded after that day's last same-day push.
+    """
+    today = datetime.fromtimestamp(now_ts, tz=timezone.utc).date()
+    return [(today - timedelta(days=n)).strftime('%Y-%m-%d')
+            for n in range(back_days, -1, -1)]
+
+
+def incremental_payloads(projects_dir, codex_sessions_dir, now_ts, home,
+                         back_days=1, window_hours=48):
+    """Parse the recent file window and return [(date, merged_day_dict), ...]
+    for each UTC date in the window (oldest first, today last).
+
+    This is the incremental analog of the backfill: it re-covers a rolling
+    window so boundary/late events are captured rather than dropped. Pure (no
+    network, no git) so the capture behavior is unit-testable.
+    """
+    cfiles = recent_jsonl_files(projects_dir, now_ts, window_hours)
+    xfiles = recent_codex_files(codex_sessions_dir, now_ts, window_hours)
+    out = []
+    for date in utc_date_window(now_ts, back_days):
+        day = merge_days(parse_day(cfiles, date, home),
+                         parse_codex_day(xfiles, date, home))
+        out.append((date, day))
+    return out
+
+
 def is_debounced(marker_path, window):
     """True if the last push was less than `window` seconds ago."""
     try:
@@ -661,18 +736,24 @@ def main():
             print(f'  {target_date}: {status} [{src_label}] {text[:60]}')
         return 0
 
-    # default: today only, incremental (Claude + Codex merged per push)
-    target_date = datetime.now().strftime('%Y-%m-%d')
-    claude_files = today_jsonl_files(PROJECTS_DIR)
-    codex_files = today_codex_files(CODEX_SESSIONS_DIR)
-    claude_day = parse_day(claude_files, target_date, HOME)
-    codex_day = parse_codex_day(codex_files, target_date, HOME)
-    day = merge_days(claude_day, codex_day)
-    ships = count_ships(claude_dir, target_date, author_email)
-    payload = build_payload(day, ships, handle, machine, target_date)
-    status, text = post_payload(url, payload, token=token, secret=secret)
+    # default: incremental over a rolling window (today + yesterday UTC), so a
+    # day's boundary/late events in files that have gone cold are still
+    # captured rather than dropped. Claude + Codex merged per date.
+    now_ts = time.time()
+    today_date = datetime.fromtimestamp(now_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+    today_status, today_text, today_payload = None, None, None
+    for target_date, day in incremental_payloads(PROJECTS_DIR, CODEX_SESSIONS_DIR,
+                                                  now_ts, HOME):
+        ships = count_ships(claude_dir, target_date, author_email)
+        payload = build_payload(day, ships, handle, machine, target_date)
+        status, text = post_payload(url, payload, token=token, secret=secret)
+        if target_date == today_date:
+            today_status, today_text, today_payload = status, text, payload
+        if status != 200:
+            print(f'dashboard-push: ingest {target_date} returned {status}: '
+                  f'{text[:200]}', file=sys.stderr)
 
-    if status == 200:
+    if today_status == 200:
         with open(LAST_PUSH_FILE, 'w') as f:
             f.write(str(time.time()))
         # Cache today's VBW + token total for the statusline. Both share the
@@ -682,29 +763,27 @@ def main():
         try:
             cache_dir = os.path.join(HOME, '.claude', 'daily-tokens')
             os.makedirs(cache_dir, exist_ok=True)
-            now_ts = int(time.time())
+            cache_ts = int(time.time())
             # tokens-today.json — authoritative ccusage daily total for this Mac.
             with open(os.path.join(cache_dir, 'tokens-today.json'), 'w') as f:
                 json.dump({
-                    'tokens': int(payload['tokens_total']),
-                    'date': target_date,
-                    'ts': now_ts,
+                    'tokens': int(today_payload['tokens_total']),
+                    'date': today_date,
+                    'ts': cache_ts,
                 }, f)
             # vbw-today.json — parsed from the API response.
-            resp = json.loads(text)
+            resp = json.loads(today_text)
             vbw_val = resp.get('vbw')
             if isinstance(vbw_val, (int, float)):
                 with open(os.path.join(cache_dir, 'vbw-today.json'), 'w') as f:
                     json.dump({
                         'vbw': int(vbw_val),
-                        'date': target_date,
-                        'ts': now_ts,
+                        'date': today_date,
+                        'ts': cache_ts,
                     }, f)
         except (json.JSONDecodeError, OSError, TypeError):
             pass
-    else:
-        print(f'dashboard-push: ingest returned {status}: {text[:200]}', file=sys.stderr)
-    return 0 if status == 200 else 1
+    return 0 if today_status == 200 else 1
 
 
 if __name__ == '__main__':

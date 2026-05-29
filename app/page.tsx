@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { formatCompact } from '@/lib/format';
 import { ShareSiteOnX } from '@/components/ShareSiteOnX';
@@ -9,7 +10,7 @@ export const runtime = 'edge';
 export default async function HomePage() {
   const supabase = await createClient();
   // pull today's top 5 for social proof
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const { data: stats } = await supabase
     .from('daily_stats')
     .select('tokens_total, users:user_id (github_handle)')

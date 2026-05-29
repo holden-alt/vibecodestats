@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { getHeadToHeadData } from '@/lib/stats/head-to-head-data';
 import { HeadToHead } from '@/components/head-to-head/HeadToHead';
@@ -23,7 +24,7 @@ export default async function HeadToHeadPage({ params }: HeadToHeadPageProps) {
     notFound();
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
 
   return (
     <main className="min-h-screen px-6 py-4 max-w-[900px] mx-auto">

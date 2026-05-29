@@ -414,7 +414,7 @@ class TestCountShips(unittest.TestCase):
             subprocess.run(['git', 'add', '.'], cwd=repo, check=True, env=env)
             subprocess.run(['git', 'commit', '-q', '-m', 'today commit'], cwd=repo, check=True, env=env)
 
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            today = datetime.now().strftime('%Y-%m-%d')  # local day (matches git's local-time log filtering)
             result = dashboard_push.count_ships(
                 claude_dir=os.path.join(d, 'Claude'),
                 target_date=today,
@@ -440,7 +440,7 @@ class TestCountShips(unittest.TestCase):
                 f.write('test_b\n')
             subprocess.run(['git', 'add', '.'], cwd=repo, check=True, env=env)
             subprocess.run(['git', 'commit', '-q', '-m', 'tests only'], cwd=repo, check=True, env=env)
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            today = datetime.now().strftime('%Y-%m-%d')  # local day (matches git's local-time log filtering)
             result = dashboard_push.count_ships(
                 claude_dir=os.path.join(d, 'Claude'),
                 target_date=today,
@@ -487,15 +487,23 @@ class TestHourlyBucketing(unittest.TestCase):
                  'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
                  'message': {'model': 'claude-opus-4-7',
                              'usage': {'input_tokens': 50, 'output_tokens': 50}}},
-                # 2026-05-15T02:00Z is 22:00 EDT on 2026-05-14 -> hour 22, wrong day, ignored
+                # 2026-05-15T02:00Z is 22:00 EDT on 2026-05-14 -> still the user's
+                # LOCAL 05-14 (hour 22). Must be counted, not dropped.
                 {'type': 'assistant', 'timestamp': '2026-05-15T02:00:00.000Z',
+                 'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
+                 'message': {'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 100}}},
+                # 2026-05-15T12:00Z is 08:00 EDT on 2026-05-15 -> a different LOCAL
+                # day, correctly ignored for target 05-14.
+                {'type': 'assistant', 'timestamp': '2026-05-15T12:00:00.000Z',
                  'cwd': '/Users/holden/Claude/x', 'sessionId': 's',
                  'message': {'model': 'claude-opus-4-7',
                              'usage': {'input_tokens': 999, 'output_tokens': 999}}},
             ])
             result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
-            # both same-day messages land in local hour 14: 300 + 100 = 400
-            self.assertEqual(result['tokens_by_hour'], {'14': 400})
+            # local hour 14: 300 + 100 = 400; local hour 22 (the 02:00Z event): 200
+            self.assertEqual(result['tokens_by_hour'], {'14': 400, '22': 200})
+            self.assertEqual(result['tokens_total'], 600)
 
     def test_build_payload_includes_hourly_tokens(self):
         day = {
@@ -596,13 +604,25 @@ class TestDebounce(unittest.TestCase):
 
 
 class TestIncrementalWindow(unittest.TestCase):
-    """Incremental pushes must re-cover a window of recent UTC days using a
+    """Incremental pushes must re-cover a window of recent days using a
     time-windowed file glob, so day-boundary events living in files that have
     gone cold (mtime before local midnight) are still captured. This is the
     class of bug that silently dropped ~94M tokens from 2026-05-27: a heavy
-    block of work whose UTC date was 05-27 sat in a session file that went cold
-    before local 05-27 midnight, so the mtime>=midnight glob never re-read it
-    and no push ever targeted 05-27 over the full file set."""
+    block of work sat in a session file that went cold before local midnight,
+    so the mtime>=midnight glob never re-read it and no push ever re-covered
+    that day over the full file set. Day keys are LOCAL dates (the user's day)."""
+
+    def setUp(self):
+        self._orig_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'America/New_York'
+        time.tzset()
+
+    def tearDown(self):
+        if self._orig_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = self._orig_tz
+        time.tzset()
 
     def _ts(self, iso_z):
         return datetime.fromisoformat(iso_z.replace('Z', '+00:00')).timestamp()
@@ -665,6 +685,67 @@ class TestIncrementalWindow(unittest.TestCase):
             self.assertEqual(by_date['2026-05-27']['tokens_total'], 8000)
             # 05-28 picks up the warm turn: 10+20 = 30
             self.assertEqual(by_date['2026-05-28']['tokens_total'], 30)
+
+
+class TestLocalDayBoundary(unittest.TestCase):
+    """Day totals follow the user's LOCAL day, not UTC. Evening work (after UTC
+    midnight, i.e. ~20:00 ET) must stay on the local day it actually happened on
+    — not roll forward to the next day. That UTC rollover is what emptied
+    'today' on the dashboard at 8pm ET on 2026-05-28."""
+
+    def setUp(self):
+        self._orig_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'America/New_York'
+        time.tzset()
+
+    def tearDown(self):
+        if self._orig_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = self._orig_tz
+        time.tzset()
+
+    def _ts(self, iso_z):
+        return datetime.fromisoformat(iso_z.replace('Z', '+00:00')).timestamp()
+
+    def test_evening_event_counts_on_local_day_not_utc(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'sess.jsonl')
+            # 2026-05-29T00:39Z == 2026-05-28 20:39 EDT -> the user's local 05-28.
+            write_jsonl(p, [
+                {'type': 'assistant', 'timestamp': '2026-05-29T00:39:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'mE', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 1000, 'output_tokens': 2000,
+                                       'cache_creation_input_tokens': 0,
+                                       'cache_read_input_tokens': 5000}}}])
+            r28 = dashboard_push.parse_day([p], target_date='2026-05-28', home='/Users/holden')
+            r29 = dashboard_push.parse_day([p], target_date='2026-05-29', home='/Users/holden')
+            self.assertEqual(r28['tokens_total'], 8000)  # belongs to local 05-28
+            self.assertEqual(r29['tokens_total'], 0)      # NOT the UTC day 05-29
+
+    def test_incremental_window_uses_local_today(self):
+        with tempfile.TemporaryDirectory() as d:
+            projects = os.path.join(d, 'projects')
+            proj = os.path.join(projects, 'p')
+            os.makedirs(proj)
+            now_ts = self._ts('2026-05-29T00:39:00Z')  # local 05-28 20:39 EDT
+            warm = os.path.join(proj, 'warm.jsonl')
+            write_jsonl(warm, [
+                {'type': 'assistant', 'timestamp': '2026-05-29T00:39:00.000Z',
+                 'cwd': '/Users/holden/Claude/p', 'sessionId': 's',
+                 'message': {'id': 'mE', 'model': 'claude-opus-4-7',
+                             'usage': {'input_tokens': 100, 'output_tokens': 200}}}])
+            os.utime(warm, (now_ts - 600, now_ts - 600))
+            codex_dir = os.path.join(d, 'codex')
+            payloads = dashboard_push.incremental_payloads(
+                projects, codex_dir, now_ts, home='/Users/holden', back_days=1)
+            by_date = {date: day for date, day in payloads}
+            # window is LOCAL today + yesterday, not the UTC day
+            self.assertIn('2026-05-28', by_date)
+            self.assertIn('2026-05-27', by_date)
+            self.assertNotIn('2026-05-29', by_date)
+            self.assertEqual(by_date['2026-05-28']['tokens_total'], 300)
 
 
 if __name__ == '__main__':

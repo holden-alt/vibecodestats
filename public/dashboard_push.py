@@ -66,6 +66,23 @@ def _usage_total(usage):
             + (usage.get('cache_read_input_tokens') or 0))
 
 
+def local_date(ts):
+    """Local calendar date ('YYYY-MM-DD') for an ISO-8601 timestamp.
+
+    Events are stamped in UTC (trailing 'Z'), but the dashboard reports by the
+    user's LOCAL day — matching tokens_by_hour, which is already local. Keying
+    on the UTC date instead rolls evening work (anything after UTC midnight,
+    ~20:00 US-Eastern) onto the next day, which empties 'today' in the evening.
+    astimezone() with no argument converts to the machine's local timezone.
+    Returns None for a missing/malformed timestamp so callers skip it rather
+    than crash (None never equals a target date).
+    """
+    try:
+        return datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d')
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 def parse_day(jsonl_paths, target_date, home):
     """Parse the given JSONL files, return aggregates for target_date (YYYY-MM-DD).
 
@@ -108,7 +125,7 @@ def parse_day(jsonl_paths, target_date, home):
                     if d.get('cwd'):
                         current_cwd = d['cwd']
                     ts = d.get('timestamp')
-                    if not ts or ts[:10] != target_date:
+                    if not ts or local_date(ts) != target_date:
                         continue
                     if d.get('type') in ('user', 'assistant'):
                         sessions.add(session_id)
@@ -278,7 +295,7 @@ def parse_codex_day(jsonl_paths, target_date, home):
                         continue
 
                     ts = d.get('timestamp')
-                    if not ts or ts[:10] != target_date:
+                    if not ts or local_date(ts) != target_date:
                         continue
 
                     if kind in ('user_message', 'agent_message'):
@@ -599,15 +616,15 @@ def recent_codex_files(codex_sessions_dir, now_ts=None, hours=48):
     return out
 
 
-def utc_date_window(now_ts, back_days=1):
-    """UTC date strings 'YYYY-MM-DD' from (today - back_days) .. today inclusive.
+def date_window(now_ts, back_days=1):
+    """LOCAL date strings 'YYYY-MM-DD' from (today - back_days) .. today inclusive.
 
-    Day totals are keyed by UTC date (parse_day filters on ts[:10], the UTC
-    day). Re-covering yesterday as well as today means a day's late-arriving or
+    Day totals are keyed by LOCAL date (parse_day filters via local_date()).
+    Re-covering yesterday as well as today means a day's late-arriving or
     boundary events get re-pushed by the next day's runs instead of being
     stranded after that day's last same-day push.
     """
-    today = datetime.fromtimestamp(now_ts, tz=timezone.utc).date()
+    today = datetime.fromtimestamp(now_ts).date()  # machine-local date
     return [(today - timedelta(days=n)).strftime('%Y-%m-%d')
             for n in range(back_days, -1, -1)]
 
@@ -615,7 +632,7 @@ def utc_date_window(now_ts, back_days=1):
 def incremental_payloads(projects_dir, codex_sessions_dir, now_ts, home,
                          back_days=1, window_hours=48):
     """Parse the recent file window and return [(date, merged_day_dict), ...]
-    for each UTC date in the window (oldest first, today last).
+    for each LOCAL date in the window (oldest first, today last).
 
     This is the incremental analog of the backfill: it re-covers a rolling
     window so boundary/late events are captured rather than dropped. Pure (no
@@ -624,7 +641,7 @@ def incremental_payloads(projects_dir, codex_sessions_dir, now_ts, home,
     cfiles = recent_jsonl_files(projects_dir, now_ts, window_hours)
     xfiles = recent_codex_files(codex_sessions_dir, now_ts, window_hours)
     out = []
-    for date in utc_date_window(now_ts, back_days):
+    for date in date_window(now_ts, back_days):
         day = merge_days(parse_day(cfiles, date, home),
                          parse_codex_day(xfiles, date, home))
         out.append((date, day))
@@ -705,19 +722,25 @@ def main():
                         except json.JSONDecodeError:
                             continue
                         if ts:
-                            dates.add(ts[:10])
+                            dates.add(local_date(ts))
             except OSError:
                 continue
-        # Codex stores by-date in the path itself: .../YYYY/MM/DD/rollout-*.jsonl
+        # Codex events carry UTC timestamps too; key them by local date so they
+        # land on the same day as parse_codex_day attributes them (the by-path
+        # YYYY/MM/DD only marks the session's start dir, which can differ).
         for path in all_codex:
-            parts = path.split(os.sep)
             try:
-                # last three dirs before filename are Y / M / D
-                yy, mm, dd = parts[-4], parts[-3], parts[-2]
-                if yy.isdigit() and mm.isdigit() and dd.isdigit():
-                    dates.add(f'{yy}-{mm}-{dd}')
-            except (IndexError, ValueError):
+                with open(path) as f:
+                    for line in f:
+                        try:
+                            ts = json.loads(line).get('timestamp')
+                        except json.JSONDecodeError:
+                            continue
+                        if ts:
+                            dates.add(local_date(ts))
+            except OSError:
                 continue
+        dates.discard(None)  # malformed timestamps -> local_date() returned None
         for target_date in sorted(dates):
             claude_day = parse_day(all_claude, target_date, HOME)
             codex_day = parse_codex_day(all_codex, target_date, HOME)
@@ -740,7 +763,7 @@ def main():
     # day's boundary/late events in files that have gone cold are still
     # captured rather than dropped. Claude + Codex merged per date.
     now_ts = time.time()
-    today_date = datetime.fromtimestamp(now_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+    today_date = datetime.fromtimestamp(now_ts).strftime('%Y-%m-%d')  # machine-local
     today_status, today_text, today_payload = None, None, None
     for target_date, day in incremental_payloads(PROJECTS_DIR, CODEX_SESSIONS_DIR,
                                                   now_ts, HOME):

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { todayLocal } from '@/lib/date';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { Leaderboard } from '@/components/leaderboard/Leaderboard';
 
@@ -20,7 +21,7 @@ export default async function LeaderboardPage() {
   const viewerId = viewer?.id ?? '';
 
   const data = await getLeaderboardData(supabase, viewerId);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
 
   return (
     <main className="min-h-screen px-6 py-4 max-w-[1000px] mx-auto">

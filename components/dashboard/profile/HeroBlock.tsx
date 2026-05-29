@@ -15,7 +15,6 @@ type Props = {
   deltaVsYesterday: number; // 0.38 → +38%
   deltaVs7dAvg: number; // ratio (today / 7d avg - 1), 0 if no 7d avg
   deltaVs30dAvg: number; // ratio, 0 if no 30d avg
-  isProvisional?: boolean; // show "Provisional (projected to EOD)" badge if today is still active
 };
 
 export function HeroBlock({

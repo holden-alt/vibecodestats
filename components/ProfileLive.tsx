@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { todayLocal } from '@/lib/date';
 import { useEffect, useMemo, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
@@ -84,9 +83,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   }, [dailyStats, effectiveToday]);
 
   const tokensToday = todayRow?.tokens_total ?? 0;
-  // "Provisional" if today's row is the actual current UTC date (still in progress).
-  const todayUtcDate = todayLocal();
-  const isProvisional = effectiveToday === todayUtcDate;
   const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
   const deltaVsYesterday = tokensYesterday > 0 ? (tokensToday - tokensYesterday) / tokensYesterday : 0;
   const avg7d = computeRollingAverage(dailyStats, effectiveToday, 7);
@@ -186,7 +182,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           deltaVsYesterday={deltaVsYesterday}
           deltaVs7dAvg={deltaVs7d}
           deltaVs30dAvg={deltaVs30d}
-          isProvisional={isProvisional}
         />
       </div>
 

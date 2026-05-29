@@ -21,7 +21,6 @@ import { ContributionHeatmap } from '@/components/charts/v2/ContributionHeatmap'
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
 import {
   computeStreak,
-  computeRollingAverage,
   computeWeekTotal,
   computeMonthTotal,
   computeAllTimeTotals,
@@ -76,20 +75,8 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   }, [dailyStats, today]);
 
   const todayRow = useMemo(() => dailyStats.find((s) => s.date === effectiveToday), [dailyStats, effectiveToday]);
-  const yesterdayRow = useMemo(() => {
-    const d = new Date(effectiveToday + 'T00:00:00Z');
-    d.setUTCDate(d.getUTCDate() - 1);
-    const key = d.toISOString().slice(0, 10);
-    return dailyStats.find((s) => s.date === key);
-  }, [dailyStats, effectiveToday]);
 
   const tokensToday = todayRow?.tokens_total ?? 0;
-  const tokensYesterday = yesterdayRow?.tokens_total ?? 0;
-  const deltaVsYesterday = tokensYesterday > 0 ? (tokensToday - tokensYesterday) / tokensYesterday : 0;
-  const avg7d = computeRollingAverage(dailyStats, effectiveToday, 7);
-  const avg30d = computeRollingAverage(dailyStats, effectiveToday, 30);
-  const deltaVs7d = avg7d > 0 ? (tokensToday - avg7d) / avg7d : 0;
-  const deltaVs30d = avg30d > 0 ? (tokensToday - avg30d) / avg30d : 0;
 
   const sessionsToday = todayRow?.sessions ?? 0;
   const shipsToday = (todayRow?.ships as { commits?: number; repos?: number } | undefined) ?? {};
@@ -185,14 +172,15 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
 
       <div style={{ marginBottom: 24 }}>
         <HeroBlock
-          tokensToday={tokensToday}
+          allTimeTokens={allTime.tokens}
+          tier={tierResult.tier}
+          topPercentLabel={tierResult.topPercentLabel}
+          rank={tierResult.rank}
+          isHandcoder={tierResult.isHandcoder}
           sessionsToday={sessionsToday}
           shipsToday={{ commits: shipsToday.commits ?? 0, repos: shipsToday.repos ?? 0 }}
           projectsTouchedCount={projectsTouchedCount}
           trendStats={dailyStats}
-          deltaVsYesterday={deltaVsYesterday}
-          deltaVs7dAvg={deltaVs7d}
-          deltaVs30dAvg={deltaVs30d}
         />
       </div>
 

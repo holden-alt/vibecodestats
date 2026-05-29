@@ -2,35 +2,40 @@
 
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import { RollingNumber } from '@/components/dashboard/RollingNumber';
-import { formatDelta } from '@/lib/format';
 import type { DailyStat } from '@/lib/stats/profile-data';
+import type { Tier } from '@/lib/stats/tier';
 
 type Props = {
-  tokensToday: number;
+  allTimeTokens: number;
+  tier: Tier;
+  topPercentLabel: number;
+  rank: number;
+  isHandcoder: boolean;
   sessionsToday: number;
   shipsToday: { commits: number; repos: number };
   projectsTouchedCount: number;
   trendStats: DailyStat[]; // last ~30 days for the ghosted sparkline
-  deltaVsYesterday: number; // 0.38 → +38%
-  deltaVs7dAvg: number; // ratio (today / 7d avg - 1), 0 if no 7d avg
-  deltaVs30dAvg: number; // ratio, 0 if no 30d avg
 };
 
 export function HeroBlock({
-  tokensToday,
+  allTimeTokens,
+  tier,
+  topPercentLabel,
+  rank,
+  isHandcoder,
   sessionsToday,
   shipsToday,
   projectsTouchedCount,
   trendStats,
-  deltaVsYesterday,
-  deltaVs7dAvg,
-  deltaVs30dAvg,
 }: Props) {
   const sparkData = [...trendStats]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .slice(-30)
     .map((s) => ({ d: s.date, v: s.tokens_total }));
-  const deltaColor = deltaVsYesterday >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)';
+  // Two handcoder sub-cases (SPEC line 35): zero tokens = nothing to rank;
+  // active bottom-10% = they DO have stats, so show the number + rank.
+  const zeroTokenHandcoder = isHandcoder && allTimeTokens === 0;
+  const tierLetter = tier === 'handcoder' ? 'HANDCODER' : tier.toUpperCase();
   return (
     <div
       style={{
@@ -43,6 +48,7 @@ export function HeroBlock({
         borderRadius: 3,
       }}
     >
+      {/* Ghosted sparkline as background texture (KEEP - separate from TokenTrendChart). */}
       <div style={{ position: 'absolute', inset: 0, opacity: 0.22, pointerEvents: 'none' }}>
         <ResponsiveContainer>
           <LineChart data={sparkData} margin={{ left: 0, right: 0, top: 8, bottom: 4 }}>
@@ -51,31 +57,69 @@ export function HeroBlock({
         </ResponsiveContainer>
       </div>
       <div style={{ position: 'relative' }}>
-        <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          tokens today
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
-          <RollingNumber value={tokensToday} className="hero-token" durationMs={900} />
-          <span style={{ fontSize: '0.75rem', color: deltaColor }}>
-            {deltaVsYesterday >= 0 ? '▲' : '▼'} {formatDelta(deltaVsYesterday)} vs yesterday
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '0.65rem', flexWrap: 'wrap' }}>
-          {deltaVs7dAvg !== 0 && (
-            <span style={{ color: deltaVs7dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
-              {deltaVs7dAvg >= 0 ? '▲' : '▼'} {formatDelta(deltaVs7dAvg)} vs 7d avg
-            </span>
-          )}
-          {deltaVs30dAvg !== 0 && (
-            <span style={{ color: deltaVs30dAvg >= 0 ? 'var(--chart-3)' : 'var(--color-red, #d97373)' }}>
-              {deltaVs30dAvg >= 0 ? '▲' : '▼'} {formatDelta(deltaVs30dAvg)} vs 30d avg
-            </span>
-          )}
-          <span style={{ opacity: 0.65 }}>
-            {sessionsToday} sessions · {shipsToday.commits} ships · {projectsTouchedCount} projects
-          </span>
-        </div>
+        {zeroTokenHandcoder ? (
+          <>
+            <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              all-time tokens
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 'clamp(0.95rem, 3.5vw, 1.4rem)', fontWeight: 600, lineHeight: 1.3 }}>
+                No AI tokens on file. You&apos;re a handcoder until proven otherwise.
+              </span>
+              <span
+                className="tier-reveal"
+                style={{ ...badge('var(--chart-5)'), boxShadow: `0 0 16px var(--glow-color)` }}
+              >
+                {tierLetter}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              all-time tokens
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
+              <RollingNumber value={allTimeTokens} compact className="hero-token" durationMs={900} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  className={tier === 'S' ? 'foil tier-reveal tier-reveal-s' : 'tier-reveal'}
+                  style={tier === 'S'
+                    ? { ...badge('var(--chart-5)'), background: undefined, boxShadow: `0 0 20px var(--glow-color)` }
+                    : { ...badge('var(--chart-5)'), boxShadow: `0 0 16px var(--glow-color)` }}
+                >
+                  {tierLetter}
+                </span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.7, letterSpacing: '0.06em', fontFamily: 'ui-monospace, monospace' }}>
+                  No. {rank} GLOBAL · TOP {topPercentLabel}%
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, fontSize: '0.65rem', flexWrap: 'wrap' }}>
+              <span style={{ opacity: 0.65 }}>
+                {sessionsToday} sessions · {shipsToday.commits} ships · {projectsTouchedCount} projects today
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+// Solid bright tier-letter badge. S-tier overrides background with `.foil`.
+function badge(color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '0.95rem',
+    fontWeight: 700,
+    padding: '4px 12px',
+    borderRadius: 3,
+    background: color,
+    color: 'var(--color-bg)',
+    fontFamily: 'ui-monospace, monospace',
+    letterSpacing: '0.04em',
+  };
 }

@@ -32,21 +32,20 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   const today = todayLocal();
   const { data: todayStats } = await supabase
     .from('daily_stats')
-    .select('tokens_total, vbw_total')
+    .select('tokens_total')
     .eq('user_id', user.id)
     .eq('date', today)
     .maybeSingle();
 
   const tokensToday = Number(todayStats?.tokens_total ?? 0);
-  const vbwToday = Number(todayStats?.vbw_total ?? 0);
   const name = user.display_name || `@${handle}`;
   const tokens = tokensToday > 0 ? formatCompact(tokensToday) : null;
   const title = tokens
-    ? `@${handle} — ${tokens} AI tokens today${vbwToday > 0 ? ` · ${vbwToday.toLocaleString()} VBW` : ''}`
+    ? `@${handle} — ${tokens} AI tokens today`
     : `@${handle} on vibecodestats.dev`;
   const description = tokens
-    ? `${name} pushed ${tokens} AI tokens today${vbwToday > 0 ? ` for ${vbwToday.toLocaleString()} VBW` : ''}. Live on the vibecodestats.dev leaderboard — track your own Claude Code + Codex usage too.`
-    : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage and VBW productivity score.`;
+    ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard — track your own Claude Code + Codex usage too.`
+    : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage.`;
 
   // Point at the pre-rendered static PNG in Supabase Storage rather than the
   // edge-rendered route. X / LinkedIn / FB bots get a boring static asset

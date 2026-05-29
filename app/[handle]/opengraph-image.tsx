@@ -48,17 +48,16 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
 
     const today = todayLocal();
 
-    // Pull TODAY's row for every user — we need this user's tokens + VBW +
+    // Pull TODAY's row for every user — we need this user's tokens +
     // their rank among the cohort that actually pushed today (for percentile).
     const { data: todayRows } = await supabase
       .from('daily_stats')
-      .select('user_id, tokens_total, vbw_total')
+      .select('user_id, tokens_total')
       .eq('date', today);
 
     const rows = todayRows ?? [];
     const meRow = rows.find((r) => r.user_id === user.id);
     const tokensToday = meRow ? Number(meRow.tokens_total ?? 0) : 0;
-    const vbwToday = meRow ? Number(meRow.vbw_total ?? 0) : 0;
 
     // Today's rank + percentile, computed against everyone who pushed today.
     // Sort descending by tokens; resolves rank by ordinal position. If no
@@ -89,55 +88,23 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
           }}
         >
           {/* top row: site + handle */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 26,
-                  color: '#d97757',
-                  letterSpacing: '4px',
-                }}
-              >
-                VIBECODESTATS.DEV
-              </div>
-              <div style={{ display: 'flex', fontSize: 64, fontWeight: 700, marginTop: 18 }}>
-                @{handle}
-              </div>
-              {user.display_name ? (
-                <div style={{ display: 'flex', fontSize: 24, opacity: 0.55, marginTop: 4 }}>
-                  {user.display_name}
-                </div>
-              ) : null}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 26,
+                color: '#d97757',
+                letterSpacing: '4px',
+              }}
+            >
+              VIBECODESTATS.DEV
             </div>
-            {/* VBW badge — top right */}
-            {vbwToday > 0 ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-end',
-                  border: '2px solid #e3c466',
-                  borderRadius: 6,
-                  padding: '14px 22px',
-                  background: 'rgba(227, 196, 102, 0.08)',
-                }}
-              >
-                <div style={{ display: 'flex', fontSize: 18, opacity: 0.65, letterSpacing: '2px' }}>
-                  ⚡ VBW TODAY
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    fontSize: 64,
-                    fontWeight: 700,
-                    color: '#e3c466',
-                    marginTop: 2,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {vbwToday.toLocaleString()}
-                </div>
+            <div style={{ display: 'flex', fontSize: 64, fontWeight: 700, marginTop: 18 }}>
+              @{handle}
+            </div>
+            {user.display_name ? (
+              <div style={{ display: 'flex', fontSize: 24, opacity: 0.55, marginTop: 4 }}>
+                {user.display_name}
               </div>
             ) : null}
           </div>

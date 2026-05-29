@@ -32,7 +32,7 @@ export default async function SetupPage() {
   const handle = profile.github_handle;
 
   const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://cc-dashboard-qab.pages.dev';
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
   const installCmd = `curl -fsSL ${origin}/install.sh | TOKEN=${token} HANDLE=${handle} URL=${origin} bash`;
 
   const sectionStyle: React.CSSProperties = {

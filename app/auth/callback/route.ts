@@ -161,7 +161,11 @@ export async function GET(request: Request) {
     }
   }
 
-  void recordSignupEvent({
+  // MUST await: on Cloudflare's edge runtime there is no waitUntil, so a
+  // fire-and-forget insert is cancelled when the redirect response returns —
+  // which is why callback_success never landed while logins actually succeeded.
+  // (Mirrors the awaited error branches above; see lib/notify/signup.ts.)
+  await recordSignupEvent({
     eventType: 'callback_success',
     authUserId,
     userId: publicUserId,

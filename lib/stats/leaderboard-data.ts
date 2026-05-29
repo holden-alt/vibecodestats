@@ -89,3 +89,24 @@ export async function getLeaderboardData(
     allTimeByUser,
   };
 }
+
+// Daily Team Scoreboard aggregation (Phase 5 T3). PURE, no new DB query.
+// Reuses the already-loaded leaderboardData.statsByUser. For each loaded user
+// it pulls the single daily_stats row matching `date` and returns that row's
+// tokens_by_model map (null when the user has no row for the day). The result
+// feeds campScoreboard() in lib/stats/team.ts to derive the claude/codex split.
+//
+// NOTE: statsByUser is bounded by the same STATS_LIMIT ceiling documented at
+// the allTimeByUser comment above. If a user's today-row was trimmed by the
+// limit, their split is simply absent from the daily scoreboard, identical
+// boundedness to the existing leaderboard, acceptable at current scale.
+export function getTeamScoreboardMaps(
+  data: LeaderboardData,
+  date: string,
+): Array<Record<string, number> | null> {
+  return Object.values(data.statsByUser).map((rows) => {
+    const row = rows.find((r) => r.date === date);
+    if (!row) return null;
+    return (row.tokens_by_model ?? null) as Record<string, number> | null;
+  });
+}

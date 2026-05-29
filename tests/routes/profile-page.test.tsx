@@ -15,16 +15,22 @@ vi.mock('@/lib/stats/profile-data', () => ({
   getProfileData: (...args: unknown[]) => getProfileDataMock(...args),
   getLiveRanking: async (...args: unknown[]) => getLiveRankingMock(...(args as Parameters<typeof getLiveRankingMock>)),
 }));
-vi.mock('@/lib/stats/leaderboard-data', () => ({
-  getLeaderboardData: vi.fn(async () => ({
-    users: [],
-    statsByUser: {},
-    groupMemberUserIds: [],
-    friendUserIds: [],
-    viewerGroups: [],
-    allTimeByUser: {},
-  })),
-}));
+vi.mock('@/lib/stats/leaderboard-data', async (importOriginal) => {
+  // Keep the real pure helpers (getTeamScoreboardMaps, called by ProfileLive)
+  // and only stub the DB-touching getLeaderboardData.
+  const actual = await importOriginal<typeof import('@/lib/stats/leaderboard-data')>();
+  return {
+    ...actual,
+    getLeaderboardData: vi.fn(async () => ({
+      users: [],
+      statsByUser: {},
+      groupMemberUserIds: [],
+      friendUserIds: [],
+      viewerGroups: [],
+      allTimeByUser: {},
+    })),
+  };
+});
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: {

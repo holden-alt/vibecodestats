@@ -8,6 +8,7 @@ import { StatsExplorer } from '@/components/StatsExplorer';
 import { IdentityStrip } from '@/components/dashboard/profile/IdentityStrip';
 import { ShareOnX } from '@/components/dashboard/profile/ShareOnX';
 import { HeroBlock } from '@/components/dashboard/profile/HeroBlock';
+import { TeamScoreboard } from '@/components/dashboard/profile/TeamScoreboard';
 import { BentoGrid } from '@/components/dashboard/profile/BentoGrid';
 import { BentoTile } from '@/components/dashboard/BentoTile';
 import { LiveRankTile } from '@/components/dashboard/profile/LiveRankTile';
@@ -28,6 +29,8 @@ import {
   computeNextMilestone,
 } from '@/lib/stats/aggregations';
 import { computeTier, gapToNextTier } from '@/lib/stats/tier';
+import { campScoreboard } from '@/lib/stats/team';
+import { getTeamScoreboardMaps } from '@/lib/stats/leaderboard-data';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -115,6 +118,13 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   const tierResult = useMemo(() => computeTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
   const tierGap = useMemo(() => gapToNextTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
 
+  // Live daily Team Scoreboard (T3). Pure aggregation over the already-loaded
+  // statsByUser for the current day. No new DB query.
+  const teamScoreboard = useMemo(
+    () => campScoreboard(getTeamScoreboardMaps(leaderboardData, effectiveToday)),
+    [leaderboardData, effectiveToday],
+  );
+
   return (
     <main className="cc-profile-main" style={{
       maxWidth: 1400,
@@ -182,6 +192,10 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           projectsTouchedCount={projectsTouchedCount}
           trendStats={dailyStats}
         />
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <TeamScoreboard scoreboard={teamScoreboard} />
       </div>
 
       <div className="cc-rank-pb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>

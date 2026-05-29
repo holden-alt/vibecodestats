@@ -68,7 +68,7 @@ describe('StatsExplorer', () => {
     // trends tab label is visible in the tab control
     expect(getByText('trends')).toBeTruthy();
     // tab + window controls each render their segments
-    expect(container.querySelectorAll('[data-segment]').length).toBe(13); // 7 tabs (incl. vbw) + 6 windows
+    expect(container.querySelectorAll('[data-segment]').length).toBe(12); // 6 tabs + 6 windows
   });
 
   it('switches to the projects tab and renders project names', () => {

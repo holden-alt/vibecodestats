@@ -29,7 +29,6 @@ import {
   computePersonalBests,
   computeNextMilestone,
 } from '@/lib/stats/aggregations';
-import { buildDimsMeta } from '@/lib/stats/dim-meta';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -85,21 +84,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   }, [dailyStats, effectiveToday]);
 
   const tokensToday = todayRow?.tokens_total ?? 0;
-  const vbwToday = todayRow?.vbw_total ?? 0;
-  const vbwDimensions = (todayRow?.vbw_components ?? {}) as {
-    output?: number; substance?: number; tools?: number; ships?: number; depth?: number;
-  };
-  // Personal-percentile + intraday-pace metadata for the dimension rows.
-  // Recomputed on the client when stats change; cheap enough (≤30 rows).
-  const [currentUtcHour, setCurrentUtcHour] = useState(() => new Date().getUTCHours());
-  useEffect(() => {
-    const t = setInterval(() => setCurrentUtcHour(new Date().getUTCHours()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-  const dimsMeta = useMemo(
-    () => buildDimsMeta(dailyStats, effectiveToday, currentUtcHour),
-    [dailyStats, effectiveToday, currentUtcHour],
-  );
   // "Provisional" if today's row is the actual current UTC date (still in progress).
   const todayUtcDate = todayLocal();
   const isProvisional = effectiveToday === todayUtcDate;
@@ -161,7 +145,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
         <ShareOnX
           handle={user.github_handle}
           tokensToday={tokensToday}
-          vbwToday={vbwToday}
           rank={initialLiveRanking.rank}
           viewerIsOwner={viewerIsOwner}
         />
@@ -203,9 +186,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           deltaVsYesterday={deltaVsYesterday}
           deltaVs7dAvg={deltaVs7d}
           deltaVs30dAvg={deltaVs30d}
-          vbwToday={vbwToday}
-          vbwDimensions={vbwDimensions}
-          dimsMeta={dimsMeta}
           isProvisional={isProvisional}
         />
       </div>

@@ -5,34 +5,32 @@ import { formatCompact } from '@/lib/format';
 type Props = {
   handle: string;
   tokensToday: number;
-  vbwToday: number;
   rank: number | null;
   viewerIsOwner: boolean;
 };
 
-export function ShareOnX({ handle, tokensToday, vbwToday, rank, viewerIsOwner }: Props) {
+export function ShareOnX({ handle, tokensToday, rank, viewerIsOwner }: Props) {
   // Daily cache-bust so Twitter/X treats every day's share as a fresh URL
   // and re-fetches the OG image. Without this they cache the bare URL
   // forever and your card never updates after the first share.
   const v = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const url = `https://vibecodestats.dev/${handle}?v=${v}`;
   const tokens = formatCompact(tokensToday);
-  const vbwPart = vbwToday > 0 ? ` · ⚡ ${vbwToday.toLocaleString()} VBW` : '';
   const rankPart = rank != null ? ` (#${rank} today)` : '';
 
-  // Build the share text. Lead with today's tokens, append VBW badge if
-  // present, append rank if present. Fall back to a rank-only flex when
-  // today's tokens are zero so we don't broadcast '0 tokens today'.
+  // Build the share text. Lead with today's tokens, append rank if present.
+  // Fall back to a rank-only flex when today's tokens are zero so we don't
+  // broadcast '0 tokens today'.
   let text: string;
   if (viewerIsOwner) {
     text = tokensToday > 0
-      ? `${tokens} AI tokens today${vbwPart}${rankPart} on vibecodestats.dev`
+      ? `${tokens} AI tokens today${rankPart} on vibecodestats.dev`
       : rank != null
         ? `Ranked #${rank} on vibecodestats.dev's leaderboard today`
         : `Tracking my AI coding stats on vibecodestats.dev`;
   } else {
     text = tokensToday > 0
-      ? `@${handle} pushed ${tokens} AI tokens today${vbwPart}${rankPart} on vibecodestats.dev`
+      ? `@${handle} pushed ${tokens} AI tokens today${rankPart} on vibecodestats.dev`
       : `@${handle} on vibecodestats.dev's leaderboard`;
   }
 

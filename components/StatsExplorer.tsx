@@ -11,7 +11,6 @@ import {
 } from '@/lib/stats/aggregations';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { TokenTrendChart } from '@/components/charts/v2/TokenTrendChart';
-import { VbwTrendChart } from '@/components/charts/v2/VbwTrendChart';
 import { ModelMix } from '@/components/charts/v2/ModelMix';
 import { DayOfWeekChart } from '@/components/charts/v2/DayOfWeekChart';
 import { TimeOfDayHistogram } from '@/components/charts/v2/TimeOfDayHistogram';
@@ -25,7 +24,6 @@ type StatsExplorerProps = {
 
 const TABS = [
   { id: 'trends', label: 'trends' },
-  { id: 'vbw', label: 'vbw' },
   { id: 'models', label: 'model mix' },
   { id: 'timeofday', label: 'time of day' },
   { id: 'dayofweek', label: 'day of week' },
@@ -81,9 +79,6 @@ export function StatsExplorer({ dailyStats, machineStats, today }: StatsExplorer
   switch (tab) {
     case 'trends':
       body = <TokenTrendChart stats={filteredDaily} />;
-      break;
-    case 'vbw':
-      body = <VbwTrendChart stats={filteredDaily} today={today} />;
       break;
     case 'models':
       body = <ModelMix tokensByModel={tokensByModel} />;

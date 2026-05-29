@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'github',
     options: {
-      scopes: 'read:user',
+      scopes: 'read:user user:email',
       redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });

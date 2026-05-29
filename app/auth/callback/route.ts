@@ -173,7 +173,7 @@ export async function GET(request: Request) {
     userAgent,
     referer,
     isNewUser,
-    metadata: { next },
+    metadata: { next, hasEmail: !!authUser?.email },
   });
 
   return NextResponse.redirect(`${url.origin}${next}`, { status: 302 });

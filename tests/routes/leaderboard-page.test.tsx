@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { todayLocal } from '@/lib/date';
 
 // Mock the server supabase client + the data fetch so the page renders synchronously.
-// Use today's UTC date so the stats fall inside the default vbw+week window.
-const TODAY = new Date().toISOString().slice(0, 10);
+// Use the app's LOCAL "today" (matching the page) so the seeded stats land inside
+// the default vbw+week window — the page keys "today" to the user's timezone, not UTC.
+const TODAY = todayLocal();
 const leaderboardData = {
   users: [
     { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },

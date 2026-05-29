@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { todayLocal } from '@/lib/date';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   }
 
   // Today-only metadata — cards advertise today's number, not lifetime.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const { data: todayStats } = await supabase
     .from('daily_stats')
     .select('tokens_total, vbw_total')
@@ -103,7 +104,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const leaderboardData = await getLeaderboardData(supabase, data.user.id);
 
   // Server-compute "today" so SSR and client hydration agree.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
 
   const liveRanking = await getLiveRanking(supabase, data.user.id, today);
 

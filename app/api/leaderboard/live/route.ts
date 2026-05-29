@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { todayLocal } from '@/lib/date';
 import { computeLiveDailyRanking } from '@/lib/stats/leaderboard-live';
 
 export const runtime = 'edge';
@@ -6,7 +7,7 @@ export const runtime = 'edge';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const viewerId = url.searchParams.get('viewer') ?? '';
-  const date = url.searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+  const date = url.searchParams.get('date') ?? todayLocal();
 
   const supabase = await createClient();
   const { data, error } = await supabase

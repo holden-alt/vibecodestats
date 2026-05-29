@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { formatCompact } from '@/lib/format';
 
@@ -45,7 +46,7 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
       return fallback(handle);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
 
     // Pull TODAY's row for every user — we need this user's tokens + VBW +
     // their rank among the cohort that actually pushed today (for percentile).

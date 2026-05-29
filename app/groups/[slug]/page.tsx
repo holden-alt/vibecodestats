@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { Leaderboard } from '@/components/leaderboard/Leaderboard';
@@ -43,7 +44,7 @@ export default async function GroupPage({ params }: GroupPageProps) {
   const viewerGroupEntry = data.viewerGroups.find((g) => g.id === group.id);
   const memberCount = viewerGroupEntry?.memberUserIds.length ?? 0;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
 
   return (
     <main className="min-h-screen px-6 py-4 max-w-[1000px] mx-auto">

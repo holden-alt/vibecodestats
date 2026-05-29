@@ -4,7 +4,7 @@ import Link from 'next/link';
 export const runtime = 'edge';
 
 export const metadata: Metadata = {
-  title: 'How tiers and teams work — vibecodestats.dev',
+  title: 'How tiers and teams work · vibecodestats.dev',
   description:
     'How vibecodestats.dev assigns tiers (S/A/B/C/D/HANDCODER) and teams (Claude Code vs Codex). Pure percentile ranking against the active cohort. Token-derived team split.',
 };
@@ -144,12 +144,12 @@ export default function MethodologyPage() {
         </p>
         <ul style={{ paddingLeft: 18, lineHeight: 1.7, marginTop: 8 }}>
           <li>
-            <strong>Team Codex</strong> — tokens from <code>gpt-*</code> models
+            <strong>Team Codex</strong>: tokens from <code>gpt-*</code> models
             (OpenAI&apos;s Codex and GPT family). If your <code>tokens_by_model</code>{' '}
             breakdown shows a heavy <code>gpt-*</code> footprint, you belong here.
           </li>
           <li>
-            <strong>Team Claude Code</strong> — everything else. Sonnet, Opus, Haiku,
+            <strong>Team Claude Code</strong>: everything else. Sonnet, Opus, Haiku,
             any non-gpt-* model routed through Claude Code.
           </li>
         </ul>
@@ -181,8 +181,7 @@ export default function MethodologyPage() {
       <section style={sectionStyle}>
         <h2 style={h2Style}>What this is not</h2>
         <p>
-          Not a measure of code quality. Not a productivity score. Not a claim
-          that more tokens means better work. It&apos;s a tokenmaxxing leaderboard:
+          Not a measure of output quality. Not a claim that more tokens means better work. It&apos;s a tokenmaxxing leaderboard:
           you showed up, you burned tokens, here is where you rank against everyone
           else who did the same. The flex is the number; the tier is the context.
         </p>

@@ -8,7 +8,7 @@ import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 // renders the same live-aggregate-stats layout as per-profile cards
 // (developers / active today / tokens today / top VBW), but is generated
 // out-of-band by scripts/generate-site-og.mjs and re-uploaded periodically
-// rather than per-request. Tried an inline edge route — pushed CF Pages
+// rather than per-request. Tried an inline edge route: pushed CF Pages
 // bundle past its 25 MiB limit. Storage path is stable; we just overwrite
 // the bytes when we want to refresh the stats.
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
@@ -20,10 +20,10 @@ const siteOgImage = {
   type: 'image/png',
   width: 1200,
   height: 630,
-  alt: 'vibecodestats.dev — the tokenmaxxing leaderboard',
+  alt: 'vibecodestats.dev: the tokenmaxxing leaderboard',
 };
 
-const SITE_TITLE = 'vibecodestats.dev — the tokenmaxxing leaderboard';
+const SITE_TITLE = 'vibecodestats.dev: the tokenmaxxing leaderboard';
 const SITE_DESCRIPTION =
   'Free public leaderboard for Claude Code + Codex token usage. Your all-time tokens put you in a tier (S/A/B/C/D/HANDCODER). Pick Team Claude Code or Team Codex. Find out where you rank. No email required.';
 

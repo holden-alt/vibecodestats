@@ -30,7 +30,8 @@ export function computeTier(allTimeTokens: number, allUsersAllTime: number[]): T
   const ahead = cohort.filter((t) => t > allTimeTokens).length
   const rank = ahead + 1
   const percentile = cohortSize > 0 ? ahead / cohortSize : 0
-  const band = BANDS.find((b) => percentile < b.maxPercentile) ?? BANDS[BANDS.length - 1]
+  // Empty cohort yields percentile 0 (sole user = S); .find always matches because last band is Infinity.
+  const band = BANDS.find((b) => percentile < b.maxPercentile)!
   const topPercentLabel = Math.max(1, Math.ceil(percentile * 100))
   return { tier: band.tier, isHandcoder: false, rank, cohortSize, percentile, topPercentLabel }
 }
@@ -46,6 +47,9 @@ export function gapToNextTier(allTimeTokens: number, allUsersAllTime: number[]):
   const order: Tier[] = ['handcoder', 'D', 'C', 'B', 'A', 'S']
   const nextTier = order[order.indexOf(current.tier) + 1] ?? null
   if (!nextTier) return { nextTier: null, tokensNeeded: 0 }
+  if (nextTier === 'D') {
+    return { nextTier: 'D', tokensNeeded: Math.max(0, 1 - allTimeTokens) }
+  }
   const cohort = allUsersAllTime.filter((t) => t > 0).sort((a, b) => b - a)
   const cohortSize = cohort.length
   const nextBand = BANDS.find((b) => b.tier === nextTier)!

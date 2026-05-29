@@ -37,6 +37,12 @@ describe('computeTier', () => {
     expect(r.cohortSize).toBe(2)
     expect(r.rank).toBe(2)
   })
+
+  it('treats a sole user with no cohort as S (top of an empty field)', () => {
+    const r = computeTier(500, [])
+    expect(r.tier).toBe<Tier>('S')
+    expect(r.cohortSize).toBe(0)
+  })
 })
 
 describe('gapToNextTier', () => {
@@ -50,5 +56,12 @@ describe('gapToNextTier', () => {
   it('returns null nextTier for an S-tier user (already the ceiling)', () => {
     const dist = Array.from({ length: 100 }, (_, i) => 100 - i)
     expect(gapToNextTier(100, dist).nextTier).toBeNull()
+  })
+
+  it('tells a handcoder they need 1 token to reach D', () => {
+    const dist = [1000, 500, 100]
+    const g = gapToNextTier(0, dist)
+    expect(g.nextTier).toBe<Tier>('D')
+    expect(g.tokensNeeded).toBe(1)
   })
 })

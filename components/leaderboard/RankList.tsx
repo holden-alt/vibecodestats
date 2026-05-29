@@ -27,7 +27,6 @@ export function RankList({ entries }: RankListProps) {
           style={{
             background: e.isViewer ? 'var(--color-bg-2)' : 'transparent',
             color: 'var(--color-text)',
-            transition: 'background-image 150ms',
           }}
         >
           <span

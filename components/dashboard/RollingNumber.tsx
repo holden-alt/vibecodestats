@@ -6,15 +6,17 @@ import { formatNumber, formatCompact } from '@/lib/format';
 type Props = {
   value: number;
   compact?: boolean;
-  /** ms — total animation duration. Default 600ms. */
+  /** ms - total animation duration. Default 600ms. */
   durationMs?: number;
   className?: string;
+  /** Roll up from 0 on first mount (the SPEC load-roll). Default false. */
+  animateOnMount?: boolean;
 };
 
-export function RollingNumber({ value, compact, durationMs = 600, className }: Props) {
-  const [display, setDisplay] = useState(value);
+export function RollingNumber({ value, compact, durationMs = 600, className, animateOnMount }: Props) {
+  const [display, setDisplay] = useState(animateOnMount ? 0 : value);
   const rafRef = useRef<number | null>(null);
-  const fromRef = useRef(value);
+  const fromRef = useRef(animateOnMount ? 0 : value);
 
   useEffect(() => {
     const reduced = typeof window !== 'undefined'

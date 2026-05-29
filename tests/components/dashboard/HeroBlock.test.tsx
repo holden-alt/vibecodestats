@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { HeroBlock } from '@/components/dashboard/profile/HeroBlock';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import type { Tier } from '@/lib/stats/tier';
@@ -71,13 +71,13 @@ describe('HeroBlock: all-time hero + tier reveal', () => {
     expect(screen.getByText(/TOP 1%/)).toBeInTheDocument();
   });
 
-  it('animated (matches: false): the final 4.8B value is still reached', () => {
+  it('animated (matches: false): rolls up from 0 on mount and reaches the final 4.8B value', async () => {
     stubMatchMedia(false);
     const { container } = renderHero({ allTimeTokens: 4_840_000_000, tier: 'S', topPercentLabel: 1, rank: 1, isHandcoder: false });
-    // RollingNumber starts display at `value`, so the final compact text is
-    // present; data-value carries the raw target regardless of animation frame.
+    // animateOnMount: display starts at 0 and rolls up via rAF; data-value
+    // carries the raw target immediately, the compact text arrives at the end.
     expect(container.querySelector('[data-value="4840000000"]')).not.toBeNull();
-    expect(screen.getByText('4.8B')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('4.8B')).toBeInTheDocument(), { timeout: 2500 });
   });
 
   it('S-tier badge carries the foil + tier-reveal-s classes', () => {
@@ -96,11 +96,14 @@ describe('HeroBlock: all-time hero + tier reveal', () => {
     expect(container.textContent?.toLowerCase()).not.toContain('nothing to rank');
   });
 
-  it('active bottom-10% handcoder: renders the number + rank, never "nothing to rank"', () => {
+  it('active bottom-10% handcoder: number + rank + bottom-10% framing, never "nothing to rank" or a "TOP %" flex', () => {
     stubMatchMedia(true);
     const { container } = renderHero({ allTimeTokens: 12_000_000, tier: 'handcoder', topPercentLabel: 95, rank: 47, isHandcoder: true });
     expect(screen.getByText('12.0M')).toBeInTheDocument();
     expect(screen.getByText(/No\. 47 GLOBAL/)).toBeInTheDocument();
+    // bottom-10% framing (matches the OG card), NOT a "TOP 95%" inverted flex
+    expect(container.textContent).toContain('bottom 10%, still mostly raw dogging it');
+    expect(container.textContent).not.toMatch(/TOP \d/);
     expect(container.textContent?.toLowerCase()).not.toContain('nothing to rank');
   });
 

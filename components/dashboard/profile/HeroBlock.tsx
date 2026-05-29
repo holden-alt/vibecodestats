@@ -35,6 +35,7 @@ export function HeroBlock({
   // Two handcoder sub-cases (SPEC line 35): zero tokens = nothing to rank;
   // active bottom-10% = they DO have stats, so show the number + rank.
   const zeroTokenHandcoder = isHandcoder && allTimeTokens === 0;
+  const activeHandcoder = isHandcoder && allTimeTokens > 0;
   const tierLetter = tier === 'handcoder' ? 'HANDCODER' : tier.toUpperCase();
   return (
     <div
@@ -80,7 +81,7 @@ export function HeroBlock({
               all-time tokens
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
-              <RollingNumber value={allTimeTokens} compact className="hero-token" durationMs={900} />
+              <RollingNumber value={allTimeTokens} compact className="hero-token" durationMs={900} animateOnMount />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span
                   className={tier === 'S' ? 'foil tier-reveal tier-reveal-s' : 'tier-reveal'}
@@ -91,7 +92,9 @@ export function HeroBlock({
                   {tierLetter}
                 </span>
                 <span style={{ fontSize: '0.62rem', opacity: 0.7, letterSpacing: '0.06em', fontFamily: 'ui-monospace, monospace' }}>
-                  No. {rank} GLOBAL · TOP {topPercentLabel}%
+                  {activeHandcoder
+                    ? `No. ${rank} GLOBAL · bottom 10%, still mostly raw dogging it`
+                    : `No. ${rank} GLOBAL · TOP ${topPercentLabel}%`}
                 </span>
               </div>
             </div>

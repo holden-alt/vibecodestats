@@ -18,6 +18,8 @@ export type Database = {
           timezone: string;
           created_at: string;
           updated_at: string;
+          team: 'claude_code' | 'codex' | null;
+          team_switched_at: string | null;
         };
         Insert: {
           id?: string;
@@ -33,6 +35,8 @@ export type Database = {
           timezone?: string;
           created_at?: string;
           updated_at?: string;
+          team?: 'claude_code' | 'codex' | null;
+          team_switched_at?: string | null;
         };
         Update: {
           id?: string;
@@ -48,6 +52,8 @@ export type Database = {
           timezone?: string;
           created_at?: string;
           updated_at?: string;
+          team?: 'claude_code' | 'codex' | null;
+          team_switched_at?: string | null;
         };
         Relationships: [];
       };

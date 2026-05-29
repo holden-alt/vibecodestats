@@ -12,7 +12,7 @@ export function splitTokensByCamp(tokensByModel: Record<string, number> | null |
   const out: CampSplit = { claude: 0, codex: 0 }
   if (!tokensByModel) return out
   for (const [model, count] of Object.entries(tokensByModel)) {
-    const n = Number(count) || 0
+    const n = Math.max(0, Number(count) || 0)
     if (isCodexModel(model)) out.codex += n
     else out.claude += n
   }

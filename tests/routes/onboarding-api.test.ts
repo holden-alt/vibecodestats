@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Supabase service-role mock ───────────────────────────────────────────────
 const svcUpdate = vi.fn(async () => ({ error: null }));
@@ -237,5 +237,116 @@ describe('POST /api/onboarding', () => {
     );
     expect(res.status).toBe(200);
     expect(upsertSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification wiring tests
+// ─────────────────────────────────────────────────────────────────────────────
+describe('POST /api/onboarding — notification wiring', () => {
+  // Spies for the two welcome functions
+  const sendWelcomeSpy = vi.fn(async () => undefined);
+  const notifyOwnerSpy = vi.fn(async () => undefined);
+
+  beforeEach(() => {
+    vi.resetModules();
+    sendWelcomeSpy.mockClear();
+    notifyOwnerSpy.mockClear();
+
+    // Mock the welcome notify module for all tests in this block
+    vi.doMock('@/lib/notify/welcome', () => ({
+      sendWelcomeEmail: sendWelcomeSpy,
+      notifyOwnerOfTeamPick: notifyOwnerSpy,
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // Shared service-role client that always succeeds
+  function goodSvcClient(withUpsert = true) {
+    return {
+      from: vi.fn((table: string) => {
+        if (table === 'users') {
+          return { update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) };
+        }
+        if (table === 'user_private' && withUpsert) {
+          return { upsert: vi.fn(async () => ({ error: null })) };
+        }
+        return {};
+      }),
+    };
+  }
+
+  it('opt-in success: fires welcome email AND owner notify', async () => {
+    vi.doMock('@/lib/supabase/server', () => ({
+      createClient: vi.fn(async () =>
+        mockSsrClient('auth-w1', { id: 'user-w1', github_handle: 'winnie', team: null }),
+      ),
+    }));
+    const svcModule = await import('@supabase/supabase-js');
+    (svcModule.createClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(goodSvcClient());
+
+    const { POST } = await import('../../app/api/onboarding/route');
+    const res = await POST(
+      makeRequest({ team: 'claude_code', email: 'winnie@test.com', email_opt_in: true }) as any,
+    );
+    expect(res.status).toBe(200);
+
+    // Both sends fired
+    expect(sendWelcomeSpy).toHaveBeenCalledOnce();
+    expect(sendWelcomeSpy).toHaveBeenCalledWith('winnie@test.com');
+    expect(notifyOwnerSpy).toHaveBeenCalledOnce();
+    expect(notifyOwnerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ handle: 'winnie', team: 'claude_code', optedIn: true }),
+    );
+  });
+
+  it('opt-in=false: fires owner notify (optedIn:false) but NO welcome email', async () => {
+    vi.doMock('@/lib/supabase/server', () => ({
+      createClient: vi.fn(async () =>
+        mockSsrClient('auth-w2', { id: 'user-w2', github_handle: 'xena', team: null }),
+      ),
+    }));
+    const svcModule = await import('@supabase/supabase-js');
+    (svcModule.createClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(goodSvcClient(false));
+
+    const { POST } = await import('../../app/api/onboarding/route');
+    const res = await POST(
+      makeRequest({ team: 'codex', email_opt_in: false }) as any,
+    );
+    expect(res.status).toBe(200);
+
+    // Welcome NOT fired; owner notify fired with optedIn:false
+    expect(sendWelcomeSpy).not.toHaveBeenCalled();
+    expect(notifyOwnerSpy).toHaveBeenCalledOnce();
+    expect(notifyOwnerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ handle: 'xena', team: 'codex', optedIn: false }),
+    );
+  });
+
+  it('Resend failure does NOT change the 200 response', async () => {
+    vi.doMock('@/lib/supabase/server', () => ({
+      createClient: vi.fn(async () =>
+        mockSsrClient('auth-w3', { id: 'user-w3', github_handle: 'yuki', team: null }),
+      ),
+    }));
+    const svcModule = await import('@supabase/supabase-js');
+    (svcModule.createClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(goodSvcClient());
+
+    // Both notification helpers throw
+    sendWelcomeSpy.mockRejectedValueOnce(new Error('Resend down'));
+    notifyOwnerSpy.mockRejectedValueOnce(new Error('Resend down'));
+
+    const { POST } = await import('../../app/api/onboarding/route');
+    const res = await POST(
+      makeRequest({ team: 'claude_code', email: 'yuki@test.com', email_opt_in: true }) as any,
+    );
+
+    // Still 200 — notification failures must never break onboarding
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
+import { sendWelcomeEmail, notifyOwnerOfTeamPick } from '@/lib/notify/welcome';
 
 export const runtime = 'edge';
 
@@ -96,7 +97,27 @@ export async function POST(request: Request) {
     }
   }
 
-  // 5. Return the handle so the client can redirect.
+  // 5. Notify — all awaited (no fire-and-forget on CF edge), all soft-fail.
+  //    Do NOT log the raw email value.
+  try {
+    await notifyOwnerOfTeamPick({
+      handle: publicUser.github_handle ?? 'unknown',
+      team: team as Team,
+      optedIn: emailOptIn && emailSaved,
+    });
+  } catch {
+    // soft-fail: owner notify must never break onboarding
+  }
+
+  if (emailOptIn && emailSaved && email) {
+    try {
+      await sendWelcomeEmail(email);
+    } catch {
+      // soft-fail: welcome email must never break onboarding
+    }
+  }
+
+  // 6. Return the handle so the client can redirect.
   return Response.json({
     ok: true,
     handle: publicUser.github_handle,

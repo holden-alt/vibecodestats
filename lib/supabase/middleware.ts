@@ -1,8 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/lib/types/database';
+import { canonicalRedirectUrl } from '@/lib/canonical';
 
 export async function updateSession(request: NextRequest) {
+  // Canonicalize www -> apex BEFORE auth: the PKCE verifier cookie is host-only,
+  // so a sign-in must start and finish on the same host. Keep one canonical origin.
+  const canonical = canonicalRedirectUrl(request.url);
+  if (canonical) return NextResponse.redirect(canonical, 308);
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

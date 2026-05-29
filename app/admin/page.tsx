@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createClient as createSsrClient } from '@/lib/supabase/server';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { SignupsFunnel } from '@/components/admin/SignupsFunnel';
+import type { SignupEvent } from '@/components/admin/SignupsFunnel';
 import type { Database } from '@/lib/types/database';
 import { ogImageUrl } from '@/lib/og/regenerate';
 
@@ -74,7 +75,7 @@ export default async function AdminPage() {
     .order('created_at', { ascending: false })
     .limit(200);
 
-  const signupRows = (events ?? []) as Parameters<typeof SignupsFunnel>[0]['rows'];
+  const signupRows = (events ?? []) as SignupEvent[];
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev').replace(/\/$/, '');
   const teamOgUrl = `${siteUrl}/api/og/team`;

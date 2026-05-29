@@ -113,6 +113,9 @@ describe('GET /admin — non-owner authenticated user', () => {
     render(ui as React.ReactElement);
     expect(screen.getByText('403')).toBeTruthy();
     expect(screen.getByText(/@random-user/)).toBeTruthy();
+    // Sensitive admin content must not be rendered to non-owners.
+    expect(screen.queryByText(/OG images/i)).toBeNull();
+    expect(screen.queryByText(/Signup funnel/i)).toBeNull();
   });
 });
 

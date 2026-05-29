@@ -1,7 +1,7 @@
 /**
  * SignupsFunnel — extracted from app/admin/signups/page.tsx.
- * Used by both /admin (main) and /admin/signups (redirect target).
- * Pure server component: receives pre-fetched rows.
+ * Used by /admin (main admin page). Reusable: accepts pre-fetched rows.
+ * Note: /admin/signups is now a redirect to /admin — not a separate consumer.
  */
 
 export type SignupEvent = {

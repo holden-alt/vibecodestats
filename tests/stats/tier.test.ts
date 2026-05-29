@@ -64,4 +64,20 @@ describe('gapToNextTier', () => {
     expect(g.nextTier).toBe<Tier>('D')
     expect(g.tokensNeeded).toBe(1)
   })
+
+  it('round-trip invariant: adding tokensNeeded lands you exactly in nextTier (all cohort sizes)', () => {
+    const cohorts: number[][] = [
+      [100, 50, 10, 1],                                            // n=4 (collapsed bands)
+      Array.from({ length: 6 }, (_, i) => (6 - i) * 1_000_000),    // n=6
+      Array.from({ length: 100 }, (_, i) => (100 - i) * 1_000_000),// n=100
+    ]
+    for (const dist of cohorts) {
+      for (const me of dist) {
+        const g = gapToNextTier(me, dist)
+        if (g.nextTier === null) continue
+        const landed = computeTier(me + g.tokensNeeded, dist).tier
+        expect(landed).toBe(g.nextTier)
+      }
+    }
+  })
 })

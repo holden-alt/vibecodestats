@@ -44,16 +44,23 @@ export interface TierGap {
 export function gapToNextTier(allTimeTokens: number, allUsersAllTime: number[]): TierGap {
   const current = computeTier(allTimeTokens, allUsersAllTime)
   if (current.tier === 'S') return { nextTier: null, tokensNeeded: 0 }
-  const order: Tier[] = ['handcoder', 'D', 'C', 'B', 'A', 'S']
-  const nextTier = order[order.indexOf(current.tier) + 1] ?? null
-  if (!nextTier) return { nextTier: null, tokensNeeded: 0 }
-  if (nextTier === 'D') {
-    return { nextTier: 'D', tokensNeeded: Math.max(0, 1 - allTimeTokens) }
+  // Handcoder: any positive token leaves the floor and makes you ranked.
+  if (current.isHandcoder) {
+    const needed = 1
+    return { nextTier: computeTier(needed, allUsersAllTime).tier, tokensNeeded: needed }
   }
-  const cohort = allUsersAllTime.filter((t) => t > 0).sort((a, b) => b - a)
-  const cohortSize = cohort.length
-  const nextBand = BANDS.find((b) => b.tier === nextTier)!
-  const cutoffIndex = Math.max(0, Math.ceil(nextBand.maxPercentile * cohortSize) - 1)
-  const threshold = cohort[Math.min(cutoffIndex, cohortSize - 1)] ?? 0
-  return { nextTier, tokensNeeded: Math.max(0, threshold - allTimeTokens + 1) }
+  // Walk past the nearest competitors one at a time until your tier actually
+  // changes. Computing the resulting tier via computeTier guarantees the
+  // round-trip invariant (allTimeTokens + tokensNeeded actually lands in nextTier)
+  // regardless of cohort size or band collapse.
+  const ahead = allUsersAllTime
+    .filter((t) => t > allTimeTokens)
+    .sort((a, b) => a - b) // nearest competitor first
+  for (const competitor of ahead) {
+    const needed = competitor - allTimeTokens + 1
+    const newTier = computeTier(allTimeTokens + needed, allUsersAllTime).tier
+    if (newTier !== current.tier) return { nextTier: newTier, tokensNeeded: needed }
+  }
+  // No distinct higher tier is achievable in this cohort (e.g. tiny field).
+  return { nextTier: null, tokensNeeded: 0 }
 }

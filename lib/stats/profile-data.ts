@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { computeLiveDailyRanking, type LiveRanking } from './leaderboard-live';
 import { fuzzProjects } from './privacy';
+import type { Camp } from '@/lib/stats/team';
 
 export type ProfileUser = {
   id: string;
@@ -12,7 +13,7 @@ export type ProfileUser = {
   primary_persona: string | null;
   secondary_personas: string[];
   private_project_names: boolean;
-  team: 'claude_code' | 'codex' | null;
+  team: Camp | null;
 };
 
 export type DailyStat = Database['public']['Tables']['daily_stats']['Row'];

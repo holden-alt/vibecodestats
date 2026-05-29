@@ -30,7 +30,7 @@ const data: LeaderboardData = {
 };
 
 describe('Leaderboard', () => {
-  it('renders the rank-list view by default (vbw+week), then ranks by tokens when selected', () => {
+  it('renders the rank-list view by default (tokens+week), then ranks by tokens when "all" is selected', () => {
     const { container } = render(<Leaderboard data={data} viewerId="u1" today="2026-05-14" />);
     expect(container.querySelectorAll('[data-rank-row]').length).toBe(3);
     // Click the tokens metric to verify token-volume ranking still works.

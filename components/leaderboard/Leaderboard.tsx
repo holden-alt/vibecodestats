@@ -21,7 +21,6 @@ type LeaderboardProps = {
 type ViewId = 'ranklist' | 'barcomparison';
 
 const METRICS = [
-  { id: 'vbw', label: 'vbw' },
   { id: 'tokens', label: 'tokens' },
   { id: 'sessions', label: 'sessions' },
   { id: 'deepwork', label: 'deep work' },
@@ -56,8 +55,8 @@ export function Leaderboard({
   lockedScope,
   lockedGroupId,
 }: LeaderboardProps) {
-  // Default: vbw + week (7d rolling mean). See GlobalLeaderboard for rationale.
-  const [metric, setMetric] = useState<LeaderboardMetric>('vbw');
+  // Default: tokens + week.
+  const [metric, setMetric] = useState<LeaderboardMetric>('tokens');
   const [statsWindow, setStatsWindow] = useState<StatsWindow>('week');
   const [scope, setScope] = useState<LeaderboardScope>(lockedScope ?? 'global');
   const [view, setView] = useState<ViewId>('ranklist');

@@ -4,7 +4,7 @@ import { todayLocal } from '@/lib/date';
 
 // Mock the server supabase client + the data fetch so the page renders synchronously.
 // Use the app's LOCAL "today" (matching the page) so the seeded stats land inside
-// the default vbw+week window — the page keys "today" to the user's timezone, not UTC.
+// the default tokens+week window — the page keys "today" to the user's timezone, not UTC.
 const TODAY = todayLocal();
 const leaderboardData = {
   users: [
@@ -43,7 +43,7 @@ describe('/leaderboard route', () => {
     const { container } = render(ui);
     expect(container.querySelector('[data-leaderboard]')).toBeTruthy();
     expect(container.querySelectorAll('[data-rank-row]').length).toBe(2);
-    // Default metric is vbw + week (7d rolling mean). mira has vbw 5000, holden 1000.
+    // Default metric is tokens + week. mira has 500 tokens, holden 100.
     expect(container.querySelector('[data-rank-row]')?.getAttribute('data-handle')).toBe('mira-builds');
   });
 });

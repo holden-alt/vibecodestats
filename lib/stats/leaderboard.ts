@@ -1,8 +1,8 @@
 import type { DailyStat } from '@/lib/stats/profile-data';
-import { type StatsWindow, filterByWindow, computeStreak, WINDOW_DAYS } from '@/lib/stats/aggregations';
+import { type StatsWindow, filterByWindow, computeStreak } from '@/lib/stats/aggregations';
 import { type Tier, computeTier } from '@/lib/stats/tier';
 
-export type LeaderboardMetric = 'tokens' | 'vbw' | 'sessions' | 'deepwork' | 'streak' | 'ships';
+export type LeaderboardMetric = 'tokens' | 'sessions' | 'deepwork' | 'streak' | 'ships';
 export type LeaderboardScope = 'global' | 'groups' | 'friends';
 
 // Group with full details + the user ids of its members. Used both for the
@@ -47,37 +47,13 @@ type RankOptions = {
 
 // Cumulative metrics sum over the (already window-filtered) stats. Streak is
 // handled separately because it is inherently "current streak ending today".
-// VBW is the only non-cumulative metric — it's a normalized 0-10K daily score,
-// so we take the mean across the full calendar window (rest days included),
-// keeping the result on the same 0-10K scale across today/week/month/etc.
 function cumulativeValue(
   stats: DailyStat[],
   metric: Exclude<LeaderboardMetric, 'streak'>,
-  window: StatsWindow,
-  allStatsForUser: DailyStat[],
 ): number {
   switch (metric) {
     case 'tokens':
       return stats.reduce((s, d) => s + d.tokens_total, 0);
-    case 'vbw': {
-      // Divisor is the FULL window length (e.g. 7 for week, 30 for month) so
-      // that rest days legitimately pull the average down — VBW measures
-      // typical daily productivity over the window, not just the days you
-      // happened to log activity. For "all", use the user's actual range
-      // (earliest stat → today) so we don't divide by years of pre-launch days.
-      const sum = stats.reduce((s, d) => s + (d.vbw_total ?? 0), 0);
-      let divisor: number;
-      if (window === 'all') {
-        if (allStatsForUser.length === 0) return 0;
-        const dates = allStatsForUser.map((s) => s.date).sort();
-        const firstMs = Date.parse(dates[0]! + 'T00:00:00Z');
-        const lastMs = Date.parse(dates[dates.length - 1]! + 'T00:00:00Z');
-        divisor = Math.max(1, Math.round((lastMs - firstMs) / 86400_000) + 1);
-      } else {
-        divisor = WINDOW_DAYS[window];
-      }
-      return Math.round(sum / divisor);
-    }
     case 'sessions':
       return stats.reduce((s, d) => s + d.sessions, 0);
     case 'deepwork':
@@ -122,7 +98,7 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
       const value =
         metric === 'streak'
           ? computeStreak(allStats, today)
-          : cumulativeValue(filterByWindow(allStats, today, window), metric, window, allStats);
+          : cumulativeValue(filterByWindow(allStats, today, window), metric);
       return { userId: u.id, handle: u.github_handle, displayName: u.display_name, value };
     });
 

@@ -6,10 +6,10 @@ import { rankUsers } from '@/lib/stats/leaderboard';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { formatCompact } from '@/lib/format';
 
-type Metric = 'tokens' | 'vbw' | 'sessions' | 'ships';
+type Metric = 'tokens' | 'sessions' | 'ships';
 type Window = 'today' | 'week' | 'month' | 'all';
 
-const METRICS: Metric[] = ['tokens', 'vbw', 'sessions', 'ships'];
+const METRICS: Metric[] = ['tokens', 'sessions', 'ships'];
 const WINDOWS: Window[] = ['today', 'week', 'month', 'all'];
 
 type Props = {
@@ -19,10 +19,8 @@ type Props = {
 };
 
 export function GlobalLeaderboard({ data, viewerId, today }: Props) {
-  // Default: VBW + week (7d rolling mean) — the canonical "who's most productive
-  // over a meaningful window" view. Smooths single-day anomalies, rewards
-  // consistency, and keeps the leaderboard on the 0–10K scale users know.
-  const [metric, setMetric] = useState<Metric>('vbw');
+  // Default: tokens + week.
+  const [metric, setMetric] = useState<Metric>('tokens');
   const [window, setWindow] = useState<Window>('week');
   const [expanded, setExpanded] = useState(false);
 

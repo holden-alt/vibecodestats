@@ -6,7 +6,7 @@
 // Use on the homepage hero. Also useful as a copy-able pinned-tweet URL.
 
 const DEFAULT_TEXT =
-  "Strava for AI coding — public leaderboard for Claude Code + Codex daily token usage. Track your VBW productivity score and see where you rank.";
+  "the tokenmaxxing leaderboard. find out where you rank, or stay a handcoder.";
 
 export function ShareSiteOnX({ text = DEFAULT_TEXT }: { text?: string }) {
   const v = new Date().toISOString().slice(0, 10).replace(/-/g, '');

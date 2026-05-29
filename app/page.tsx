@@ -29,10 +29,10 @@ export default async function HomePage() {
           vibecodestats.dev
         </div>
         <h1 style={{ fontSize: '3rem', fontWeight: 700, margin: '8px 0 16px', letterSpacing: '-0.02em', lineHeight: 1.05 }}>
-          Strava for AI coding.
+          The tokenmaxxing leaderboard.
         </h1>
         <p style={{ fontSize: '1.1rem', opacity: 0.8, lineHeight: 1.5, margin: '0 0 28px', maxWidth: 640 }}>
-          Public stats profiles, global leaderboard, live token counter. Track Claude Code + Codex daily usage and your VBW productivity score against every other AI-coding power user.
+          Public leaderboard for Claude Code + Codex token usage. Your all-time tokens put you in a tier. Pick a team. Find out where you rank, or stay a handcoder.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <SignInWithGithubButton />

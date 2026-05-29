@@ -20,12 +20,12 @@ const siteOgImage = {
   type: 'image/png',
   width: 1200,
   height: 630,
-  alt: 'vibecodestats.dev — Strava for AI coding',
+  alt: 'vibecodestats.dev — the tokenmaxxing leaderboard',
 };
 
-const SITE_TITLE = 'vibecodestats.dev — Strava for AI coding';
+const SITE_TITLE = 'vibecodestats.dev — the tokenmaxxing leaderboard';
 const SITE_DESCRIPTION =
-  'Public leaderboard + live profiles for Claude Code + Codex power users. Track your daily tokens, VBW productivity score, rank, and ship rate. Free, open source, no email required.';
+  'Free public leaderboard for Claude Code + Codex token usage. Your all-time tokens put you in a tier (S/A/B/C/D/HANDCODER). Pick Team Claude Code or Team Codex. Find out where you rank. No email required.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -4,9 +4,9 @@ export const SITE_URL = 'https://vibecodestats.dev';
 
 export const SITE_INTRO = `# vibecodestats.dev
 
-> Strava for AI coding. Public stats profiles, a global leaderboard, and a live token counter for Claude Code + Codex power users.
+> The tokenmaxxing leaderboard. Pick a side.
 
-vibecodestats.dev tracks daily AI-coding usage — tokens, sessions, deep-work minutes, machines — and surfaces a Vibewatts (VBW) productivity score for every signed-in user. Built by Holden Richardson ([@realholdengr](https://x.com/realholdengr)). The project is in active recruitment of its first non-founder user; if you ship code with Claude Code, you are exactly the right person.`;
+vibecodestats.dev is a free public leaderboard of Claude Code + Codex token usage. Your all-time tokens put you in a tier: S (top 1%) / A (top 10%) / B (top 40%) / C (top 75%) / D (75-90%) / HANDCODER (bottom 10% or zero AI tokens). At signup you pick Team Claude Code or Team Codex; a live daily scoreboard pits both camps against each other. Your OG card is the share unit. Built by Holden Richardson ([@realholdengr](https://x.com/realholdengr)), #1 global at 4.84B all-time tokens.`;
 
 export const MAIN_PAGES: { url: string; title: string; description: string }[] = [
   {
@@ -26,8 +26,8 @@ export const MAIN_PAGES: { url: string; title: string; description: string }[] =
   },
   {
     url: `${SITE_URL}/methodology`,
-    title: 'Vibewatts (VBW) methodology',
-    description: 'How the Vibewatts productivity score is computed — five dimensions, geometric mean, gaming-resistance, anti-bot tactics.',
+    title: 'How tiers and teams work',
+    description: 'How vibecodestats.dev assigns tiers (S/A/B/C/D/HANDCODER) via pure percentile ranking and splits users into Team Claude Code vs Team Codex by token-derived model usage.',
   },
   {
     url: `${SITE_URL}/holden-alt`,

@@ -10,14 +10,6 @@ export type IngestPayload = {
   ships: { commits: number; repos: number };
   // hourly_tokens is optional on the wire; the validator normalises missing → {}
   hourly_tokens: Record<string, number>;
-  // VBW raw inputs — optional on the wire so older parsers stay compatible.
-  // Missing values default to 0; the user's VBW will read 0 until the parser
-  // is upgraded. The daily roll-up computes the 5 dimensions and final VBW
-  // from these summed across all the user's machines (see route.ts).
-  output_tokens: number;
-  cache_creation_tokens: number;
-  tool_calls: number;
-  ship_quality: number;
 };
 
 export type ValidationResult =
@@ -36,12 +28,6 @@ function isNonNegNumber(v: unknown): v is number {
 
 function isNumberRecord(v: unknown): v is Record<string, number> {
   return isPlainObject(v) && Object.values(v).every(isNonNegNumber);
-}
-
-function optNonNegNumber(v: unknown, name: string): { ok: true; value: number } | { ok: false; error: string } {
-  if (v === undefined) return { ok: true, value: 0 };
-  if (!isNonNegNumber(v)) return { ok: false, error: `${name} must be a non-negative number` };
-  return { ok: true, value: v };
 }
 
 export function validateIngestPayload(body: unknown): ValidationResult {
@@ -88,15 +74,6 @@ export function validateIngestPayload(body: unknown): ValidationResult {
     hourly_tokens = body.hourly_tokens;
   }
 
-  const output_tokens = optNonNegNumber(body.output_tokens, 'output_tokens');
-  if (!output_tokens.ok) return output_tokens;
-  const cache_creation_tokens = optNonNegNumber(body.cache_creation_tokens, 'cache_creation_tokens');
-  if (!cache_creation_tokens.ok) return cache_creation_tokens;
-  const tool_calls = optNonNegNumber(body.tool_calls, 'tool_calls');
-  if (!tool_calls.ok) return tool_calls;
-  const ship_quality = optNonNegNumber(body.ship_quality, 'ship_quality');
-  if (!ship_quality.ok) return ship_quality;
-
   return {
     ok: true,
     value: {
@@ -110,10 +87,6 @@ export function validateIngestPayload(body: unknown): ValidationResult {
       projects_touched: body.projects_touched,
       ships: { commits: body.ships.commits, repos: body.ships.repos },
       hourly_tokens,
-      output_tokens: output_tokens.value,
-      cache_creation_tokens: cache_creation_tokens.value,
-      tool_calls: tool_calls.value,
-      ship_quality: ship_quality.value,
     },
   };
 }

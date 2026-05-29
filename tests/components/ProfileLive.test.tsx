@@ -103,4 +103,50 @@ describe('ProfileLive (new layout)', () => {
     expect(screen.getByText(/your stats aren't flowing yet/i)).toBeInTheDocument();
     expect(screen.getByText(/set up sync/i)).toBeInTheDocument();
   });
+
+  it('renders the derived tier badge letter (sole cohort member => S)', () => {
+    // allTime.tokens = 487231 and allTimeByUser = { u1: 487231 }, so the single
+    // active-cohort member is percentile 0 => S. The S letter is rendered on the
+    // IdentityStrip badge and the HeroBlock badge.
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
+      />,
+    );
+    expect(screen.getAllByText('S').length).toBeGreaterThan(0);
+  });
+
+  it('renders the Team Scoreboard section', () => {
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
+      />,
+    );
+    expect(screen.getByText('Team Scoreboard')).toBeInTheDocument();
+  });
+
+  it('keeps the TokenTrendChart tile rendered (KEEP guard)', () => {
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
+      />,
+    );
+    // TokenTrendChart lives in the "30-day trend" BentoTile in rolling stats.
+    expect(screen.getByText(/30-day trend/i)).toBeInTheDocument();
+  });
 });

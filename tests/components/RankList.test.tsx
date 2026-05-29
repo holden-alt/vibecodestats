@@ -29,4 +29,13 @@ describe('RankList', () => {
     expect(container.querySelector('[data-empty]')).toBeTruthy();
     expect(container.querySelectorAll('[data-rank-row]').length).toBe(0);
   });
+
+  it('attaches the foil-hover utility class to every row (T4 wiring)', () => {
+    const { container } = render(<RankList entries={entries} />);
+    const rows = container.querySelectorAll('[data-rank-row]');
+    expect(rows.length).toBe(3);
+    rows.forEach((row) => {
+      expect(row.className).toContain('foil-hover');
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { rankUsers, type LeaderboardData } from '@/lib/stats/leaderboard';
+import { computeTier } from '@/lib/stats/tier';
 import type { DailyStat } from '@/lib/stats/profile-data';
 
 function stat(partial: Partial<DailyStat>): DailyStat {
@@ -11,7 +12,7 @@ function stat(partial: Partial<DailyStat>): DailyStat {
 }
 
 // u1: 10_000_000 tokens (top 1% of 4 → S tier)
-// u2:  5_000_000 tokens (2nd of 4 → A tier)
+// u2:  5_000_000 tokens (2nd of 4 → B tier)
 // u3:    100_000 tokens (3rd of 4 → B tier)
 // u4:          1 token  (4th of 4 → D tier)
 // Percentiles relative to 4-user cohort (all-time):
@@ -108,5 +109,28 @@ describe('rankUsers — tier badges', () => {
     });
     const handcoder = ranked.find((r) => r.handle === 'handcoder');
     expect(handcoder?.tier).toBe('handcoder');
+  });
+
+  it('tier is a global identity badge — unaffected by leaderboard scope', () => {
+    // Restrict to a groups scope that only includes u3 and u4 (a subset of the cohort).
+    // u3's tier must still be computed against the FULL 4-user allTimeByUser cohort,
+    // not just the 2 users visible in the scoped view.
+    const scopedData: LeaderboardData = {
+      ...tierData,
+      // Put u3 + u4 in a group together; u1 + u2 are excluded from this scope.
+      groupMemberUserIds: ['u3', 'u4'],
+    };
+    const ranked = rankUsers(scopedData, {
+      metric: 'tokens', window: 'all', scope: 'groups', viewerId: 'u3', today: '2026-05-14',
+    });
+    // Only u3 and u4 are in scope — confirm the scoped list has exactly those two.
+    expect(ranked.map((r) => r.handle).sort()).toEqual(['delta', 'gamma']);
+    // u3's tier must equal computeTier against the full allTimeByUser cohort.
+    const gamma = ranked.find((r) => r.handle === 'gamma');
+    const expectedTier = computeTier(
+      tierData.allTimeByUser['u3']!,
+      Object.values(tierData.allTimeByUser),
+    ).tier;
+    expect(gamma?.tier).toBe(expectedTier);
   });
 });

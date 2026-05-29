@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
+import type { LeaderboardData } from '@/lib/stats/leaderboard';
 
 // Mock supabase so the realtime useEffect doesn't blow up in jsdom
 const channelMock = {
@@ -42,14 +43,14 @@ const initialData: ProfileData = {
   machineStats: [],
 };
 
-const leaderboardData = {
+const leaderboardData: LeaderboardData = {
   users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
   statsByUser: { u1: [] },
   groupMemberUserIds: ['u1'],
   friendUserIds: [],
   viewerGroups: [],
-  allTimeByUser: { u1: 0 },
-} as any;
+  allTimeByUser: { u1: 487231 },
+};
 
 const initialLiveRanking: LiveRanking = {
   rank: 1,

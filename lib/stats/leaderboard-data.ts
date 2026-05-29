@@ -74,6 +74,7 @@ export async function getLeaderboardData(
   }
 
   // All-time token totals per user — used by rankUsers to compute stable tier badges.
+  // NOTE: summed from statsByUser, which is bounded by STATS_LIMIT rows. Exact while total daily_stats rows < STATS_LIMIT (years away at current user count). TODO(perf): replace with an unbounded SUM aggregate (RPC or view) before the cap is reached.
   const allTimeByUser: Record<string, number> = {};
   for (const user of (users ?? [])) {
     allTimeByUser[user.id] = computeAllTimeTotals(statsByUser[user.id] ?? []).tokens;

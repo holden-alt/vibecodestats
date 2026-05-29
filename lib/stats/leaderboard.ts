@@ -23,7 +23,7 @@ export type LeaderboardData = {
   groupMemberUserIds: string[]; // union of all the viewer's groups' members (includes the viewer)
   friendUserIds: string[]; // the viewer's friends' user ids
   viewerGroups: Group[]; // every group the viewer belongs to, with per-group membership
-  allTimeByUser: Record<string, number>; // sum of tokens_total across all daily_stats per user
+  allTimeByUser: Record<string, number>; // sum of tokens_total across the loaded daily_stats (see STATS_LIMIT note in leaderboard-data.ts) per user
 };
 
 export type RankedEntry = {

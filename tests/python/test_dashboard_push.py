@@ -154,10 +154,9 @@ class TestParseSessions(unittest.TestCase):
             result = dashboard_push.parse_day([p1, p2], target_date='2026-05-14', home='/Users/holden')
             self.assertEqual(result['tokens_total'], 500)
 
-    def test_counts_tool_use_blocks_per_turn(self):
-        # Multi-block turn: thinking + text + 3 tool_use. Streaming snapshot
-        # variants exist where tool_use count grows as content streams. Parser
-        # should report the MAX tool_use count seen across the snapshots.
+    def test_streaming_snapshots_pick_max_usage_multiblock(self):
+        # Multi-block turn with streaming snapshots. Token deduplication still
+        # uses MAX total — tool_calls and output_tokens are no longer tracked.
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, 'sess.jsonl')
             write_jsonl(p, [
@@ -167,13 +166,13 @@ class TestParseSessions(unittest.TestCase):
                  'message': {'id': 'mA', 'model': 'claude-opus-4-7',
                              'content': [{'type': 'thinking'}],
                              'usage': {'input_tokens': 10, 'output_tokens': 50}}},
-                # Snapshot 2: thinking + text + 1 tool_use
+                # Snapshot 2: partial output
                 {'type': 'assistant', 'timestamp': '2026-05-14T10:00:01.000Z',
                  'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r1',
                  'message': {'id': 'mA', 'model': 'claude-opus-4-7',
                              'content': [{'type': 'thinking'}, {'type': 'text'}, {'type': 'tool_use'}],
                              'usage': {'input_tokens': 10, 'output_tokens': 150}}},
-                # Snapshot 3 (final): full turn with 3 tool_use blocks
+                # Snapshot 3 (final): full turn
                 {'type': 'assistant', 'timestamp': '2026-05-14T10:00:02.000Z',
                  'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r1',
                  'message': {'id': 'mA', 'model': 'claude-opus-4-7',
@@ -181,7 +180,7 @@ class TestParseSessions(unittest.TestCase):
                                          {'type': 'tool_use'}, {'type': 'tool_use'},
                                          {'type': 'tool_use'}],
                              'usage': {'input_tokens': 10, 'output_tokens': 200}}},
-                # Different turn, 1 more tool_use
+                # Different turn
                 {'type': 'assistant', 'timestamp': '2026-05-14T10:01:00.000Z',
                  'cwd': '/Users/holden/Claude/p', 'sessionId': 's', 'requestId': 'r2',
                  'message': {'id': 'mB', 'model': 'claude-opus-4-7',
@@ -189,10 +188,11 @@ class TestParseSessions(unittest.TestCase):
                              'usage': {'input_tokens': 5, 'output_tokens': 5}}},
             ])
             result = dashboard_push.parse_day([p], target_date='2026-05-14', home='/Users/holden')
-            # tool_calls = 3 (final snapshot of mA) + 1 (mB) = 4
-            self.assertEqual(result['tool_calls'], 4)
-            # output_tokens = max of mA snapshots (200) + mB (5) = 205
-            self.assertEqual(result['output_tokens'], 205)
+            # tokens_total: mA max snapshot (10+200=210) + mB (5+5=10) = 220
+            self.assertEqual(result['tokens_total'], 220)
+            # tool_calls and output_tokens are no longer tracked
+            self.assertNotIn('tool_calls', result)
+            self.assertNotIn('output_tokens', result)
 
     def test_subagent_message_ids_count_independently(self):
         # Subagent JSONLs have their own message.ids, distinct from the parent.
@@ -293,12 +293,10 @@ class TestParseCodexDay(unittest.TestCase):
             self.assertEqual(result['tokens_by_model'], {
                 'gpt-5.5': 1350, 'gpt-5-mini': 580,
             })
-            self.assertEqual(result['output_tokens'], 300 + 50 + 80)  # 430
-            # cache_creation analog = new input (input - cached) per turn
-            # turn 1: 1000-200=800; turn 2: 500-100=400
-            self.assertEqual(result['cache_creation_tokens'], 1200)
-            # tool_calls = function_call + custom_tool_call
-            self.assertEqual(result['tool_calls'], 2)
+            # output_tokens, cache_creation_tokens, tool_calls no longer tracked
+            self.assertNotIn('output_tokens', result)
+            self.assertNotIn('cache_creation_tokens', result)
+            self.assertNotIn('tool_calls', result)
             # projects_touched attributed via short_project()
             self.assertEqual(result['projects_touched'], {'codex-proj': 1930})
             self.assertEqual(result['sessions'], 1)
@@ -307,7 +305,6 @@ class TestParseCodexDay(unittest.TestCase):
         result = dashboard_push.parse_codex_day([], target_date='2026-05-14',
                                                 home='/Users/holden')
         self.assertEqual(result['tokens_total'], 0)
-        self.assertEqual(result['tool_calls'], 0)
 
 
 class TestMergeDays(unittest.TestCase):
@@ -315,16 +312,14 @@ class TestMergeDays(unittest.TestCase):
 
     def test_merges_scalars_and_dicts(self):
         a = {
-            'tokens_total': 1000, 'output_tokens': 300, 'cache_creation_tokens': 100,
-            'tool_calls': 5, 'sessions': 2,
+            'tokens_total': 1000, 'sessions': 2,
             'tokens_by_model': {'claude-opus-4-7': 1000},
             'projects_touched': {'cc-dashboard': 700, 'shared': 300},
             'tokens_by_hour': {'10': 1000},
             'timestamps': ['2026-05-14T10:00:00Z'],
         }
         b = {
-            'tokens_total': 500, 'output_tokens': 80, 'cache_creation_tokens': 400,
-            'tool_calls': 2, 'sessions': 1,
+            'tokens_total': 500, 'sessions': 1,
             'tokens_by_model': {'gpt-5.5': 500},
             'projects_touched': {'codex-proj': 200, 'shared': 300},
             'tokens_by_hour': {'10': 500, '11': 0},
@@ -332,9 +327,6 @@ class TestMergeDays(unittest.TestCase):
         }
         merged = dashboard_push.merge_days(a, b)
         self.assertEqual(merged['tokens_total'], 1500)
-        self.assertEqual(merged['output_tokens'], 380)
-        self.assertEqual(merged['cache_creation_tokens'], 500)
-        self.assertEqual(merged['tool_calls'], 7)
         self.assertEqual(merged['sessions'], 3)
         self.assertEqual(merged['tokens_by_model'], {
             'claude-opus-4-7': 1000, 'gpt-5.5': 500,
@@ -422,17 +414,14 @@ class TestCountShips(unittest.TestCase):
             )
             self.assertEqual(result['repos'], 1)
             self.assertEqual(result['commits'], 1)
-            # Single 1-line non-test file: log10(1+1) * 1 file * 1.0 non-test ≈ 0.301
-            self.assertAlmostEqual(result['ship_quality'], 0.30103, places=4)
 
-    def test_ship_quality_discounts_test_only_commits(self):
+    def test_test_only_commits_still_count_as_ships(self):
         with tempfile.TemporaryDirectory() as d:
             repo = os.path.join(d, 'Claude', 'demo-repo')
             os.makedirs(repo)
             env = {**os.environ, 'GIT_AUTHOR_NAME': 'H', 'GIT_AUTHOR_EMAIL': 'h@x.com',
                    'GIT_COMMITTER_NAME': 'H', 'GIT_COMMITTER_EMAIL': 'h@x.com'}
             subprocess.run(['git', 'init', '-q'], cwd=repo, check=True, env=env)
-            # All test files — should produce ship_quality = 0 (non_test_ratio = 0)
             os.makedirs(os.path.join(repo, 'tests'))
             with open(os.path.join(repo, 'tests', 'a.test.ts'), 'w') as f:
                 f.write('test_a\n')
@@ -447,7 +436,8 @@ class TestCountShips(unittest.TestCase):
                 author_email='h@x.com',
             )
             self.assertEqual(result['commits'], 1)
-            self.assertEqual(result['ship_quality'], 0.0)
+            self.assertEqual(result['repos'], 1)
+            self.assertNotIn('ship_quality', result)
 
     def test_no_repos_returns_zero(self):
         with tempfile.TemporaryDirectory() as d:
@@ -457,7 +447,7 @@ class TestCountShips(unittest.TestCase):
                 target_date='2026-05-14',
                 author_email='h@x.com',
             )
-            self.assertEqual(result, {'commits': 0, 'repos': 0, 'ship_quality': 0.0})
+            self.assertEqual(result, {'commits': 0, 'repos': 0})
 
 
 class TestHourlyBucketing(unittest.TestCase):
@@ -549,6 +539,11 @@ class TestSignAndPayload(unittest.TestCase):
         self.assertEqual(payload['ships'], {'commits': 3, 'repos': 2})
         self.assertNotIn('timestamps', payload)  # internal-only, not sent
         self.assertEqual(payload['hourly_tokens'], {'10': 415})
+        # VBW raw inputs no longer sent
+        self.assertNotIn('output_tokens', payload)
+        self.assertNotIn('cache_creation_tokens', payload)
+        self.assertNotIn('tool_calls', payload)
+        self.assertNotIn('ship_quality', payload)
 
 
 class TestFileSelection(unittest.TestCase):

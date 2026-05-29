@@ -24,7 +24,6 @@ import glob
 import hashlib
 import hmac
 import json
-import math
 import os
 import re
 import socket
@@ -110,7 +109,7 @@ def parse_day(jsonl_paths, target_date, home):
     tokens_by_hour = defaultdict(int)
     sessions = set()
     timestamps = []
-    # (message.id, requestId) -> {total, output, cache_creation, tool_uses, model, project, hour}
+    # (message.id, requestId) -> {total, model, project, hour}
     by_msg = {}
     for path in jsonl_paths:
         session_id = os.path.basename(path).replace('.jsonl', '')
@@ -140,15 +139,6 @@ def parse_day(jsonl_paths, target_date, home):
                     if model == '<synthetic>':
                         continue
                     total = _usage_total(usage)
-                    output = usage.get('output_tokens') or 0
-                    cache_creation = usage.get('cache_creation_input_tokens') or 0
-                    content = msg.get('content')
-                    tool_uses = 0
-                    if isinstance(content, list):
-                        tool_uses = sum(
-                            1 for c in content
-                            if isinstance(c, dict) and c.get('type') == 'tool_use'
-                        )
                     label = short_project(current_cwd, home)
                     local_hour = datetime.fromisoformat(
                         ts.replace('Z', '+00:00')
@@ -165,39 +155,21 @@ def parse_day(jsonl_paths, target_date, home):
                     if prev is None or total > prev['total']:
                         by_msg[key] = {
                             'total': total,
-                            'output': output,
-                            'cache_creation': cache_creation,
-                            # tool_uses can vary across the duplicated lines —
-                            # take the MAX seen so we don't undercount when the
-                            # final cumulative line has more tool_use blocks
-                            # than the earlier streaming snapshots.
-                            'tool_uses': max(tool_uses, (prev or {}).get('tool_uses', 0)),
                             'model': model,
                             'project': label,
                             'hour': str(local_hour),
                         }
-                    elif prev is not None and tool_uses > prev.get('tool_uses', 0):
-                        prev['tool_uses'] = tool_uses
         except OSError:
             continue
 
-    total_output = 0
-    total_cache_creation = 0
-    total_tool_uses = 0
     for rec in by_msg.values():
         tokens_by_model[rec['model']] += rec['total']
         tokens_by_project[rec['project']] += rec['total']
         tokens_by_hour[rec['hour']] += rec['total']
-        total_output += rec['output']
-        total_cache_creation += rec['cache_creation']
-        total_tool_uses += rec['tool_uses']
 
     return {
         'tokens_total': sum(tokens_by_model.values()),
         'tokens_by_model': dict(tokens_by_model),
-        'output_tokens': total_output,
-        'cache_creation_tokens': total_cache_creation,
-        'tool_calls': total_tool_uses,
         'sessions': len(sessions),
         'projects_touched': dict(tokens_by_project),
         'tokens_by_hour': dict(tokens_by_hour),
@@ -255,10 +227,6 @@ def parse_codex_day(jsonl_paths, target_date, home):
     tokens_by_hour = defaultdict(int)
     sessions = set()
     timestamps = []
-    total_output = 0
-    total_cache_creation = 0  # Codex doesn't expose cache_creation explicitly;
-                              # use (input - cached) as the "new input fed" proxy.
-    total_tool_calls = 0
     grand_total = 0
 
     for path in jsonl_paths:
@@ -302,17 +270,12 @@ def parse_codex_day(jsonl_paths, target_date, home):
                         sessions.add(session_id)
                         timestamps.append(ts)
 
-                    if kind in ('function_call', 'custom_tool_call'):
-                        total_tool_calls += 1
-                        continue
-
-                    if kind != 'token_count':
+                    if kind not in ('token_count',):
                         continue
 
                     info = payload.get('info') or {}
                     last = info.get('last_token_usage') or {}
                     in_tok = int(last.get('input_tokens') or 0)
-                    cached = int(last.get('cached_input_tokens') or 0)
                     out_tok = int(last.get('output_tokens') or 0)
                     reason = int(last.get('reasoning_output_tokens') or 0)
                     # Codex "input_tokens" already includes cached portion — so
@@ -330,9 +293,6 @@ def parse_codex_day(jsonl_paths, target_date, home):
                     tokens_by_model[model] += turn_total
                     tokens_by_project[label] += turn_total
                     tokens_by_hour[str(local_hour)] += turn_total
-                    total_output += out_tok + reason
-                    new_input = max(0, in_tok - cached)
-                    total_cache_creation += new_input
                     grand_total += turn_total
         except OSError:
             continue
@@ -340,9 +300,6 @@ def parse_codex_day(jsonl_paths, target_date, home):
     return {
         'tokens_total': grand_total,
         'tokens_by_model': dict(tokens_by_model),
-        'output_tokens': total_output,
-        'cache_creation_tokens': total_cache_creation,
-        'tool_calls': total_tool_calls,
         'sessions': len(sessions),
         'projects_touched': dict(tokens_by_project),
         'tokens_by_hour': dict(tokens_by_hour),
@@ -371,9 +328,6 @@ def merge_days(a, b):
     return {
         'tokens_total': (a.get('tokens_total', 0) or 0) + (b.get('tokens_total', 0) or 0),
         'tokens_by_model': merge_records(a.get('tokens_by_model'), b.get('tokens_by_model')),
-        'output_tokens': (a.get('output_tokens', 0) or 0) + (b.get('output_tokens', 0) or 0),
-        'cache_creation_tokens': (a.get('cache_creation_tokens', 0) or 0) + (b.get('cache_creation_tokens', 0) or 0),
-        'tool_calls': (a.get('tool_calls', 0) or 0) + (b.get('tool_calls', 0) or 0),
         'sessions': (a.get('sessions', 0) or 0) + (b.get('sessions', 0) or 0),
         'projects_touched': merge_records(a.get('projects_touched'), b.get('projects_touched')),
         'tokens_by_hour': merge_records(a.get('tokens_by_hour'), b.get('tokens_by_hour')),
@@ -381,52 +335,9 @@ def merge_days(a, b):
     }
 
 
-_TEST_PATH_RE = re.compile(r'(^|/)(tests?|__tests__|spec|specs|e2e|fixtures?)(/|$)|\.test\.|\.spec\.', re.IGNORECASE)
-
-
-def _per_commit_quality(repo, sha):
-    """Compute ship_quality for one commit:
-        log10(lines_changed + 1) * unique_files * non_test_ratio
-    Capped at 20 to prevent one mega-commit gaming.
-    """
-    try:
-        out = subprocess.run(
-            ['git', 'show', '--numstat', '--format=', sha],
-            cwd=repo, capture_output=True, text=True, timeout=10,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return 0.0
-    if out.returncode != 0:
-        return 0.0
-    files = []
-    total_lines = 0
-    for ln in out.stdout.splitlines():
-        parts = ln.split('\t')
-        if len(parts) < 3:
-            continue
-        add_str, del_str, path = parts[0], parts[1], parts[2]
-        try:
-            added = int(add_str) if add_str != '-' else 0
-            removed = int(del_str) if del_str != '-' else 0
-        except ValueError:
-            continue
-        files.append(path)
-        total_lines += added + removed
-    if not files:
-        return 0.0
-    file_count = len(files)
-    test_files = sum(1 for p in files if _TEST_PATH_RE.search(p))
-    non_test_ratio = (file_count - test_files) / file_count if file_count else 0
-    raw = math.log10(total_lines + 1) * file_count * non_test_ratio
-    return min(20.0, raw)
-
-
 def count_ships(claude_dir, target_date, author_email):
     """Count commits authored by author_email on target_date across git repos
-    directly under claude_dir and one level deeper (claude_dir/*/  and claude_dir/*/*/).
-
-    Also computes ship_quality = sum over commits of
-      log10(lines_changed + 1) * unique_files * non_test_ratio    (per-commit cap 20)
+    directly under claude_dir and one level deeper (claude_dir/*/ and claude_dir/*/*/).
     """
     candidates = []
     for depth1 in glob.glob(os.path.join(claude_dir, '*')):
@@ -438,7 +349,6 @@ def count_ships(claude_dir, target_date, author_email):
 
     commits = 0
     repos_with_commits = 0
-    ship_quality = 0.0
     since = target_date + 'T00:00:00'
     until = target_date + 'T23:59:59'
     for repo in candidates:
@@ -457,9 +367,7 @@ def count_ships(claude_dir, target_date, author_email):
             continue
         commits += len(shas)
         repos_with_commits += 1
-        for sha in shas:
-            ship_quality += _per_commit_quality(repo, sha)
-    return {'commits': commits, 'repos': repos_with_commits, 'ship_quality': ship_quality}
+    return {'commits': commits, 'repos': repos_with_commits}
 
 
 def sign_body(body, secret):
@@ -478,16 +386,8 @@ def build_payload(day, ships, github_handle, machine, target_date):
         'sessions': day['sessions'],
         'deep_work_minutes': deep_work_minutes(day.get('timestamps', [])),
         'projects_touched': day['projects_touched'],
-        # ships payload keeps the {commits, repos} shape the endpoint expects;
-        # ship_quality is sent alongside, not inside ships, for backwards-compat.
         'ships': {'commits': ships['commits'], 'repos': ships['repos']},
         'hourly_tokens': day.get('tokens_by_hour', {}),
-        # VBW raw inputs — endpoint sums these across machines and computes the
-        # 5 dimensions + final VBW server-side.
-        'output_tokens': day.get('output_tokens', 0),
-        'cache_creation_tokens': day.get('cache_creation_tokens', 0),
-        'tool_calls': day.get('tool_calls', 0),
-        'ship_quality': ships.get('ship_quality', 0.0),
     }
 
 
@@ -779,10 +679,8 @@ def main():
     if today_status == 200:
         with open(LAST_PUSH_FILE, 'w') as f:
             f.write(str(time.time()))
-        # Cache today's VBW + token total for the statusline. Both share the
-        # same dashboard formula, so the statusline always matches vibecodestats
-        # exactly (no diverging per-session-delta accounting). Refreshed every
-        # Stop hook (which is every CC turn end).
+        # Cache the token total for the statusline. Refreshed every Stop hook
+        # (which is every CC turn end).
         try:
             cache_dir = os.path.join(HOME, '.claude', 'daily-tokens')
             os.makedirs(cache_dir, exist_ok=True)
@@ -794,17 +692,7 @@ def main():
                     'date': today_date,
                     'ts': cache_ts,
                 }, f)
-            # vbw-today.json — parsed from the API response.
-            resp = json.loads(today_text)
-            vbw_val = resp.get('vbw')
-            if isinstance(vbw_val, (int, float)):
-                with open(os.path.join(cache_dir, 'vbw-today.json'), 'w') as f:
-                    json.dump({
-                        'vbw': int(vbw_val),
-                        'date': today_date,
-                        'ts': cache_ts,
-                    }, f)
-        except (json.JSONDecodeError, OSError, TypeError):
+        except OSError:
             pass
     return 0 if today_status == 200 else 1
 

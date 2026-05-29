@@ -6,7 +6,7 @@ import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 
 // The site-level OG image is a STATIC PNG in Supabase Storage. The image
 // renders the same live-aggregate-stats layout as per-profile cards
-// (developers / active today / tokens today / top VBW), but is generated
+// (developers / active today / tokens today / top rank), but is generated
 // out-of-band by scripts/generate-site-og.mjs and re-uploaded periodically
 // rather than per-request. Tried an inline edge route: pushed CF Pages
 // bundle past its 25 MiB limit. Storage path is stable; we just overwrite

@@ -107,7 +107,7 @@ export default async function SetupPage() {
           <a href={`/${handle}`} style={linkStyle}>
             /{handle}
           </a>{' '}
-          — one row per day, tokens + VBW from <em>all</em> AI tools combined.
+          : one row per day, tokens from <em>all</em> AI tools combined.
         </p>
         <pre style={preStyle}>
           <code>{installCmd}</code>

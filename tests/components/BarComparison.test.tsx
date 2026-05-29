@@ -4,8 +4,8 @@ import { BarComparison } from '@/components/leaderboard/BarComparison';
 import type { RankedEntry } from '@/lib/stats/leaderboard';
 
 const entries: RankedEntry[] = [
-  { userId: 'u2', handle: 'mira-builds', displayName: 'Mira', value: 400, rank: 1, isViewer: false },
-  { userId: 'u1', handle: 'holden-alt', displayName: 'Holden', value: 100, rank: 2, isViewer: true },
+  { userId: 'u2', handle: 'mira-builds', displayName: 'Mira', value: 400, rank: 1, isViewer: false, tier: 'S' },
+  { userId: 'u1', handle: 'holden-alt', displayName: 'Holden', value: 100, rank: 2, isViewer: true, tier: 'A' },
 ];
 
 describe('BarComparison', () => {

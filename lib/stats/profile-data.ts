@@ -12,6 +12,7 @@ export type ProfileUser = {
   primary_persona: string | null;
   secondary_personas: string[];
   private_project_names: boolean;
+  team: 'claude_code' | 'codex' | null;
 };
 
 export type DailyStat = Database['public']['Tables']['daily_stats']['Row'];
@@ -32,7 +33,7 @@ export async function getProfileData(
 ): Promise<ProfileData | null> {
   const { data: user } = await supabase
     .from('users')
-    .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas, private_project_names')
+    .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas, private_project_names, team')
     .eq('github_handle', handle)
     .maybeSingle();
 

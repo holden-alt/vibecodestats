@@ -1,5 +1,6 @@
 import type { DailyStat } from '@/lib/stats/profile-data';
 import { type StatsWindow, filterByWindow, computeStreak, WINDOW_DAYS } from '@/lib/stats/aggregations';
+import { type Tier, computeTier } from '@/lib/stats/tier';
 
 export type LeaderboardMetric = 'tokens' | 'vbw' | 'sessions' | 'deepwork' | 'streak' | 'ships';
 export type LeaderboardScope = 'global' | 'groups' | 'friends';
@@ -22,6 +23,7 @@ export type LeaderboardData = {
   groupMemberUserIds: string[]; // union of all the viewer's groups' members (includes the viewer)
   friendUserIds: string[]; // the viewer's friends' user ids
   viewerGroups: Group[]; // every group the viewer belongs to, with per-group membership
+  allTimeByUser: Record<string, number>; // sum of tokens_total across all daily_stats per user
 };
 
 export type RankedEntry = {
@@ -31,6 +33,7 @@ export type RankedEntry = {
   value: number;
   rank: number;
   isViewer: boolean;
+  tier: Tier;
 };
 
 type RankOptions = {
@@ -108,6 +111,10 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
   const { metric, window, scope, viewerId, today, groupId } = opts;
   const inScope = scopedUserIds(data, scope, viewerId, groupId);
 
+  // Tier cohort: all users' all-time token totals (not scope-filtered — tier is a
+  // global identity badge, not relative to the current leaderboard scope).
+  const cohort = Object.values(data.allTimeByUser);
+
   const entries = data.users
     .filter((u) => inScope.has(u.id))
     .map((u) => {
@@ -121,5 +128,10 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
 
   entries.sort((a, b) => b.value - a.value);
   // Ordinal ranking: ties still get distinct sequential ranks (1, 2, 3 — not 1, 1, 3).
-  return entries.map((e, i) => ({ ...e, rank: i + 1, isViewer: e.userId === viewerId }));
+  return entries.map((e, i) => ({
+    ...e,
+    rank: i + 1,
+    isViewer: e.userId === viewerId,
+    tier: computeTier(data.allTimeByUser[e.userId] ?? 0, cohort).tier,
+  }));
 }

@@ -22,6 +22,7 @@ vi.mock('@/lib/stats/leaderboard-data', () => ({
     groupMemberUserIds: [],
     friendUserIds: [],
     viewerGroups: [],
+    allTimeByUser: {},
   })),
 }));
 vi.mock('@/lib/supabase/server', () => ({
@@ -47,7 +48,7 @@ describe('GET /[handle]', () => {
   it('renders ProfileLive when the user exists', async () => {
     getProfileDataMock.mockResolvedValueOnce({
       user: { id: 'u1', auth_id: 'auth-1', github_handle: 'holden-alt', display_name: 'Holden',
-        avatar_url: null, primary_persona: null, secondary_personas: [] },
+        avatar_url: null, primary_persona: null, secondary_personas: [], private_project_names: false, team: null },
       dailyStats: [],
       machineStats: [],
     });

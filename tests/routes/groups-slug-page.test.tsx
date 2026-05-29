@@ -26,6 +26,7 @@ const leaderboardData = {
     { id: 'g2', slug: 'opus-club', name: 'Opus Club', color: 'orange',
       description: null, memberUserIds: ['u1', 'u3'] },
   ],
+  allTimeByUser: { u1: 100, u2: 500, u3: 300 },
 };
 
 const notFoundMock = vi.fn(() => {

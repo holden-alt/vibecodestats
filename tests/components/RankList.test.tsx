@@ -4,9 +4,9 @@ import { RankList } from '@/components/leaderboard/RankList';
 import type { RankedEntry } from '@/lib/stats/leaderboard';
 
 const entries: RankedEntry[] = [
-  { userId: 'u2', handle: 'mira-builds', displayName: 'Mira', value: 500, rank: 1, isViewer: false },
-  { userId: 'u1', handle: 'holden-alt', displayName: 'Holden', value: 300, rank: 2, isViewer: true },
-  { userId: 'u3', handle: 'devon-ships', displayName: 'Devon', value: 100, rank: 3, isViewer: false },
+  { userId: 'u2', handle: 'mira-builds', displayName: 'Mira', value: 500, rank: 1, isViewer: false, tier: 'S' },
+  { userId: 'u1', handle: 'holden-alt', displayName: 'Holden', value: 300, rank: 2, isViewer: true, tier: 'A' },
+  { userId: 'u3', handle: 'devon-ships', displayName: 'Devon', value: 100, rank: 3, isViewer: false, tier: 'B' },
 ];
 
 describe('RankList', () => {

@@ -25,6 +25,7 @@ const data: LeaderboardData = {
   viewerGroups: [
     { id: 'g1', slug: 'default', name: 'The Squad', color: 'cyan', description: null, memberUserIds: ['u1', 'u2'] },
   ],
+  allTimeByUser: { u1: 100, u2: 500, u3: 300 },
 };
 
 describe('GroupLeaderboardSection', () => {

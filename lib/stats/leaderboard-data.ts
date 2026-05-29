@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import type { Group, LeaderboardData } from '@/lib/stats/leaderboard';
+import { computeAllTimeTotals } from '@/lib/stats/aggregations';
 
 const STATS_LIMIT = 4000; // ~6 users x ~hundreds of days of headroom for v1
 
@@ -72,11 +73,18 @@ export async function getLeaderboardData(
     (statsByUser[row.user_id] ??= []).push(row);
   }
 
+  // All-time token totals per user — used by rankUsers to compute stable tier badges.
+  const allTimeByUser: Record<string, number> = {};
+  for (const user of (users ?? [])) {
+    allTimeByUser[user.id] = computeAllTimeTotals(statsByUser[user.id] ?? []).tokens;
+  }
+
   return {
     users: users ?? [],
     statsByUser,
     groupMemberUserIds,
     friendUserIds,
     viewerGroups,
+    allTimeByUser,
   };
 }

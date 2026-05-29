@@ -29,6 +29,7 @@ const initialData: ProfileData = {
     primary_persona: 'vibe-coder',
     secondary_personas: ['ai-builder'],
     private_project_names: false,
+    team: null,
   },
   dailyStats: [{
     user_id: 'u1', date: '2026-05-19', tokens_total: 487231,
@@ -47,6 +48,7 @@ const leaderboardData = {
   groupMemberUserIds: ['u1'],
   friendUserIds: [],
   viewerGroups: [],
+  allTimeByUser: { u1: 0 },
 } as any;
 
 const initialLiveRanking: LiveRanking = {

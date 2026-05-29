@@ -26,6 +26,7 @@ const data: LeaderboardData = {
   groupMemberUserIds: ['u1', 'u2'],
   friendUserIds: ['u3'],
   viewerGroups: [],
+  allTimeByUser: { u1: 100, u2: 500, u3: 300 },
 };
 
 describe('Leaderboard', () => {

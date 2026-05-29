@@ -22,6 +22,7 @@ const leaderboardData = {
   groupMemberUserIds: ['u1', 'u2'],
   friendUserIds: [],
   viewerGroups: [],
+  allTimeByUser: { u1: 100, u2: 500 },
 };
 
 vi.mock('@/lib/supabase/server', () => ({

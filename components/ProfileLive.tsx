@@ -28,6 +28,7 @@ import {
   computePersonalBests,
   computeNextMilestone,
 } from '@/lib/stats/aggregations';
+import { computeTier, gapToNextTier } from '@/lib/stats/tier';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -119,6 +120,14 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
   const pbs = useMemo(() => computePersonalBests(dailyStats), [dailyStats]);
   const milestone = useMemo(() => computeNextMilestone(allTime.tokens), [allTime.tokens]);
 
+  // Tier + gap-to-next-tier computed ONCE here from the all-time total vs the
+  // active cohort, then shared by IdentityStrip (T1) and HeroBlock (T2) so the
+  // two surfaces never diverge. Cohort = Object.values(allTimeByUser), the same
+  // source rankUsers uses (leaderboard.ts:92).
+  const cohort = useMemo(() => Object.values(leaderboardData.allTimeByUser), [leaderboardData]);
+  const tierResult = useMemo(() => computeTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
+  const tierGap = useMemo(() => gapToNextTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
+
   return (
     <main className="cc-profile-main" style={{
       maxWidth: 1400,
@@ -133,6 +142,9 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
           user={user}
           rank={null}
           squadSize={null}
+          tier={tierResult.tier}
+          team={user.team}
+          gap={tierGap}
           streakDays={streakDays}
           nowProject={nowProject}
         />

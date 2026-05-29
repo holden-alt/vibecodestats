@@ -1,14 +1,20 @@
 import type { ProfileUser } from '@/lib/stats/profile-data';
+import type { Tier, TierGap } from '@/lib/stats/tier';
+import type { Camp } from '@/lib/stats/team';
+import { formatCompact } from '@/lib/format';
 
 type Props = {
   user: ProfileUser;
   rank: number | null;
   squadSize: number | null;
+  tier: Tier;
+  team: Camp | null;
+  gap: TierGap;
   streakDays: number;
   nowProject: string | null;
 };
 
-export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }: Props) {
+export function IdentityStrip({ user, rank, squadSize, tier, team, gap, streakDays, nowProject }: Props) {
   return (
     <div
       style={{
@@ -58,6 +64,24 @@ export function IdentityStrip({ user, rank, squadSize, streakDays, nowProject }:
       }}>
         {rank != null && squadSize != null && (
           <span style={pill('var(--chart-5)', true)}>rank #{rank} / {squadSize}</span>
+        )}
+        <span
+          className={tier === 'S' ? 'foil tier-reveal tier-reveal-s' : 'tier-reveal'}
+          style={tier === 'S'
+            ? { ...pill('var(--chart-5)', true), background: undefined, fontWeight: 700 }
+            : { ...pill('var(--chart-5)', true), fontWeight: 700 }}
+        >
+          {tier === 'handcoder' ? 'HANDCODER' : tier.toUpperCase()}
+        </span>
+        {team != null && (
+          <span style={pill(team === 'codex' ? 'var(--team-cx-color)' : 'var(--team-cc-color)', false)}>
+            {team === 'codex' ? 'TEAM CODEX' : 'TEAM CLAUDE CODE'}
+          </span>
+        )}
+        {gap.nextTier != null && (
+          <span style={{ fontSize: '0.65rem', opacity: 0.7, fontFamily: 'ui-monospace, monospace' }}>
+            {formatCompact(gap.tokensNeeded)} from {gap.nextTier.toUpperCase()}
+          </span>
         )}
         <span style={pill('var(--chart-3)', true)}>{streakDays}d streak</span>
         {nowProject && (

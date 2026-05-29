@@ -175,7 +175,6 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
         <HeroBlock
           tokensToday={tokensToday}
           sessionsToday={sessionsToday}
-          deepWorkMinutes={0}
           shipsToday={{ commits: shipsToday.commits ?? 0, repos: shipsToday.repos ?? 0 }}
           projectsTouchedCount={projectsTouchedCount}
           trendStats={dailyStats}

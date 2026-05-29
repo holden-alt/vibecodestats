@@ -8,7 +8,6 @@ import type { DailyStat } from '@/lib/stats/profile-data';
 type Props = {
   tokensToday: number;
   sessionsToday: number;
-  deepWorkMinutes: number;
   shipsToday: { commits: number; repos: number };
   projectsTouchedCount: number;
   trendStats: DailyStat[]; // last ~30 days for the ghosted sparkline
@@ -20,7 +19,6 @@ type Props = {
 export function HeroBlock({
   tokensToday,
   sessionsToday,
-  deepWorkMinutes: _deepWorkMinutes, // eslint-disable-line @typescript-eslint/no-unused-vars
   shipsToday,
   projectsTouchedCount,
   trendStats,

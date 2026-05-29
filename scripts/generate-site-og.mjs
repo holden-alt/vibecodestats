@@ -37,9 +37,9 @@ const [usersRes, todayRes, peakRes] = await Promise.all([
   supabase.from('daily_stats').select('user_id, tokens_total').eq('date', today),
   supabase
     .from('daily_stats')
-    .select('user_id, vbw_total, users:user_id (github_handle)')
+    .select('user_id, tokens_total, users:user_id (github_handle)')
     .eq('date', today)
-    .order('vbw_total', { ascending: false })
+    .order('tokens_total', { ascending: false })
     .limit(1)
     .maybeSingle(),
 ]);
@@ -49,7 +49,7 @@ const todayRows = todayRes.data ?? [];
 const tokensToday = todayRows.reduce((s, r) => s + Number(r.tokens_total ?? 0), 0);
 const activeToday = todayRows.filter((r) => Number(r.tokens_total ?? 0) > 0).length;
 const peak = peakRes.data;
-const peakVbw = peak?.vbw_total ?? 0;
+const peakTokens = peak?.tokens_total ?? 0;
 const peakHandle = peak?.users?.github_handle ?? null;
 
 function compact(n) {
@@ -82,23 +82,23 @@ const html = `<!doctype html>
   .c3 { color: #8fbc8f; } .c5 { color: #e3c466; }
 </style></head><body>
   <div class="brand">VIBECODESTATS.DEV</div>
-  <div class="tag">Strava for AI coding.</div>
-  <div class="sub">Track Claude Code + Codex daily token usage and VBW productivity score.</div>
+  <div class="tag">the tokenmaxxing leaderboard</div>
+  <div class="sub">Claude Code + Codex token usage, ranked. Find out where you rank.</div>
   <div class="stats">
     <div class="stat"><div class="stat-label">DEVELOPERS</div>
       <div class="stat-value c1">${totalUsers}</div></div>
     <div class="stat"><div class="stat-label">ACTIVE TODAY</div>
       <div class="stat-value c2">${activeToday}</div></div>
     <div class="stat"><div class="stat-label">TOKENS TODAY</div>
-      <div class="stat-value c3">${tokensToday > 0 ? compact(tokensToday) : '—'}</div></div>
-    <div class="stat"><div class="stat-label">⚡ TOP VBW TODAY</div>
-      <div class="stat-value c5">${peakVbw > 0 ? peakVbw.toLocaleString() : '—'}</div>
+      <div class="stat-value c3">${tokensToday > 0 ? compact(tokensToday) : '-'}</div></div>
+    <div class="stat"><div class="stat-label">TOP TOKENS TODAY</div>
+      <div class="stat-value c5">${peakTokens > 0 ? compact(peakTokens) : '-'}</div>
       ${peakHandle ? `<div class="stat-sub">@${peakHandle}</div>` : ''}
     </div>
   </div>
 </body></html>`;
 
-console.log(`stats: users=${totalUsers} active=${activeToday} tokens=${tokensToday} peakVbw=${peakVbw} (@${peakHandle ?? 'none'})`);
+console.log(`stats: users=${totalUsers} active=${activeToday} tokens=${tokensToday} peakTokens=${peakTokens} (@${peakHandle ?? 'none'})`);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });

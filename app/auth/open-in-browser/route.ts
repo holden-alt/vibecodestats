@@ -29,7 +29,7 @@ export function GET(request: Request): Response {
      from === 'tiktok' ? 'TikTok' :
      'this app');
 
-  const siteUrl = 'https://vibecodestats.dev/';
+  const siteUrl = 'https://www.vibecodestats.dev/';
   const browserName = platform === 'ios' ? 'Safari' : platform === 'android' ? 'Chrome' : 'your default browser';
   const platformHint =
     platform === 'ios'

@@ -1,6 +1,6 @@
 import { compareTools, type CompareTool } from './compare-data';
 
-export const SITE_URL = 'https://vibecodestats.dev';
+export const SITE_URL = 'https://www.vibecodestats.dev';
 
 export const SITE_INTRO = `# vibecodestats.dev
 

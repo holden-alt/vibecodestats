@@ -6,7 +6,7 @@ import { glossarySlugs } from '@/lib/seo/glossary-data';
 import { listSlugs } from '@/lib/seo/lists-data';
 import { helpSlugs } from '@/lib/seo/help-data';
 
-const SITE = 'https://vibecodestats.dev';
+const SITE = 'https://www.vibecodestats.dev';
 
 export const revalidate = 3600;
 

@@ -11,7 +11,7 @@ import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 // rather than per-request. Tried an inline edge route: pushed CF Pages
 // bundle past its 25 MiB limit. Storage path is stable; we just overwrite
 // the bytes when we want to refresh the stats.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
 const SITE_OG_IMAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
 
 const siteOgImage = {

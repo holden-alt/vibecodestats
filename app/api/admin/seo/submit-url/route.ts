@@ -14,7 +14,7 @@ const OWNER_HANDLES = (process.env.OWNER_HANDLES ?? 'holden-alt,realholdengr')
  * POST /api/admin/seo/submit-url
  *
  * Body shapes:
- *   { "url": "https://vibecodestats.dev/compare/cursor" }
+ *   { "url": "https://www.vibecodestats.dev/compare/cursor" }
  *     → submits a single URL.
  *   { "urls": ["...", "..."] }
  *     → submits a list.
@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
   // Resolve URL list
   let urls: string[];
   if (body.all) {
-    const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+    const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
     urls = [
       `${site}/`,
       `${site}/leaderboard`,
@@ -73,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // Validate URLs are on our site (defense against this endpoint being used to
   // submit unrelated URLs and burn quota or abuse the SA credentials).
-  const allowedHost = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev')
+  const allowedHost = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev')
     .replace(/^https?:\/\//, '')
     .replace(/\/$/, '');
   const invalid = urls.filter((u) => {
@@ -114,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
 
 /** Convenience GET — returns the list of URLs currently in the sitemap. */
 export async function GET(): Promise<Response> {
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
   const urls = [
     `${site}/`,
     `${site}/leaderboard`,

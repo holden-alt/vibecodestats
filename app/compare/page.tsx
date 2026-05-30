@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { compareTools } from '@/lib/seo/compare-data';
 
 
-const SITE = 'https://vibecodestats.dev';
+const SITE = 'https://www.vibecodestats.dev';
 
 export const metadata: Metadata = {
   title: 'Compare Claude Code to every AI coding tool · vibecodestats.dev',

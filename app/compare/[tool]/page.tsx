@@ -8,7 +8,7 @@ type Props = {
   params: Promise<{ tool: string }>;
 };
 
-const SITE = 'https://vibecodestats.dev';
+const SITE = 'https://www.vibecodestats.dev';
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tool } = await params;

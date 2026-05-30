@@ -73,7 +73,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   // canonical generator that /api/ingest fetches; we just don't expose it
   // to social crawlers directly. See: vercel/next.js#78511 for the
   // X-crawler-needs-explicit-descriptor regression we sidestep here.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
   const staticOgUrl = ogImageUrl(handle);
   const ogImage = {
     url: staticOgUrl,

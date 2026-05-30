@@ -86,7 +86,7 @@ export async function notifyOwnerOfTeamPick(opts: {
     `Team: ${teamLabel}`,
     `Email opt-in: ${opts.optedIn ? 'yes' : 'no'}`,
     '',
-    'View leaderboard: https://vibecodestats.dev',
+    'View leaderboard: https://www.vibecodestats.dev',
   ];
 
   try {

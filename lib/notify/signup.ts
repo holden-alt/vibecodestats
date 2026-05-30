@@ -92,7 +92,7 @@ export async function emailOwnerForSignupEvent(e: LogSignupEvent): Promise<void>
     e.referer ? `Referer: ${e.referer}` : null,
     e.userId ? `User ID: ${e.userId}` : null,
     '',
-    'View funnel: https://vibecodestats.dev/admin/signups',
+    'View funnel: https://www.vibecodestats.dev/admin/signups',
   ].filter(Boolean) as string[];
 
   try {

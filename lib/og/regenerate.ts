@@ -31,7 +31,7 @@ export async function regenerateOgImage(
   supabase: SupabaseClient<Database>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev';
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
 
   let bytes: Uint8Array;
   try {

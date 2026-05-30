@@ -76,7 +76,7 @@ export default async function AdminPage() {
 
   const signupRows = (events ?? []) as SignupEvent[];
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vibecodestats.dev').replace(/\/$/, '');
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev').replace(/\/$/, '');
   const teamOgUrl = `${siteUrl}/api/og/team`;
   const siteOgUrl = ogImageUrl('_root');
 

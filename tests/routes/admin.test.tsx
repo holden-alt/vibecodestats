@@ -19,7 +19,7 @@ const redirectMock = vi.fn((path: string) => {
 vi.mock('next/navigation', () => ({ redirect: redirectMock }));
 
 // Stable env values used throughout
-const SITE_URL = 'https://vibecodestats.dev';
+const SITE_URL = 'https://www.vibecodestats.dev';
 const SUPABASE_URL = 'https://srexmxntzjdhbuicqvso.supabase.co';
 
 // Helper: build a mock SSR client.

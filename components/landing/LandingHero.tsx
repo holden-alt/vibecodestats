@@ -61,7 +61,7 @@ export function LandingHero() {
             boxShadow: '0 0 12px #3cff8a',
           }}
         />
-        Season 1 · Live now
+        Live · Claude Code + Codex
       </div>
 
       {/* Foil headline — the signature continuous-flow spot */}
@@ -92,8 +92,9 @@ export function LandingHero() {
           lineHeight: 1.4,
         }}
       >
-        Public leaderboard for Claude Code and Codex token usage. Your all-time
-        tokens put you in a tier. Pick a team. Find out where you{' '}
+        The public leaderboard for AI coding. Connect your GitHub, run one
+        command, and your Claude Code + Codex token usage ranks you against the
+        field &mdash; by tier, by team, live. Find out where you{' '}
         <b style={{ color: '#fff', fontWeight: 700 }}>rank</b>, or stay a{' '}
         <b style={{ color: '#fff', fontWeight: 700 }}>handcoder</b>.
       </p>
@@ -109,11 +110,23 @@ export function LandingHero() {
           alignItems: 'center',
         }}
       >
-        <LandingSignIn>Drop your GitHub handle</LandingSignIn>
+        <LandingSignIn>Get my profile</LandingSignIn>
         <Link href="/holden-alt" prefetch={false} className="vcs-cta-ghost">
-          See where you rank
+          See a live profile →
         </Link>
         <ShareSiteOnX />
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--neon-txt-dim)',
+          letterSpacing: '0.06em',
+        }}
+      >
+        Free · GitHub sign-in · one-line installer · reads usage only, never your code
       </div>
 
       {/* Primary-view nav chips — Tiers / All-time / Team Claude Code vs Codex */}
@@ -163,12 +176,13 @@ export function HeroCardPreview() {
       style={{ maxWidth: 1120, margin: '0 auto', padding: '0 24px 64px' }}
     >
       <div
-        className="neon-frame"
+        className="neon-glass"
         style={{
           padding: '34px 30px',
           overflow: 'hidden',
-          background:
-            'radial-gradient(120% 90% at 30% 0%, rgba(255,45,179,0.18), transparent 55%), radial-gradient(120% 90% at 80% 100%, rgba(60,216,255,0.16), transparent 55%), rgba(8,3,16,0.85)',
+          // Calm dark glass: foil is concentrated in the tier badge + the one
+          // hero number, never washed across the face. Legibility first.
+          background: '#08030f',
         }}
       >
         {/* Card header — who + global rank */}
@@ -359,11 +373,12 @@ export function HeroCardPreview() {
               }}
             >
               <div
-                className="neon-foil-text-static"
                 style={{
                   fontFamily: 'var(--font-display)',
                   fontWeight: 800,
                   fontSize: 22,
+                  color: 'var(--neon-txt)',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {s.v}

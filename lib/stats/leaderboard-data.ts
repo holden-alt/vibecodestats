@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import type { Group, LeaderboardData } from '@/lib/stats/leaderboard';
-import { computeAllTimeTotals } from '@/lib/stats/aggregations';
+import { computeAllTimeTotals, filterByWindow, type StatsWindow } from '@/lib/stats/aggregations';
 import { todayLocal } from '@/lib/date';
 
 const STATS_LIMIT = 4000; // ~6 users x ~hundreds of days of headroom for v1
@@ -139,10 +139,25 @@ export function getTeamScoreboardMaps(
 export function getTeamScoreboardMapsAllTime(
   data: LeaderboardData,
 ): Array<Record<string, number> | null> {
+  return getTeamScoreboardMapsWindow(data, '', 'all');
+}
+
+// Window-aware variant (added for the redesigned single-page profile, which
+// offers a daily / weekly / monthly / all-time team toggle). For each user,
+// merge every loaded daily row whose date falls in the trailing window ending
+// at `today` into one per-model total, so the maps feed campScoreboard()
+// exactly like the daily / all-time paths. window 'today' = just today;
+// 'all' = everything loaded (same STATS_LIMIT boundedness as above).
+export function getTeamScoreboardMapsWindow(
+  data: LeaderboardData,
+  today: string,
+  window: StatsWindow,
+): Array<Record<string, number> | null> {
   return Object.values(data.statsByUser).map((rows) => {
+    const windowed = window === 'all' ? rows : filterByWindow(rows, today, window);
     const merged: Record<string, number> = {};
     let any = false;
-    for (const row of rows) {
+    for (const row of windowed) {
       const byModel = (row.tokens_by_model ?? null) as Record<string, number> | null;
       if (!byModel) continue;
       for (const [model, count] of Object.entries(byModel)) {

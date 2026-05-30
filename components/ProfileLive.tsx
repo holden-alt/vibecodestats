@@ -1,40 +1,33 @@
 'use client';
 
+// Redesigned single-page profile (v2, no view tabs). Order by importance:
+//   Identity bar → Standings (leaderboard + tier distribution, side-by-side) →
+//   Your tokens (the spotlight line graph) → Team competition → Share card →
+//   More stats (inline-expandable deep dive). Legibility system: dark-glass
+//   cards, foil reserved for accents/headlines/tier letter, solid mono numbers.
+//
+// Live: subscribes to daily_stats realtime so the profile updates as the owner
+// (or anyone) pushes today — the same subscription the v1 profile had, grafted
+// onto the new layout.
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
-import { StatsExplorer } from '@/components/StatsExplorer';
-import { PlayerCard } from '@/components/dashboard/profile/PlayerCard';
-import { ShareCard } from '@/components/dashboard/profile/ShareCard';
-import { TeamScoreboard } from '@/components/dashboard/profile/TeamScoreboard';
-import { TierDistribution } from '@/components/dashboard/profile/TierDistribution';
-import { BentoGrid } from '@/components/dashboard/profile/BentoGrid';
-import { BentoTile } from '@/components/dashboard/BentoTile';
-import { LiveRankTile } from '@/components/dashboard/profile/LiveRankTile';
+import { IdentityBar } from '@/components/dashboard/profile/IdentityBar';
 import { GlobalLeaderboard } from '@/components/dashboard/profile/GlobalLeaderboard';
-import { PersonalBests } from '@/components/dashboard/profile/PersonalBests';
-import { RollupPills } from '@/components/dashboard/profile/RollupPills';
-import { AllTimeTile } from '@/components/dashboard/profile/AllTimeTile';
-import { StreakAtRisk } from '@/components/dashboard/profile/StreakAtRisk';
+import { TierDistribution } from '@/components/dashboard/profile/TierDistribution';
+import { PercentilePanel } from '@/components/dashboard/profile/PercentilePanel';
 import { TokenTrendChart } from '@/components/charts/v2/TokenTrendChart';
-import { ContributionHeatmap } from '@/components/charts/v2/ContributionHeatmap';
-import { RollingNumber } from '@/components/dashboard/RollingNumber';
-import {
-  computeStreak,
-  computeWeekTotal,
-  computeMonthTotal,
-  computeAllTimeTotals,
-  computePersonalBests,
-  computeNextMilestone,
-} from '@/lib/stats/aggregations';
-import { computeTier, gapToNextTier } from '@/lib/stats/tier';
+import { TeamScoreboard } from '@/components/dashboard/profile/TeamScoreboard';
+import { ShareCard } from '@/components/dashboard/profile/ShareCard';
+import { StreakAtRisk } from '@/components/dashboard/profile/StreakAtRisk';
+import { MoreStats } from '@/components/dashboard/profile/MoreStats';
+import { computeAllTimeTotals, computeStreak } from '@/lib/stats/aggregations';
+import { computeTier } from '@/lib/stats/tier';
 import { campScoreboard } from '@/lib/stats/team';
-import { formatCompact } from '@/lib/format';
-import {
-  getTeamScoreboardMaps,
-  getTeamScoreboardMapsAllTime,
-} from '@/lib/stats/leaderboard-data';
+import { getTeamScoreboardMapsWindow } from '@/lib/stats/leaderboard-data';
+import { rankUsers } from '@/lib/stats/leaderboard';
 import type { ProfileData, DailyStat } from '@/lib/stats/profile-data';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -48,19 +41,18 @@ type ProfileLiveProps = {
   hasEverPushed: boolean;
 };
 
-type ProfileView = 'overview' | 'tiers' | 'team';
-
-const VIEWS: { id: ProfileView; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'tiers', label: 'Tier Distribution' },
-  { id: 'team', label: 'Team Daily' },
-];
-
-export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, today, viewerIsOwner, hasEverPushed }: ProfileLiveProps) {
+export function ProfileLive({
+  initialData,
+  leaderboardData,
+  initialLiveRanking,
+  today,
+  viewerIsOwner,
+  hasEverPushed,
+}: ProfileLiveProps) {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
-  const [view, setView] = useState<ProfileView>('overview');
   const { user } = initialData;
 
+  // Realtime: keep the profile live as daily_stats rows change for this user.
   useEffect(() => {
     const supabase = createClient();
     const baseChannel: RealtimeChannel = supabase.channel(`daily_stats:${user.id}`);
@@ -82,7 +74,9 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
         });
       },
     ).subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [user.id]);
 
   const effectiveToday = useMemo(() => {
@@ -90,56 +84,75 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
     return dailyStats[0]?.date ?? today;
   }, [dailyStats, today]);
 
-  const todayRow = useMemo(() => dailyStats.find((s) => s.date === effectiveToday), [dailyStats, effectiveToday]);
-
+  const todayRow = useMemo(
+    () => dailyStats.find((s) => s.date === effectiveToday),
+    [dailyStats, effectiveToday],
+  );
   const tokensToday = todayRow?.tokens_total ?? 0;
-
-  const sessionsToday = todayRow?.sessions ?? 0;
-  const shipsToday = (todayRow?.ships as { commits?: number; repos?: number } | undefined) ?? {};
   const projectsTouched = (todayRow?.projects_touched as Record<string, number>) ?? {};
-
-  const projectsTouchedCount = Object.keys(projectsTouched).length;
-  const streakDays = computeStreak(dailyStats, effectiveToday);
   const nowProject = pickNowProject(projectsTouched);
-
-  const weekTokens = computeWeekTotal(dailyStats, effectiveToday);
-  const lastWeekAnchor = useMemo(() => {
-    const d = new Date(effectiveToday + 'T00:00:00Z');
-    d.setUTCDate(d.getUTCDate() - 7);
-    return d.toISOString().slice(0, 10);
-  }, [effectiveToday]);
-  const lastWeekTokens = computeWeekTotal(dailyStats, lastWeekAnchor);
-  const weekDelta = lastWeekTokens > 0 ? (weekTokens - lastWeekTokens) / lastWeekTokens : 0;
-
-  const monthTokens = computeMonthTotal(dailyStats, effectiveToday);
-  const monthDate = new Date(effectiveToday + 'T00:00:00Z');
-  const daysInMonth = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0)).getUTCDate();
-  const daysActiveThisMonth = dailyStats.filter((s) => s.date.startsWith(effectiveToday.slice(0, 7)) && s.tokens_total > 0).length;
-  const monthShips = dailyStats
-    .filter((s) => s.date.startsWith(effectiveToday.slice(0, 7)))
-    .reduce((acc, s) => acc + ((s.ships as { commits?: number } | null)?.commits ?? 0), 0);
+  const streakDays = computeStreak(dailyStats, effectiveToday);
 
   const allTime = useMemo(() => computeAllTimeTotals(dailyStats), [dailyStats]);
-  const pbs = useMemo(() => computePersonalBests(dailyStats), [dailyStats]);
-  const milestone = useMemo(() => computeNextMilestone(allTime.tokens), [allTime.tokens]);
 
-  // Tier + gap-to-next-tier computed ONCE here from the all-time total vs the
-  // active cohort, then shared by every surface (the player card, the tier
-  // distribution marker) so they never diverge. Cohort = Object.values(
-  // allTimeByUser), the same source rankUsers uses (leaderboard.ts:92).
-  const cohort = useMemo(() => Object.values(leaderboardData.allTimeByUser), [leaderboardData]);
-  const tierResult = useMemo(() => computeTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
-  const tierGap = useMemo(() => gapToNextTier(allTime.tokens, cohort), [allTime.tokens, cohort]);
+  // Tier = rolling-90-day token volume vs the field's 90-day volumes (current
+  // form, not lifetime). Single source for the tier across every surface here.
+  const tierSource = leaderboardData.recent90ByUser ?? leaderboardData.allTimeByUser;
+  const cohort90 = useMemo(() => Object.values(tierSource), [tierSource]);
+  const viewer90 = tierSource[user.id] ?? 0;
+  const tierResult = useMemo(() => computeTier(viewer90, cohort90), [viewer90, cohort90]);
 
-  // Team Scoreboard (T3). DAILY is the default; all-time is the toggle. Both are
-  // pure aggregations over the already-loaded statsByUser. No new DB query.
-  const teamDaily = useMemo(
-    () => campScoreboard(getTeamScoreboardMaps(leaderboardData, effectiveToday)),
+  // Headline rank = this month: your place out of everyone active this month.
+  const monthRanked = useMemo(
+    () =>
+      rankUsers(leaderboardData, {
+        metric: 'tokens',
+        window: 'month',
+        scope: 'global',
+        viewerId: user.id,
+        today: effectiveToday,
+      }),
+    [leaderboardData, user.id, effectiveToday],
+  );
+  const rankMonth = monthRanked.find((e) => e.isViewer)?.rank ?? monthRanked.length;
+  const rankTotal = monthRanked.length;
+
+  // Today's active field (everyone with a row on effectiveToday) — drives both
+  // today's tier and the "top N% today" on the share card. Ranking against the
+  // same effectiveToday field keeps the web card and the OG card identical (and
+  // avoids the literal-today "top 100%" wart on a quiet morning).
+  const todayBoard = useMemo(
+    () =>
+      leaderboardData.users
+        .map((u) => {
+          const t = leaderboardData.statsByUser[u.id]?.find((s) => s.date === effectiveToday)
+            ?.tokens_total;
+          return t == null ? null : { id: u.id, tokens: t };
+        })
+        .filter((r): r is { id: string; tokens: number } => r !== null),
     [leaderboardData, effectiveToday],
   );
-  const teamAllTime = useMemo(
-    () => campScoreboard(getTeamScoreboardMapsAllTime(leaderboardData)),
-    [leaderboardData],
+  const todayTier = useMemo(
+    () => computeTier(tokensToday, todayBoard.map((r) => r.tokens)).tier,
+    [tokensToday, todayBoard],
+  );
+  const percentileToday = useMemo(() => {
+    if (todayBoard.length === 0) return 100;
+    const sorted = [...todayBoard].sort((a, b) => b.tokens - a.tokens);
+    const rank = sorted.findIndex((r) => r.id === user.id) + 1;
+    return rank > 0 ? Math.max(1, Math.ceil((rank / sorted.length) * 100)) : 100;
+  }, [todayBoard, user.id]);
+
+  // Team scoreboards — one per window (today / week / month / all-time). Pure
+  // aggregations over the already-loaded statsByUser; no new DB query.
+  const teamBoards = useMemo(
+    () => ({
+      daily: campScoreboard(getTeamScoreboardMapsWindow(leaderboardData, effectiveToday, 'today')),
+      week: campScoreboard(getTeamScoreboardMapsWindow(leaderboardData, effectiveToday, 'week')),
+      month: campScoreboard(getTeamScoreboardMapsWindow(leaderboardData, effectiveToday, 'month')),
+      all: campScoreboard(getTeamScoreboardMapsWindow(leaderboardData, effectiveToday, 'all')),
+    }),
+    [leaderboardData, effectiveToday],
   );
 
   return (
@@ -148,287 +161,179 @@ export function ProfileLive({ initialData, leaderboardData, initialLiveRanking, 
       style={{
         maxWidth: 1180,
         margin: '0 auto',
-        padding: 'clamp(16px, 4vw, 32px) clamp(16px, 4vw, 24px) 64px',
+        padding: 'clamp(20px, 4vw, 36px) clamp(16px, 4vw, 24px) 72px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 0,
+        gap: 44,
       }}
     >
-      {/* Identity header — handle + tier + team, neon styled */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          rowGap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      {/* 1 — Identity bar (+ owner setup nudge + streak-at-risk) */}
+      <div style={{ marginBottom: -16 }}>
+        <IdentityBar
+          user={user}
+          tier={tierResult.tier}
+          rankMonth={rankMonth}
+          rankTotal={rankTotal}
+          isHandcoder={tierResult.isHandcoder}
+          allTimeTokens={allTime.tokens}
+          team={user.team}
+          nowProject={nowProject}
+        />
+
+        {viewerIsOwner && !hasEverPushed && (
           <div
+            className="neon-glass"
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: '50%',
-              flexShrink: 0,
-              background: user.avatar_url
-                ? `url(${user.avatar_url}) center/cover`
-                : 'var(--foil-gradient)',
-              boxShadow: '0 0 14px var(--neon-glow-foil)',
-            }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.05rem' }}>
-              @{user.github_handle}
-            </span>
-            {user.display_name && (
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--neon-txt-dim)' }}>
-                {user.display_name}
-              </span>
-            )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span
-            className={tierResult.tier === 'S' ? 'neon-foil-text-static' : undefined}
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: '0.85rem',
-              letterSpacing: '0.08em',
-              padding: '4px 12px',
-              borderRadius: 999,
-              border: '1px solid var(--neon-line)',
-              background: 'rgba(255,255,255,0.04)',
-              color: tierResult.tier === 'S' ? undefined : 'var(--neon-txt)',
+              padding: '14px 18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              marginTop: 16,
+              flexWrap: 'wrap',
             }}
           >
-            {tierResult.tier === 'handcoder' ? 'HANDCODER' : `${tierResult.tier.toUpperCase()} TIER`}
-          </span>
-          {tierGap.nextTier != null && (
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--neon-txt-dim)' }}>
-              {formatCompact(tierGap.tokensNeeded)} from {tierGap.nextTier.toUpperCase()}
-            </span>
-          )}
-          {user.team != null && (
-            <span
+            <div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700 }}>
+                your stats aren&apos;t flowing yet
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.78rem',
+                  color: 'var(--neon-txt-dim)',
+                  marginTop: 2,
+                }}
+              >
+                install the Claude Code Stop hook so every CC turn pushes to this profile.
+              </div>
+            </div>
+            <Link
+              href="/setup"
+              prefetch={false}
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: '0.7rem',
-                letterSpacing: '0.08em',
-                padding: '4px 10px',
-                borderRadius: 999,
-                color: user.team === 'codex' ? 'var(--team-cx)' : 'var(--team-cc)',
-                border: `1px solid ${user.team === 'codex' ? 'var(--team-cx)' : 'var(--team-cc)'}`,
-              }}
-            >
-              {user.team === 'codex' ? 'TEAM CODEX' : 'TEAM CLAUDE CODE'}
-            </span>
-          )}
-          {nowProject && (
-            <span
-              style={{
-                fontFamily: 'var(--font-body)',
                 fontSize: '0.72rem',
-                color: 'var(--team-cc)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                maxWidth: 220,
-                overflow: 'hidden',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: '#110018',
+                backgroundImage: 'var(--foil-gradient)',
+                padding: '9px 16px',
+                borderRadius: 10,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: 'var(--team-cc)', animation: 'cc-pulse 1.5s ease-in-out infinite' }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>now: {nowProject}</span>
-            </span>
-          )}
-        </div>
+              set up sync →
+            </Link>
+          </div>
+        )}
+
+        <StreakAtRisk streakDays={streakDays} todayTokens={tokensToday} />
       </div>
 
-      {/* Primary view switcher — Overview / Tier Distribution / Team Daily */}
-      <nav
-        aria-label="Profile views"
-        style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 22 }}
-      >
-        {VIEWS.map((v) => {
-          const active = v.id === view;
-          return (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setView(v.id)}
-              aria-pressed={active}
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 11,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                padding: '9px 18px',
-                borderRadius: 999,
-                cursor: 'pointer',
-                border: `1px solid ${active ? 'transparent' : 'var(--neon-line)'}`,
-                background: active ? 'rgba(255,45,179,0.12)' : 'rgba(255,255,255,0.03)',
-                color: active ? '#ffd9f2' : 'var(--neon-txt-dim)',
-                boxShadow: active ? '0 0 22px rgba(255,45,179,0.3), inset 0 0 16px rgba(255,45,179,0.16)' : 'none',
-              }}
-            >
-              {v.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      {viewerIsOwner && !hasEverPushed && (
-        <div
-          className="neon-glass"
-          style={{
-            padding: '14px 18px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 22,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 700 }}>your stats aren&apos;t flowing yet</div>
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--neon-txt-dim)', marginTop: 2 }}>install the Claude Code Stop hook so every CC turn pushes to this profile.</div>
+      {/* 2 — Standings: leaderboard + tier distribution, side by side */}
+      <section>
+        <SectionLabel>Standings</SectionLabel>
+        <div className="cc-world-grid">
+          <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={effectiveToday} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <TierDistribution cohortAllTime={cohort90} viewerTier={tierResult.tier} />
+            <PercentilePanel data={leaderboardData} viewerId={user.id} today={effectiveToday} />
           </div>
-          <Link
-            href="/setup"
-            prefetch={false}
+        </div>
+      </section>
+
+      {/* 3 — Your tokens: the spotlight line graph */}
+      <section>
+        <SectionLabel>Your tokens</SectionLabel>
+        <div className="neon-glass" style={{ padding: 'clamp(18px, 3.5vw, 26px)' }}>
+          <TokenTrendChart stats={dailyStats} today={effectiveToday} height={300} hideTitle />
+          <div
             style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: '#110018',
-              backgroundImage: 'var(--foil-gradient)',
-              padding: '9px 16px',
-              borderRadius: 10,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
+              marginTop: 10,
+              fontFamily: 'var(--font-body)',
+              fontSize: 12,
+              color: 'var(--neon-txt-dim)',
             }}
           >
-            set up sync →
-          </Link>
+            Tokens per day. Hover any point for the exact count. The cyan line is your 7-day
+            average; the yellow dot is your peak day in range.
+          </div>
         </div>
-      )}
+      </section>
 
-      <StreakAtRisk streakDays={streakDays} todayTokens={tokensToday} />
+      {/* 4 — Team competition */}
+      <section>
+        <TeamScoreboard boards={teamBoards} />
+        <p
+          style={{
+            marginTop: 10,
+            fontFamily: 'var(--font-body)',
+            fontSize: 11,
+            color: 'var(--neon-txt-dim)',
+            opacity: 0.55,
+            letterSpacing: '0.03em',
+          }}
+        >
+          Claude Code and Codex are trademarks of Anthropic and OpenAI. vibecodestats.dev is
+          independent and unaffiliated.
+        </p>
+      </section>
 
-      {/* ── OVERVIEW VIEW ───────────────────────────────────────────────── */}
-      {view === 'overview' && (
-        <>
-          <div className="cc-profile-card-row" style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 24, marginBottom: 24, alignItems: 'start' }}>
-            <PlayerCard
-              user={user}
-              tier={tierResult.tier}
-              rank={tierResult.rank}
-              topPercentLabel={tierResult.topPercentLabel}
-              isHandcoder={tierResult.isHandcoder}
-              allTimeTokens={allTime.tokens}
-              team={user.team}
-              peakDayTokens={pbs.bestDayTokens}
-              peakDayDate={pbs.bestDayDate}
-              sessionsAllTime={allTime.sessions}
-              activeDays={allTime.daysActive}
-            />
-            <ShareCard
-              handle={user.github_handle}
-              tier={tierResult.tier}
-              allTimeTokens={allTime.tokens}
-              rank={tierResult.rank}
-              tokensToday={tokensToday}
-              liveRank={initialLiveRanking.rank}
-              viewerIsOwner={viewerIsOwner}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18, fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--neon-txt-dim)' }}>
-            {sessionsToday} sessions · {shipsToday.commits ?? 0} ships · {projectsTouchedCount} projects today
-          </div>
-
-          <div className="cc-rank-pb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-            <LiveRankTile viewerId={user.id} date={effectiveToday} initial={initialLiveRanking} />
-            <PersonalBests
-              bestDayTokens={pbs.bestDayTokens}
-              bestDayDate={pbs.bestDayDate}
-              bestShipsCount={pbs.bestShipsCount}
-              bestShipsDate={pbs.bestShipsDate}
-              bestSessionsCount={pbs.bestSessionsCount}
-              bestSessionsDate={pbs.bestSessionsDate}
-            />
-          </div>
-
-          <div style={{ marginBottom: 24 }}>
-            <RollupPills
-              weekTokens={weekTokens}
-              weekDelta={weekDelta}
-              monthTokens={monthTokens}
-              daysActiveThisMonth={daysActiveThisMonth}
-              daysInMonth={daysInMonth}
-              shipsThisMonth={monthShips}
-            />
-          </div>
-
-          <section style={{ marginTop: 8 }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', color: 'var(--neon-txt-dim)', textTransform: 'uppercase', letterSpacing: '0.18em', margin: '0 0 12px' }}>rolling stats</h2>
-            <BentoGrid>
-              <BentoTile label="streak" sub="days in a row" colSpan={2}>
-                <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--chart-3)' }}>
-                  <RollingNumber value={streakDays} />d
-                </span>
-              </BentoTile>
-              <BentoTile label="all-time" colSpan={4}>
-                <AllTimeTile
-                  lifetimeTokens={allTime.tokens}
-                  daysActive={allTime.daysActive}
-                  lifetimeShips={allTime.ships}
-                  nextMilestone={milestone}
-                />
-              </BentoTile>
-              <BentoTile label="30-day trend" colSpan={6}>
-                <TokenTrendChart stats={dailyStats} today={effectiveToday} />
-              </BentoTile>
-            </BentoGrid>
-            <div style={{ marginTop: 12 }}>
-              <BentoTile label="52-week activity">
-                <ContributionHeatmap stats={dailyStats} today={effectiveToday} />
-              </BentoTile>
-            </div>
-          </section>
-
-          <section style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', color: 'var(--neon-txt-dim)', textTransform: 'uppercase', letterSpacing: '0.18em', margin: 0 }}>deep dive</h2>
-            <StatsExplorer dailyStats={dailyStats} machineStats={initialData.machineStats} today={effectiveToday} />
-          </section>
-        </>
-      )}
-
-      {/* ── TIER DISTRIBUTION VIEW ──────────────────────────────────────── */}
-      {view === 'tiers' && (
-        <div style={{ marginBottom: 24 }}>
-          <TierDistribution cohortAllTime={cohort} viewerTier={tierResult.tier} />
+      {/* 5 — Share card */}
+      <section>
+        <div style={{ maxWidth: 520, margin: '0 auto' }}>
+          <ShareCard
+            handle={user.github_handle}
+            overallTier={tierResult.tier}
+            todayTier={todayTier}
+            allTimeTokens={allTime.tokens}
+            todayTokens={tokensToday}
+            percentileToday={percentileToday}
+            rank={tierResult.rank}
+            viewerIsOwner={viewerIsOwner}
+            team={user.team}
+          />
         </div>
-      )}
+      </section>
 
-      {/* ── TEAM DAILY VIEW ─────────────────────────────────────────────── */}
-      {view === 'team' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <TeamScoreboard daily={teamDaily} allTime={teamAllTime} />
-          <GlobalLeaderboard data={leaderboardData} viewerId={user.id} today={effectiveToday} />
-        </div>
-      )}
+      {/* 6 — More stats (inline expandable deep dive) */}
+      <section>
+        <MoreStats
+          dailyStats={dailyStats}
+          machineStats={initialData.machineStats}
+          today={effectiveToday}
+          viewerId={user.id}
+          liveRanking={initialLiveRanking}
+        />
+      </section>
     </main>
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 12,
+        letterSpacing: '0.28em',
+        textTransform: 'uppercase',
+        color: 'var(--team-cx)',
+        textShadow: '0 0 14px rgba(60,216,255,0.6)',
+        marginBottom: 14,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function pickNowProject(projects: Record<string, number>): string | null {
-  const entries = Object.entries(projects).filter(([k]) => k && k !== '~' && k !== 'unknown').sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(projects)
+    .filter(([k]) => k && k !== '~' && k !== 'unknown')
+    .sort((a, b) => b[1] - a[1]);
   return entries[0]?.[0] ?? null;
 }

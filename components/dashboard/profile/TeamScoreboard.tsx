@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react';
 import { formatCompact } from '@/lib/format';
 import type { Scoreboard } from '@/lib/stats/team';
 
-type Mode = 'daily' | 'all';
+type Mode = 'daily' | 'week' | 'month' | 'all';
+
+const MODES: { id: Mode; label: string; eyebrow: string }[] = [
+  { id: 'daily', label: 'today', eyebrow: 'Today' },
+  { id: 'week', label: 'week', eyebrow: 'This week' },
+  { id: 'month', label: 'month', eyebrow: 'This month' },
+  { id: 'all', label: 'all-time', eyebrow: 'All-time' },
+];
 
 type Props = {
-  // Daily is the DEFAULT view (today's tokens_by_model split across the field),
-  // so it visibly changes through the day. All-time is the optional toggle.
-  daily: Scoreboard;
-  allTime: Scoreboard;
+  // One Scoreboard per window. Daily is the DEFAULT view (today's split across
+  // the field) so it visibly swings through the day.
+  boards: Record<Mode, Scoreboard>;
 };
 
 // Team Claude Code vs Team Codex scoreboard — Neon Arcade reskin (Task 3).
@@ -21,9 +27,10 @@ type Props = {
 // MOTION POLICY: the divider slides to the live split ONCE on mount (and on
 // toggle) via a single transform transition. No idle motion. Reduced-motion
 // snaps it to the resolved split (the existing .scoreboard-divider kill block).
-export function TeamScoreboard({ daily, allTime }: Props) {
+export function TeamScoreboard({ boards }: Props) {
   const [mode, setMode] = useState<Mode>('daily'); // daily is the default
-  const board = mode === 'daily' ? daily : allTime;
+  const board = boards[mode];
+  const eyebrow = MODES.find((m) => m.id === mode)!.eyebrow;
   const { claude, codex, claudePct, codexPct, leader } = board;
 
   // Start centered, then slide to the live split after mount (and whenever the
@@ -35,7 +42,7 @@ export function TeamScoreboard({ daily, allTime }: Props) {
   }, [claudePct]);
 
   return (
-    <div className="neon-frame" style={{ padding: 'clamp(18px, 4vw, 26px)' }}>
+    <div className="neon-glass" style={{ padding: 'clamp(18px, 4vw, 26px)' }}>
       <div
         style={{
           display: 'flex',
@@ -56,18 +63,18 @@ export function TeamScoreboard({ daily, allTime }: Props) {
             textShadow: '0 0 14px rgba(60,216,255,0.6)',
           }}
         >
-          Team Scoreboard · {mode === 'daily' ? 'Today' : 'All-time'}
+          Team Scoreboard · {eyebrow}
         </div>
-        {/* daily / all-time toggle — daily is the default + primary view */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['daily', 'all'] as Mode[]).map((m) => (
+        {/* today / week / month / all-time toggle — daily is the default */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {MODES.map((m) => (
             <button
-              key={m}
+              key={m.id}
               type="button"
-              onClick={() => setMode(m)}
-              style={chip(m === mode)}
+              onClick={() => setMode(m.id)}
+              style={chip(m.id === mode)}
             >
-              {m === 'daily' ? 'today' : 'all-time'}
+              {m.label}
             </button>
           ))}
         </div>
@@ -131,9 +138,9 @@ export function TeamScoreboard({ daily, allTime }: Props) {
           display: 'flex',
           justifyContent: 'space-between',
           marginTop: 12,
-          fontFamily: 'var(--font-display)',
+          fontFamily: 'var(--font-num)',
           fontWeight: 800,
-          fontSize: 20,
+          fontSize: 22,
         }}
       >
         <span style={{ color: 'var(--team-cc)', textShadow: '0 0 14px rgba(255,138,60,0.6)' }}>
@@ -167,7 +174,11 @@ export function TeamScoreboard({ daily, allTime }: Props) {
       >
         {mode === 'daily'
           ? 'Today across the field. This swings through the day. Pick a side and tip the balance.'
-          : 'Every loaded day combined. Pick a side and tip the balance.'}
+          : mode === 'week'
+            ? 'The last 7 days across the field. Pick a side and tip the balance.'
+            : mode === 'month'
+              ? 'This month across the field. Pick a side and tip the balance.'
+              : 'Every loaded day combined. Pick a side and tip the balance.'}
       </div>
     </div>
   );

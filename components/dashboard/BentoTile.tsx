@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 
 type Props = {
@@ -49,9 +48,9 @@ export function BentoTile({ label, sub, href, colSpan, rowSpan, className, child
 
   if (href) {
     return (
-      <Link href={href} prefetch={false} style={style} className={`bento-tile ${className ?? ''}`}>
+      <a href={href} style={style} className={`bento-tile ${className ?? ''}`}>
         {content}
-      </Link>
+      </a>
     );
   }
   return (

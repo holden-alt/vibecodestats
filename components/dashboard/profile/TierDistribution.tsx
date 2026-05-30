@@ -59,7 +59,7 @@ export function TierDistribution({ cohortAllTime, viewerTier }: Props) {
 
   return (
     <div
-      className="neon-frame neon-enter"
+      className="neon-glass neon-enter"
       style={{ padding: 'clamp(20px, 4vw, 28px)' }}
     >
       <div
@@ -178,7 +178,7 @@ export function TierDistribution({ cohortAllTime, viewerTier }: Props) {
               {/* Count */}
               <div
                 style={{
-                  fontFamily: 'var(--font-display)',
+                  fontFamily: 'var(--font-num)',
                   fontWeight: isViewer ? 900 : 700,
                   fontSize: 15,
                   fontVariantNumeric: 'tabular-nums',

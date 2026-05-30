@@ -1,3 +1,5 @@
+'use client';
+
 type SegmentedControlProps<T extends string> = {
   options: readonly { id: T; label: string }[];
   value: T;

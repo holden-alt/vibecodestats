@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Orbitron, Rajdhani } from 'next/font/google';
+import { Chakra_Petch, Sora, JetBrains_Mono } from 'next/font/google';
 import { todayLocal } from '@/lib/date';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -9,23 +9,35 @@ import { formatCompact } from '@/lib/format';
 import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
 
-// Neon Arcade display + body type, loaded on the profile (a neon surface) the
-// same way the landing page loads them. The `variable` option exposes the
-// families as CSS custom properties the .neon-* utilities reference once we
-// re-point --font-display / --font-body on the .neon-surface wrapper below.
-const orbitron = Orbitron({
+// Neon Arcade v2 type (legibility overhaul): Chakra Petch (display) + Sora
+// (body) + JetBrains Mono (every number). Loaded on the profile (a neon
+// surface) the same way the landing page loads them. The `variable` option
+// exposes each family as a CSS custom property the .neon-* utilities reference
+// once we re-point --font-display / --font-body / --font-num on the
+// .neon-surface wrapper below.
+const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
-  weight: ['500', '700', '900'],
+  weight: ['500', '600', '700'],
   variable: '--neon-font-display',
   display: 'swap',
 });
-const rajdhani = Rajdhani({
+const sora = Sora({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: ['400', '500', '600', '700', '800'],
   variable: '--neon-font-body',
   display: 'swap',
 });
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+  variable: '--neon-font-num',
+  display: 'swap',
+});
 
+
+// Bump when the OG card design changes so social crawlers re-scrape (the URL
+// changes → X/LinkedIn treat it as new). v2 = the foil-face ShareCard redesign.
+const OG_CARD_VERSION = 'v2';
 
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;
@@ -74,7 +86,11 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   // to social crawlers directly. See: vercel/next.js#78511 for the
   // X-crawler-needs-explicit-descriptor regression we sidestep here.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
-  const staticOgUrl = ogImageUrl(handle);
+  // Version the og:image URL so X / LinkedIn re-scrape a fresh card. OG_CARD_VERSION
+  // bumps whenever the card design changes (forces a re-scrape after a redeploy);
+  // the trailing day rotates the URL daily so active users' cards stay current
+  // once the stored PNG is regenerated (on ingest push / the backfill script).
+  const staticOgUrl = `${ogImageUrl(handle)}?v=${OG_CARD_VERSION}-${today}`;
   const ogImage = {
     url: staticOgUrl,
     secureUrl: staticOgUrl,
@@ -87,6 +103,7 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   return {
     title,
     description,
+    alternates: { canonical: `/${handle}` },
     openGraph: {
       title,
       description,
@@ -124,15 +141,37 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   const liveRanking = await getLiveRanking(supabase, data.user.id, today);
 
+  // ProfilePage / Person structured data so search + AI crawlers understand the
+  // page is a person's profile. `<` is escaped so a GitHub-derived name/handle
+  // can never break out of the <script> tag.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
+  const profileJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    url: `${siteUrl}/${data.user.github_handle}`,
+    mainEntity: {
+      '@type': 'Person',
+      name: data.user.display_name || `@${data.user.github_handle}`,
+      alternateName: `@${data.user.github_handle}`,
+      url: `${siteUrl}/${data.user.github_handle}`,
+      ...(data.user.avatar_url ? { image: data.user.avatar_url } : {}),
+    },
+  };
+
   return (
     <div
-      className={`neon-surface ${orbitron.variable} ${rajdhani.variable}`}
+      className={`neon-surface ${chakraPetch.variable} ${sora.variable} ${jetbrainsMono.variable}`}
       style={{
-        ['--font-display' as string]: 'var(--neon-font-display), "Orbitron", ui-monospace, monospace',
-        ['--font-body' as string]: 'var(--neon-font-body), "Rajdhani", system-ui, sans-serif',
+        ['--font-display' as string]: 'var(--neon-font-display), "Chakra Petch", ui-monospace, monospace',
+        ['--font-body' as string]: 'var(--neon-font-body), "Sora", system-ui, sans-serif',
+        ['--font-num' as string]: 'var(--neon-font-num), "JetBrains Mono", ui-monospace, monospace',
         minHeight: '100vh',
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd).replace(/</g, '\\u003c') }}
+      />
       <ProfileLive
         initialData={data}
         leaderboardData={leaderboardData}

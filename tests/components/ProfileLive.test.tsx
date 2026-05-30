@@ -62,109 +62,54 @@ const initialLiveRanking: LiveRanking = {
   top: [],
 };
 
-describe('ProfileLive (new layout)', () => {
-  it('renders the handle in the identity strip', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
+describe('ProfileLive (v2 single-page layout)', () => {
+  const baseProps = {
+    initialData,
+    leaderboardData,
+    today: '2026-05-19',
+    initialLiveRanking,
+    viewerIsOwner: false,
+    hasEverPushed: true,
+  } as const;
+
+  it('renders the handle in the identity bar', () => {
+    render(<ProfileLive {...baseProps} />);
     expect(screen.getAllByText('@holden-alt').length).toBeGreaterThan(0);
   });
-  it('renders the global rank label in the live rank tile', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
-    expect(screen.getByText(/global rank/i)).toBeInTheDocument();
+
+  it('derives the rolling-90d tier badge letter (sole cohort member => S)', () => {
+    // recent90ByUser is absent here, so the tier falls back to allTimeByUser =
+    // { u1: 487231 }: a single active-cohort member is percentile 0 => S. The S
+    // letter shows on the IdentityBar tier badge (and other surfaces).
+    render(<ProfileLive {...baseProps} />);
+    expect(screen.getAllByText('S').length).toBeGreaterThan(0);
   });
-  it('shows setup banner when viewer is owner and has never pushed', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={true}
-        hasEverPushed={false}
-      />,
-    );
+
+  it('shows the Standings and Your-tokens sections by default (no view tabs)', () => {
+    render(<ProfileLive {...baseProps} />);
+    expect(screen.getByText(/standings/i)).toBeInTheDocument();
+    expect(screen.getByText(/your tokens/i)).toBeInTheDocument();
+  });
+
+  it('renders the Team Scoreboard inline (no view switch needed)', () => {
+    render(<ProfileLive {...baseProps} />);
+    expect(screen.getByText(/Team Scoreboard · Today/i)).toBeInTheDocument();
+  });
+
+  it('shows the setup banner when viewer is owner and has never pushed', () => {
+    render(<ProfileLive {...baseProps} viewerIsOwner hasEverPushed={false} />);
     expect(screen.getByText(/your stats aren't flowing yet/i)).toBeInTheDocument();
     expect(screen.getByText(/set up sync/i)).toBeInTheDocument();
   });
 
-  it('renders the derived tier badge letter (sole cohort member => S)', () => {
-    // allTime.tokens = 487231 and allTimeByUser = { u1: 487231 }, so the single
-    // active-cohort member is percentile 0 => S. The S letter is rendered on the
-    // identity-header tier pill and the player-card foil tier badge.
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
-    expect(screen.getAllByText('S').length).toBeGreaterThan(0);
-  });
-
-  it('renders the Team Scoreboard after switching to the Team Daily view', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
-    // Team Scoreboard is a primary view, not the default Overview. Switch to it.
-    fireEvent.click(screen.getByRole('button', { name: /team daily/i }));
-    expect(screen.getByText(/Team Scoreboard · Today/i)).toBeInTheDocument();
-  });
-
-  it('exposes Tier Distribution as a primary view with a you-are-here marker', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: /tier distribution/i }));
-    expect(screen.getByText(/where the/i)).toBeInTheDocument();
-    expect(screen.getByText(/you are here/i)).toBeInTheDocument();
-  });
-
-  it('keeps the TokenTrendChart tile rendered (KEEP guard)', () => {
-    render(
-      <ProfileLive
-        initialData={initialData}
-        leaderboardData={leaderboardData}
-        today="2026-05-19"
-        initialLiveRanking={initialLiveRanking}
-        viewerIsOwner={false}
-        hasEverPushed={true}
-      />,
-    );
-    // TokenTrendChart lives in the "30-day trend" BentoTile in rolling stats.
-    expect(screen.getByText(/30-day trend/i)).toBeInTheDocument();
+  it('keeps the deep-dive (More stats) collapsed by default and expands on click', () => {
+    render(<ProfileLive {...baseProps} />);
+    // "More stats" trigger is present and collapsed (aria-expanded=false).
+    expect(screen.getByText('More stats')).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: /show more/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    // After expanding, the trigger flips to Hide / aria-expanded=true.
+    expect(screen.getByRole('button', { name: /hide/i })).toHaveAttribute('aria-expanded', 'true');
   });
 });

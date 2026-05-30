@@ -70,15 +70,23 @@
   --neon-glow-purple: rgba(155, 92, 255, 0.5);
   --neon-glow-foil: rgba(255, 90, 200, 0.6);
 
-  /* Glass panel surface (dark translucent + subtle edge). */
-  --glass-panel: rgba(16, 8, 28, 0.62);
+  /* Glass panel surface (dark translucent + subtle edge). v2: more opaque
+     faces for legibility (Holden's #1 ask) — data reads on a solid-feeling
+     dark glass, not a washed-out translucent panel. */
+  --glass-panel: rgba(10, 4, 22, 0.96);
   --glass-blur: 14px;
-  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-edge: rgba(255, 255, 255, 0.14);
 
-  /* Display + body type. Orbitron/Rajdhani are loaded by the layout when a
-     neon surface is mounted; system fallbacks keep legacy pages intact. */
-  --font-display: "Orbitron", var(--font-mono);
-  --font-body: "Rajdhani", system-ui, sans-serif;
+  /* Type system (legibility-first arcade, v2). Loaded via next/font on neon
+     surfaces; system fallbacks keep legacy pages intact.
+       display = techy headings (Chakra Petch)
+       body    = readable sans (Sora)
+       num     = tabular MONOSPACE (JetBrains Mono) for EVERY stat/number so
+                 data reads like a scoreboard. Was Orbitron/Rajdhani — numbers
+                 were unreadable. */
+  --font-display: "Chakra Petch", var(--font-mono);
+  --font-body: "Sora", system-ui, sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @theme inline {
@@ -392,7 +400,8 @@ html, body { overflow-x: hidden; }
   filter: saturate(160%);
 }
 .neon-frame::after {
-  /* outer bloom glow (static placed) */
+  /* outer bloom glow (static placed). v2: dialed down so the foil is an accent,
+     not a wash — keeps card faces legible (no foil-on-foil bloom). */
   content: "";
   position: absolute;
   inset: -2px;
@@ -400,7 +409,7 @@ html, body { overflow-x: hidden; }
   background-image: var(--foil-flow);
   background-size: 300% 100%;
   filter: blur(22px);
-  opacity: 0.3;
+  opacity: 0.15;
   z-index: -2;
   transition: opacity 0.5s ease;
 }
@@ -549,4 +558,17 @@ html, body { overflow-x: hidden; }
   .neon-row-in { animation: none !important; }
   .neon-sheen-bar { transition: none !important; }
   .neon-row { transition: none !important; }
+}
+
+/* Redesign (v2): side-by-side Standings section (leaderboard + tier
+   distribution/percentile column), collapses to one column on narrow
+   viewports. */
+.cc-world-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .cc-world-grid { grid-template-columns: 1fr; }
 }

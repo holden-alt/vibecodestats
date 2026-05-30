@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { Orbitron, Rajdhani } from 'next/font/google';
+import { Chakra_Petch, Sora, JetBrains_Mono } from 'next/font/google';
 import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { formatCompact } from '@/lib/format';
 import { LandingHero, HeroCardPreview } from '@/components/landing/LandingHero';
+import { InstallBlock } from '@/components/landing/InstallBlock';
 
 // Neon Arcade display + body type. Loaded here (the landing page) rather than
 // in the root layout: root-layout.test.tsx asserts the layout imports no
@@ -11,18 +12,44 @@ import { LandingHero, HeroCardPreview } from '@/components/landing/LandingHero';
 // The `variable` option exposes the families as CSS custom properties that the
 // .neon-* utility classes (which reference --font-display / --font-body) pick up
 // when we re-point those vars on the .neon-surface wrapper.
-const orbitron = Orbitron({
+const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
-  weight: ['500', '700', '900'],
+  weight: ['500', '600', '700'],
   variable: '--neon-font-display',
   display: 'swap',
 });
-const rajdhani = Rajdhani({
+const sora = Sora({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: ['400', '500', '600', '700', '800'],
   variable: '--neon-font-body',
   display: 'swap',
 });
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+  variable: '--neon-font-num',
+  display: 'swap',
+});
+
+// Self-referential canonical for the homepage (metadataBase = www, set in the
+// root layout). Title/description/OG are inherited from the layout's site
+// metadata; we only add the canonical here.
+export const metadata = {
+  alternates: { canonical: '/' },
+};
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
+
+// WebSite structured data so search + AI crawlers understand what the site is.
+const WEBSITE_JSONLD = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'vibecodestats.dev',
+  alternateName: 'the tokenmaxxing leaderboard',
+  url: SITE_URL,
+  description:
+    'Free public leaderboard for Claude Code + Codex token usage. Find out where you rank by tier and team.',
+};
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -41,15 +68,22 @@ export default async function HomePage() {
 
   return (
     <main
-      className={`neon-surface ${orbitron.variable} ${rajdhani.variable}`}
+      className={`neon-surface ${chakraPetch.variable} ${sora.variable} ${jetbrainsMono.variable}`}
       style={{
         // Re-point the literal font-family vars the .neon-* utilities reference
         // at the hashed next/font families, with the loaded fonts first.
-        ['--font-display' as string]: `var(--neon-font-display), "Orbitron", ${'ui-monospace, monospace'}`,
-        ['--font-body' as string]: `var(--neon-font-body), "Rajdhani", system-ui, sans-serif`,
+        ['--font-display' as string]: `var(--neon-font-display), "Chakra Petch", ui-monospace, monospace`,
+        ['--font-body' as string]: `var(--neon-font-body), "Sora", system-ui, sans-serif`,
+        ['--font-num' as string]: `var(--neon-font-num), "JetBrains Mono", ui-monospace, monospace`,
         minHeight: '100vh',
       }}
     >
+      <script
+        type="application/ld+json"
+        // Escape `<` so a value can never break out of the <script> tag.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSONLD).replace(/</g, '\\u003c') }}
+      />
+
       <LandingHero />
 
       <HeroCardPreview />
@@ -185,7 +219,7 @@ export default async function HomePage() {
             marginBottom: 10,
           }}
         >
-          How it works
+          How to get a profile
         </div>
         <h2
           style={{
@@ -197,7 +231,7 @@ export default async function HomePage() {
             marginBottom: 24,
           }}
         >
-          Three steps to a <span className="neon-foil-text">card</span>
+          Three steps to your <span className="neon-foil-text">profile</span>
         </h2>
         <ol
           style={{
@@ -224,6 +258,7 @@ export default async function HomePage() {
             body="Profile updates live as you code. Climb the leaderboard. Share your card."
           />
         </ol>
+        <InstallBlock />
       </section>
 
       {/* FOOTER */}
@@ -272,7 +307,22 @@ export default async function HomePage() {
           </a>
         </div>
         <div style={{ marginTop: 14, fontSize: 12, letterSpacing: '0.06em', opacity: 0.7 }}>
-          The tokenmaxxing leaderboard · Season 1 · America/New_York
+          The tokenmaxxing leaderboard · America/New_York
+        </div>
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            letterSpacing: '0.04em',
+            opacity: 0.55,
+            maxWidth: 620,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}
+        >
+          Claude Code and Codex are trademarks of Anthropic and OpenAI respectively.
+          vibecodestats.dev is an independent project and is not affiliated with or endorsed by
+          either.
         </div>
       </footer>
     </main>

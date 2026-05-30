@@ -11,16 +11,31 @@ describe('TeamScoreboard: daily default, percentages, sliding divider, toggle', 
     codexPct: 40,
     leader: 'claude_code',
   };
-  const allTime: Scoreboard = {
+  const week: Scoreboard = {
+    claude: 500,
+    codex: 500,
+    claudePct: 50,
+    codexPct: 50,
+    leader: 'claude_code',
+  };
+  const month: Scoreboard = {
+    claude: 450,
+    codex: 550,
+    claudePct: 45,
+    codexPct: 55,
+    leader: 'codex',
+  };
+  const all: Scoreboard = {
     claude: 300,
     codex: 700,
     claudePct: 30,
     codexPct: 70,
     leader: 'codex',
   };
+  const boards = { daily, week, month, all };
 
   it('DEFAULTS to the daily view and shows both camp percentage readouts', () => {
-    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    render(<TeamScoreboard boards={boards} />);
     // Daily is the default label + the daily split (60/40), not the all-time split.
     expect(screen.getByText(/Team Scoreboard · Today/i)).toBeInTheDocument();
     expect(screen.getByText('60%')).toBeInTheDocument();
@@ -28,7 +43,7 @@ describe('TeamScoreboard: daily default, percentages, sliding divider, toggle', 
   });
 
   it('places the divider at the live daily split (translateX(60%)) after mount', () => {
-    const { container } = render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    const { container } = render(<TeamScoreboard boards={boards} />);
     const divider = container.querySelector('.scoreboard-divider') as HTMLElement | null;
     expect(divider).not.toBeNull();
     // useEffect ran on mount, moving the divider from the centered 50% start to
@@ -37,7 +52,7 @@ describe('TeamScoreboard: daily default, percentages, sliding divider, toggle', 
   });
 
   it('switches to the all-time split when the all-time toggle is clicked', () => {
-    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    render(<TeamScoreboard boards={boards} />);
     fireEvent.click(screen.getByRole('button', { name: /all-time/i }));
     expect(screen.getByText(/Team Scoreboard · All-time/i)).toBeInTheDocument();
     expect(screen.getByText('30%')).toBeInTheDocument();
@@ -45,7 +60,7 @@ describe('TeamScoreboard: daily default, percentages, sliding divider, toggle', 
   });
 
   it('shows both team labels', () => {
-    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    render(<TeamScoreboard boards={boards} />);
     expect(screen.getByText('TEAM CLAUDE CODE')).toBeInTheDocument();
     expect(screen.getByText('TEAM CODEX')).toBeInTheDocument();
   });

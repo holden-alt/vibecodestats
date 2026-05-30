@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { computeTier, type Tier } from '@/lib/stats/tier';
+import { todayLocal } from '@/lib/date';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,13 +20,17 @@ export interface CardData {
   peakDay: number;         // max single-day tokens_total
   sessions: number;        // all-time sessions sum
   activeDays: number;      // count of daily_stats rows with tokens_total > 0
+  // --- today (the v2 share card advertises today's number) ---
+  todayTokens: number;      // viewer's tokens_total for today (0 if no push today)
+  todayTier: Tier;          // tier among today's ACTIVE field
+  todayPercentLabel: number; // "TOP N% TODAY" — max(1, ceil(rank/total*100)); 100 if not on today's board
 }
 
 // ---------------------------------------------------------------------------
 // Per-user all-time stats (from this user's own daily_stats)
 // ---------------------------------------------------------------------------
 
-type DailyRow = { tokens_total: number; sessions: number };
+type DailyRow = { date: string; tokens_total: number; sessions: number };
 
 function computeUserStats(rows: DailyRow[]): {
   allTimeTokens: number;
@@ -77,7 +82,7 @@ export async function getCardData(
   // 2. Fetch this user's own daily_stats rows (all columns we need).
   const { data: userStats } = await supabase
     .from('daily_stats')
-    .select('tokens_total, sessions')
+    .select('date, tokens_total, sessions')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .limit(STATS_LIMIT);
@@ -107,6 +112,36 @@ export async function getCardData(
   // 4. Compute tier + rank from the cohort.
   const tierResult = computeTier(allTimeTokens, cohortTotals);
 
+  // 5. Today's field: tier + "top N% today" among everyone active that day.
+  //    "Effective today" = the literal local day, or — if this user hasn't
+  //    pushed yet today — their most recent active day, so the card matches the
+  //    web profile's effectiveToday fallback instead of flashing "Today 0 / HC"
+  //    for an active user on a quiet morning. The cohort is keyed to the SAME
+  //    day so the percentile is computed against the right field.
+  const today = todayLocal();
+  const latestUserDate = myRows[0]?.date ?? today; // myRows is ordered date desc
+  const effectiveToday = myRows.some((r) => r.date === today) ? today : latestUserDate;
+  const todayTokens = myRows.find((r) => r.date === effectiveToday)?.tokens_total ?? 0;
+
+  const { data: todayRows } = await supabase
+    .from('daily_stats')
+    .select('user_id, tokens_total')
+    .eq('date', effectiveToday);
+
+  const todayField = ((todayRows ?? []) as { user_id: string; tokens_total: number }[]).map((r) => ({
+    user_id: r.user_id,
+    tokens: Number(r.tokens_total ?? 0),
+  }));
+  const todayCohort = todayField.map((r) => r.tokens);
+  const todayTier = computeTier(todayTokens, todayCohort).tier;
+  // "Top N% today" via rank-over-total (same semantics as the web ShareCard):
+  // best possible is max(1, ...). 100 when the user isn't on that day's board.
+  const todaySorted = [...todayField].sort((a, b) => b.tokens - a.tokens);
+  const todayRank = todaySorted.findIndex((r) => r.user_id === user.id) + 1; // 0 => not found
+  const todayTotal = todaySorted.length;
+  const todayPercentLabel =
+    todayRank > 0 && todayTotal > 0 ? Math.max(1, Math.ceil((todayRank / todayTotal) * 100)) : 100;
+
   return {
     handle: user.github_handle,
     displayName: user.display_name,
@@ -120,5 +155,8 @@ export async function getCardData(
     peakDay,
     sessions,
     activeDays,
+    todayTokens,
+    todayTier,
+    todayPercentLabel,
   };
 }

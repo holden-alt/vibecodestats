@@ -5,15 +5,17 @@ import { getCardData } from '@/lib/og/card-data';
 // Mock helpers
 // ---------------------------------------------------------------------------
 
-// getCardData issues daily_stats twice:
-//   1st: .select('tokens_total, sessions').eq(user_id).order().limit()  → per-user stats
-//   2nd: .select('user_id, tokens_total').order().limit()               → cohort totals
+// getCardData issues daily_stats three times:
+//   1st: .select('date, tokens_total, sessions').eq(user_id).order().limit()  → per-user stats
+//   2nd: .select('user_id, tokens_total').order().limit()                      → cohort totals
+//   3rd: .select('user_id, tokens_total').eq('date', effectiveToday)           → today's field
 // We dispatch by tracking how many times from('daily_stats') has been called.
 
 function mockSupabase(
   userRow: unknown,
-  userDailyStats: { tokens_total: number; sessions: number }[],
+  userDailyStats: { date?: string; tokens_total: number; sessions: number }[],
   cohortRows: { user_id: string; tokens_total: number }[],
+  todayRows: { user_id: string; tokens_total: number }[] = [],
 ) {
   let dailyStatsCallCount = 0;
 
@@ -29,7 +31,7 @@ function mockSupabase(
         };
       }
 
-      // daily_stats — first call = per-user query, second call = cohort query
+      // daily_stats — 1=per-user, 2=cohort, 3=today's field
       dailyStatsCallCount += 1;
       const callIndex = dailyStatsCallCount;
 
@@ -46,12 +48,21 @@ function mockSupabase(
         };
       }
 
-      // Cohort chain: .select().order().limit()
+      if (callIndex === 2) {
+        // Cohort chain: .select().order().limit()
+        return {
+          select: () => ({
+            order: () => ({
+              limit: vi.fn(async () => ({ data: cohortRows, error: null })),
+            }),
+          }),
+        };
+      }
+
+      // Today's-field chain: .select().eq()
       return {
         select: () => ({
-          order: () => ({
-            limit: vi.fn(async () => ({ data: cohortRows, error: null })),
-          }),
+          eq: vi.fn(async () => ({ data: todayRows, error: null })),
         }),
       };
     }),
@@ -182,5 +193,24 @@ describe('getCardData', () => {
     const result = await getCardData(supabase as never, 'top-coder');
     expect(result!.activeDays).toBe(2);         // only the two non-zero rows
     expect(result!.allTimeTokens).toBe(1_500_000); // zero row excluded from sum correctly
+  });
+
+  it('computes today tier + top% from the effective-today field', async () => {
+    // The user's latest active day stands in for "today" (effectiveToday). On
+    // that day the field is [top-coder 5M, mid-coder 2M], so top-coder is #1 of
+    // 2 → S tier today, top 50% today.
+    const dated = [
+      { date: '2026-05-29', tokens_total: 5_000_000, sessions: 10 },
+      { date: '2026-05-28', tokens_total: 3_000_000, sessions: 8 },
+    ];
+    const todayField = [
+      { user_id: 'u1', tokens_total: 5_000_000 }, // the viewer
+      { user_id: 'u2', tokens_total: 2_000_000 },
+    ];
+    const supabase = mockSupabase(USER_TOP, dated, COHORT_ROWS, todayField);
+    const result = await getCardData(supabase as never, 'top-coder');
+    expect(result!.todayTokens).toBe(5_000_000);
+    expect(result!.todayTier).toBe('S');
+    expect(result!.todayPercentLabel).toBe(50); // rank 1 of 2 → ceil(1/2*100)
   });
 });

@@ -1,15 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { rankUsers } from '@/lib/stats/leaderboard';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
 import { formatCompact } from '@/lib/format';
 
-type Metric = 'tokens' | 'sessions' | 'ships';
 type Window = 'today' | 'week' | 'month' | 'all';
 
-const METRICS: Metric[] = ['tokens', 'sessions', 'ships'];
 const WINDOWS: Window[] = ['today', 'week', 'month', 'all'];
 
 type Props = {
@@ -18,15 +15,16 @@ type Props = {
   today: string;
 };
 
+// Tokens-only world leaderboard. Default window is TODAY (the live, swingy view);
+// week/month/all are tabs. Metric is fixed to tokens by design — this is the
+// headline ranking, not a stats explorer.
 export function GlobalLeaderboard({ data, viewerId, today }: Props) {
-  // Default: tokens + week.
-  const [metric, setMetric] = useState<Metric>('tokens');
-  const [window, setWindow] = useState<Window>('week');
+  const [window, setWindow] = useState<Window>('today');
   const [expanded, setExpanded] = useState(false);
 
   const ranked = useMemo(
-    () => rankUsers(data, { metric, window, scope: 'global', viewerId, today }),
-    [data, metric, window, viewerId, today],
+    () => rankUsers(data, { metric: 'tokens', window, scope: 'global', viewerId, today }),
+    [data, window, viewerId, today],
   );
 
   const viewerEntry = ranked.find((e) => e.isViewer);
@@ -48,17 +46,10 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
         >
           global leaderboard
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {METRICS.map((m) => (
-              <button key={m} onClick={() => setMetric(m)} style={pill(m === metric)}>{m}</button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {WINDOWS.map((w) => (
-              <button key={w} onClick={() => setWindow(w)} style={pill(w === window)}>{w}</button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {WINDOWS.map((w) => (
+            <button key={w} onClick={() => setWindow(w)} style={pill(w === window)}>{w}</button>
+          ))}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -67,7 +58,7 @@ export function GlobalLeaderboard({ data, viewerId, today }: Props) {
             <Row key={e.userId} rank={e.rank} handle={e.handle} value={e.value} max={max} viewer={e.isViewer} index={i} />
           ))}
           {ranked.length === 0 && (
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--neon-txt-dim)' }}>no data yet for {metric} · {window}</div>
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--neon-txt-dim)' }}>no tokens logged yet · {window}</div>
           )}
         </div>
         {showViewerRow && (
@@ -107,7 +98,7 @@ function Row({ rank, handle, value, max, viewer, index }: { rank: number; handle
   const isFirst = rank === 1;
   const barColor = viewer ? 'var(--team-cc)' : 'var(--team-cx)';
   return (
-    <Link href={`/${handle}`} prefetch={false} style={{ textDecoration: 'none', color: 'inherit' }}>
+    <a href={`/${handle}`} style={{ textDecoration: 'none', color: 'inherit' }}>
       <div
         className="neon-row neon-row-in"
         style={{
@@ -124,7 +115,7 @@ function Row({ rank, handle, value, max, viewer, index }: { rank: number; handle
         <span
           className={isFirst ? 'neon-foil-text-static' : undefined}
           style={{
-            fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 16,
+            fontFamily: 'var(--font-num)', fontWeight: 900, fontSize: 16,
             width: 30, textAlign: 'right',
             color: isFirst ? undefined : 'var(--neon-txt-dim)',
           }}
@@ -157,7 +148,7 @@ function Row({ rank, handle, value, max, viewer, index }: { rank: number; handle
         <span
           className={isFirst ? 'neon-foil-text-static' : undefined}
           style={{
-            fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14,
+            fontFamily: 'var(--font-num)', fontWeight: 800, fontSize: 14,
             minWidth: 56, textAlign: 'right',
             color: isFirst ? undefined : 'var(--neon-txt)',
           }}
@@ -165,7 +156,7 @@ function Row({ rank, handle, value, max, viewer, index }: { rank: number; handle
           {formatCompact(value)}
         </span>
       </div>
-    </Link>
+    </a>
   );
 }
 

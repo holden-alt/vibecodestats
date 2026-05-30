@@ -4,8 +4,10 @@ import type { Database } from '@/lib/types/database';
 import { canonicalRedirectUrl } from '@/lib/canonical';
 
 export async function updateSession(request: NextRequest) {
-  // Canonicalize www -> apex BEFORE auth: the PKCE verifier cookie is host-only,
-  // so a sign-in must start and finish on the same host. Keep one canonical origin.
+  // Canonicalize apex -> www BEFORE auth (see lib/canonical.ts): the apex
+  // worker-route is wedged on CF's edge, so www is the served + canonical host.
+  // The PKCE verifier cookie is host-only, so a sign-in must start and finish on
+  // the same host. Keep one canonical origin.
   const canonical = canonicalRedirectUrl(request.url);
   if (canonical) return NextResponse.redirect(canonical, 308);
 

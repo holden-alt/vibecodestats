@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
-import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
 
 // Neon Arcade v2 type (legibility overhaul): Chakra Petch (display) + Sora
@@ -35,16 +34,22 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 
-// Bump when the OG card design changes so social crawlers re-scrape (the URL
-// changes → X/LinkedIn treat it as new). v2 = the foil-face ShareCard redesign.
+// Fallback token for the og:image URL on a BARE profile link (no share token).
+// Bump on a card-design change to force crawlers to re-scrape the bare URL.
 const OG_CARD_VERSION = 'v2';
 
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: ProfilePageProps): Promise<Metadata> {
   const { handle } = await params;
+  // The "Share on X" button appends ?v=<unique> to the profile link. Thread it
+  // into the og:image URL so every share is a brand-new image URL X has never
+  // cached → it must fetch the card fresh (X holds images ~7 days per URL).
+  const sp = (await searchParams) ?? {};
+  const shareToken = typeof sp.v === 'string' ? sp.v : undefined;
   const supabase = await createClient();
 
   const { data: user } = await supabase
@@ -76,24 +81,22 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
     ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard. Track your own Claude Code + Codex usage too.`
     : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage.`;
 
-  // Point at the pre-rendered static PNG in Supabase Storage rather than the
-  // edge-rendered route. X / LinkedIn / FB bots get a boring static asset
-  // from a CDN — no edge runtime, no Satori, no cache games. The PNG is
-  // refreshed on every /api/ingest push (fire-and-forget, see lib/og/regenerate).
+  // og:image points at the DYNAMIC route (/[handle]/opengraph-image), which
+  // renders the card live — so a share always gets the EXACT current card, no
+  // stored-PNG lag. The token makes the URL unique per share (threaded from the
+  // share button) so X re-fetches; a bare link falls back to a daily-stable
+  // token. We set the descriptor (width/height/type) explicitly, which is what
+  // a crawler wants from a dynamic OG route.
   //
-  // The og:image route at /[handle]/opengraph-image still exists as the
-  // canonical generator that /api/ingest fetches; we just don't expose it
-  // to social crawlers directly. See: vercel/next.js#78511 for the
-  // X-crawler-needs-explicit-descriptor regression we sidestep here.
+  // The static Storage PNG path (lib/og/regenerate.ts + scripts/regenerate-all-og.mjs)
+  // stays in place as a one-line-revert fallback: swap ogUrl back to
+  // `${ogImageUrl(handle)}?v=${ogToken}` if a crawler ever mishandles the route.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
-  // Version the og:image URL so X / LinkedIn re-scrape a fresh card. OG_CARD_VERSION
-  // bumps whenever the card design changes (forces a re-scrape after a redeploy);
-  // the trailing day rotates the URL daily so active users' cards stay current
-  // once the stored PNG is regenerated (on ingest push / the backfill script).
-  const staticOgUrl = `${ogImageUrl(handle)}?v=${OG_CARD_VERSION}-${today}`;
+  const ogToken = shareToken ?? `${OG_CARD_VERSION}-${today}`;
+  const ogUrl = `${siteUrl}/${encodeURIComponent(handle)}/opengraph-image?v=${encodeURIComponent(ogToken)}`;
   const ogImage = {
-    url: staticOgUrl,
-    secureUrl: staticOgUrl,
+    url: ogUrl,
+    secureUrl: ogUrl,
     type: 'image/png',
     width: 1200,
     height: 630,

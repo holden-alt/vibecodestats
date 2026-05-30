@@ -33,10 +33,13 @@ export function ShareCard({ handle, overallTier, todayTier, allTimeTokens, today
   const teamLabel = team === 'codex' ? 'TEAM CODEX' : team === 'claude_code' ? 'TEAM CLAUDE CODE' : null;
 
   function shareOnX() {
-    // Unique cache-bust per click → X treats it as a new URL and re-scrapes the
-    // OG image, so old/stale cards never get served.
-    const v = Date.now().toString(36);
-    const url = `${profileUrl}?v=${v}`;
+    // Share the BARE profile URL — the one X reliably scrapes fresh. A per-click
+    // ?v cache-bust seemed clever but backfired: it mints a unique URL each
+    // share, and X freezes whatever it first scraped for that URL for ~a week.
+    // Any share whose first scrape caught a transient bad state stays broken.
+    // The canonical URL is the one X keeps current; the stored OG PNG (refreshed
+    // on each ingest push) keeps the card content fresh.
+    const url = profileUrl;
     const tokens = formatCompact(todayTokens);
     const text = viewerIsOwner
       ? `${tokens} AI tokens today — ${letter(overallTier)}-tier, top ${percentileToday}% on vibecodestats.dev, the tokenmaxxing leaderboard for Claude Code + Codex`

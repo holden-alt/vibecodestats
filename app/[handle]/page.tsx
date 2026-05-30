@@ -35,9 +35,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 
-// Fallback token for the og:image URL on a BARE profile link (no share token).
-// Bump on a card-design change to force crawlers to re-scrape the bare URL.
-const OG_CARD_VERSION = 'v2';
+// Cache-key for the og:image URL. Bump on a card-design change OR after a
+// backfill so the image URL is one no CDN edge has cached with stale bytes —
+// every crawler region then fetches the current PNG. (v3 = post-v2-backfill.)
+const OG_CARD_VERSION = 'v3';
 
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;

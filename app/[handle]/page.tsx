@@ -102,6 +102,13 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
     height: 630,
     alt: title,
   };
+  // og:url carries the share token too. X keys/dedupes its card cache by og:url,
+  // so a bare canonical here would collapse every ?v=<token> share back to one
+  // cached card. With the token, each share is a distinct card X must scrape.
+  // (The SEO canonical stays bare via alternates.canonical below.)
+  const ogPageUrl = shareToken
+    ? `${siteUrl}/${handle}?v=${encodeURIComponent(shareToken)}`
+    : `${siteUrl}/${handle}`;
 
   return {
     title,
@@ -111,7 +118,7 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
       title,
       description,
       type: 'profile',
-      url: `${siteUrl}/${handle}`,
+      url: ogPageUrl,
       siteName: 'vibecodestats.dev',
       images: [ogImage],
     },

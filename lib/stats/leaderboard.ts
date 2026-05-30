@@ -24,6 +24,7 @@ export type LeaderboardData = {
   friendUserIds: string[]; // the viewer's friends' user ids
   viewerGroups: Group[]; // every group the viewer belongs to, with per-group membership
   allTimeByUser: Record<string, number>; // sum of tokens_total across the loaded daily_stats (see STATS_LIMIT note in leaderboard-data.ts) per user
+  recent90ByUser?: Record<string, number>; // rolling-90-day token total per user — the tier cohort when present (tier = current form, not lifetime)
 };
 
 export type RankedEntry = {
@@ -87,9 +88,11 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
   const { metric, window, scope, viewerId, today, groupId } = opts;
   const inScope = scopedUserIds(data, scope, viewerId, groupId);
 
-  // Tier cohort: all users' all-time token totals (not scope-filtered — tier is a
-  // global identity badge, not relative to the current leaderboard scope).
-  const cohort = Object.values(data.allTimeByUser);
+  // Tier cohort: rolling-90-day token totals when available (tier = current
+  // form), else all-time. Not scope-filtered — tier is a global badge, not
+  // relative to the current leaderboard scope.
+  const tierSource = data.recent90ByUser ?? data.allTimeByUser;
+  const cohort = Object.values(tierSource);
 
   const entries = data.users
     .filter((u) => inScope.has(u.id))
@@ -108,6 +111,6 @@ export function rankUsers(data: LeaderboardData, opts: RankOptions): RankedEntry
     ...e,
     rank: i + 1,
     isViewer: e.userId === viewerId,
-    tier: computeTier(data.allTimeByUser[e.userId] ?? 0, cohort).tier,
+    tier: computeTier(tierSource[e.userId] ?? 0, cohort).tier,
   }));
 }

@@ -3,6 +3,7 @@ import type { Database } from '@/lib/types/database';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import type { Group, LeaderboardData } from '@/lib/stats/leaderboard';
 import { computeAllTimeTotals } from '@/lib/stats/aggregations';
+import { todayLocal } from '@/lib/date';
 
 const STATS_LIMIT = 4000; // ~6 users x ~hundreds of days of headroom for v1
 
@@ -80,6 +81,20 @@ export async function getLeaderboardData(
     allTimeByUser[user.id] = computeAllTimeTotals(statsByUser[user.id] ?? []).tokens;
   }
 
+  // Rolling-90-day token total per user — drives the tier (current form, not
+  // lifetime). Bounded by the same STATS_LIMIT as allTimeByUser above.
+  const cutoff90 = (() => {
+    const d = new Date(todayLocal() + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - 89);
+    return d.toISOString().slice(0, 10);
+  })();
+  const recent90ByUser: Record<string, number> = {};
+  for (const user of (users ?? [])) {
+    recent90ByUser[user.id] = (statsByUser[user.id] ?? [])
+      .filter((s) => s.date >= cutoff90)
+      .reduce((sum, s) => sum + s.tokens_total, 0);
+  }
+
   return {
     users: users ?? [],
     statsByUser,
@@ -87,6 +102,7 @@ export async function getLeaderboardData(
     friendUserIds,
     viewerGroups,
     allTimeByUser,
+    recent90ByUser,
   };
 }
 

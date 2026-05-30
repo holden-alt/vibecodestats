@@ -40,6 +40,45 @@
   --glow-color: rgba(255, 233, 60, 0.35);
   --team-cc-color: #ff8a3c;
   --team-cx-color: #3cd8ff;
+
+  /* ── NEON ARCADE THEME FOUNDATION (Phase 5 redesign) ──────────────────
+     Ported from redesign-mockups/neon-arcade.html — the approved look.
+     Black/near-black base, neon foil headline text, glowing foil borders,
+     glassy dark panels. Components consume these vars + utility classes;
+     nothing here restyles a component on its own. */
+
+  /* Repeating foil for seamless flow (the gradient wraps so background-position
+     can sweep without a visible seam). LOCKED palette, repeated. */
+  --foil-flow: linear-gradient(110deg, #ff2db3, #ff8a3c, #ffe93c, #3cff8a, #3cd8ff, #9b5cff, #ff2db3, #ff8a3c, #ffe93c, #3cff8a, #3cd8ff, #9b5cff, #ff2db3);
+
+  /* Near-black arcade base + light ink. Kept distinct from the legacy
+     terminal --color-bg so existing pages are untouched; neon surfaces opt in
+     via the utility classes below. */
+  --neon-ink: #050208;
+  --neon-ink-2: #0a0410;
+  --neon-txt: #f4ecff;
+  --neon-txt-dim: #b39ad6;
+  --neon-line: rgba(255, 255, 255, 0.08);
+
+  /* Team colors (alias the locked values for neon-context use). */
+  --team-cc: #ff8a3c; /* Claude Code — warm */
+  --team-cx: #3cd8ff; /* Codex — cyan */
+
+  /* Neon glows (drop-shadow / box-shadow tints). */
+  --neon-glow-pink: rgba(255, 45, 179, 0.45);
+  --neon-glow-cyan: rgba(60, 216, 255, 0.5);
+  --neon-glow-purple: rgba(155, 92, 255, 0.5);
+  --neon-glow-foil: rgba(255, 90, 200, 0.6);
+
+  /* Glass panel surface (dark translucent + subtle edge). */
+  --glass-panel: rgba(16, 8, 28, 0.62);
+  --glass-blur: 14px;
+  --glass-edge: rgba(255, 255, 255, 0.10);
+
+  /* Display + body type. Orbitron/Rajdhani are loaded by the layout when a
+     neon surface is mounted; system fallbacks keep legacy pages intact. */
+  --font-display: "Orbitron", var(--font-mono);
+  --font-body: "Rajdhani", system-ui, sans-serif;
 }
 
 @theme inline {
@@ -238,4 +277,276 @@ html, body { overflow-x: hidden; }
    row (IdentityStrip + PersonalBests etc.) isn't covered by the widget. */
 @media (max-width: 768px) {
   .cc-profile-main { padding-top: 64px !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   NEON ARCADE — reusable theme + utilities (Phase 5 redesign)
+
+   Ported from redesign-mockups/neon-arcade.html. These are OPT-IN classes the
+   redesigned components will consume in later tasks. Adding them here changes
+   nothing on existing pages (no component currently uses these class names).
+
+   MOTION POLICY (client toned it down): the only CONTINUOUS animation lives in
+   two signature spots — the headline foil-text flow (.neon-foil-text) and a slow
+   glow-breathe on the tier badge (.neon-tier-badge). Everything else is ONE-SHOT
+   on load (count-up, tier reveal, scoreboard fill, section entrance) or runs only
+   ON INTERACTION (hover lift / sheen). The prefers-reduced-motion block at the
+   bottom calms ALL of it to a static resolved state. GPU-only properties
+   (background-position / transform / opacity / filter) — no layout thrash.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base surface helper ─────────────────────────────────────────────────
+   Opt-in: put .neon-surface on a wrapper to get the arcade base + light ink +
+   body type. Does NOT touch <body>, so legacy terminal pages stay as-is. */
+.neon-surface {
+  background: var(--neon-ink);
+  color: var(--neon-txt);
+  font-family: var(--font-body);
+}
+
+/* ── Shared keyframes ─────────────────────────────────────────────────── */
+/* Seamless foil sweep — only background-position moves (compositor-friendly). */
+@keyframes neon-foil-flow {
+  from { background-position: 0% 50%; }
+  to   { background-position: 300% 50%; }
+}
+/* Slow gentle glow-breathe — box-shadow tint only, signature tier-badge spot. */
+@keyframes neon-glow-breathe {
+  0%, 100% { box-shadow: 0 0 40px var(--neon-glow-foil); }
+  50%      { box-shadow: 0 0 75px var(--neon-glow-cyan); }
+}
+/* One-shot entrances (load-time only). */
+@keyframes neon-fade-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes neon-row-in {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes neon-tier-reveal {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-25deg); filter: brightness(2.4); }
+  60%  { opacity: 1; transform: scale(1.18) rotate(6deg); filter: brightness(1.5); }
+  100% { transform: scale(1) rotate(0); filter: brightness(1); }
+}
+@keyframes neon-card-in {
+  from { opacity: 0; transform: perspective(1000px) rotateX(14deg) translateY(40px) scale(0.95); }
+  to   { opacity: 1; transform: perspective(1000px) rotateX(0) translateY(0) scale(1); }
+}
+@keyframes neon-score-fill {
+  to { transform: scaleX(1); }
+}
+
+/* ── Neon gradient TEXT (headlines) — SIGNATURE continuous animation ───────
+   background-clip:text fill with the foil flowing. This is one of the two
+   allowed continuous-motion spots per the motion policy. */
+.neon-foil-text {
+  background-image: var(--foil-flow);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: neon-foil-flow 6s linear infinite;
+  filter: drop-shadow(0 0 14px var(--neon-glow-pink));
+}
+/* Static foil fill — same look, no motion. Use for non-headline foil text
+   (e.g. stat values) so the page isn't full of moving gradients. */
+.neon-foil-text-static {
+  background-image: var(--foil-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 10px var(--neon-glow-pink));
+}
+
+/* ── Glowing foil-gradient BORDER / frame for cards ────────────────────────
+   Animated foil rim drawn with a mask so only the 2px edge shows. The rim
+   itself does NOT loop by default (motion policy) — it's a static placed foil
+   border + outer bloom. Hover adds a lift; the optional .neon-frame-flow
+   modifier turns the rim flow on if a specific signature card wants it. */
+.neon-frame {
+  position: relative;
+  background: var(--glass-panel);
+  border-radius: 20px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  isolation: isolate;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.5s ease;
+}
+.neon-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background-image: var(--foil-flow);
+  background-size: 300% 100%;
+  background-position: 0% 50%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  z-index: -1;
+  filter: saturate(160%);
+}
+.neon-frame::after {
+  /* outer bloom glow (static placed) */
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background-image: var(--foil-flow);
+  background-size: 300% 100%;
+  filter: blur(22px);
+  opacity: 0.3;
+  z-index: -2;
+  transition: opacity 0.5s ease;
+}
+.neon-frame.neon-frame-flow::before,
+.neon-frame.neon-frame-flow::after {
+  animation: neon-foil-flow 5s linear infinite;
+}
+
+/* ── Glass panel (dark translucent + blur + subtle gradient edge) ──────────
+   Lighter-weight than .neon-frame — no foil rim, just a glassy dark surface
+   with a faint gradient hairline edge. */
+.neon-glass {
+  position: relative;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 45%),
+    var(--glass-panel);
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+/* ── Hover LIFT + SHEEN for cards (interaction-only) ──────────────────────
+   Pairs with .neon-frame or any positioned card. Idle is static. */
+@media (hover: hover) {
+  .neon-frame:hover {
+    transform: translateY(-8px) scale(1.012);
+    box-shadow: 0 30px 80px -20px var(--neon-glow-pink);
+  }
+  .neon-frame:hover::after { opacity: 0.6; }
+}
+/* Moving sheen sweep on hover. Put .neon-sheen on the card and a
+   <span class="neon-sheen-bar"> inside it. */
+.neon-sheen { overflow: hidden; }
+.neon-sheen-bar {
+  position: absolute;
+  top: -60%;
+  left: -120%;
+  width: 60%;
+  height: 220%;
+  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+  z-index: 4;
+}
+@media (hover: hover) {
+  .neon-sheen:hover .neon-sheen-bar { left: 140%; }
+}
+
+/* ── TIER BADGE (foil fill + gentle glow-breathe) ──────────────────────────
+   The other allowed continuous-motion spot: a SLOW glow-breathe. The foil fill
+   itself is placed (static); only the surrounding glow breathes. Pair with
+   .neon-tier-reveal for the one-shot entrance on load. */
+.neon-tier-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  background-image: var(--foil-gradient);
+  box-shadow: 0 0 50px var(--neon-glow-foil);
+  animation: neon-glow-breathe 4.5s ease-in-out infinite;
+}
+.neon-tier-badge > .neon-tier-letter {
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: #0a0010;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
+  line-height: 1;
+}
+
+/* ── ONE-SHOT: tier reveal on load ──────────────────────────────────────── */
+.neon-tier-reveal {
+  animation: neon-tier-reveal 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ── ONE-SHOT: scoreboard fill ────────────────────────────────────────────
+   The fill bar scales in from the left to its live split on load, once. Set
+   the live width with an inline width on a wrapper and let this scale to 1. */
+.neon-score-fill {
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: neon-score-fill 1.8s 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
+/* ── ONE-SHOT: section + row entrances ────────────────────────────────────
+   Load-time only; no looping. Stagger with inline animation-delay if needed. */
+.neon-enter { animation: neon-fade-up 0.9s both; }
+.neon-card-in { animation: neon-card-in 1s 0.1s both; }
+.neon-row-in { animation: neon-row-in 0.7s both; }
+
+/* ── Hover sheen/foil for LEADERBOARD ROWS (interaction-only) ──────────────
+   Idle rows are static. On hover a row lifts slightly and a faint foil wash
+   fades in. Mobile (no hover) stays fully static. */
+.neon-row {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.neon-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--foil-flow);
+  background-size: 300% 100%;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .neon-row:hover {
+    transform: translateX(8px) scale(1.01);
+    border-color: transparent;
+    box-shadow: 0 16px 50px -18px var(--neon-glow-pink),
+                -8px 0 40px -16px var(--neon-glow-cyan);
+  }
+  .neon-row:hover::before { opacity: 0.16; }
+}
+
+/* ── REDUCED MOTION — calm EVERYTHING to a static resolved state ───────────
+   Extends the existing reduced-motion kill blocks (lines above). Foils sit
+   placed, the scoreboard fill is at its final width, the tier badge holds its
+   glow, and all entrances/reveals are resolved. */
+@media (prefers-reduced-motion: reduce) {
+  .neon-foil-text,
+  .neon-foil-text-static {
+    animation: none !important;
+    background-image: var(--foil-gradient) !important;
+    background-position: center !important;
+  }
+  .neon-frame,
+  .neon-frame::before,
+  .neon-frame::after,
+  .neon-frame.neon-frame-flow::before,
+  .neon-frame.neon-frame-flow::after { animation: none !important; }
+  .neon-tier-badge { animation: none !important; }
+  .neon-tier-reveal { animation: none !important; }
+  .neon-score-fill {
+    animation: none !important;
+    transform: scaleX(1) !important;
+  }
+  .neon-enter,
+  .neon-card-in,
+  .neon-row-in { animation: none !important; }
+  .neon-sheen-bar { transition: none !important; }
+  .neon-row { transition: none !important; }
 }

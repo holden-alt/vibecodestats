@@ -30,6 +30,27 @@ export async function regenerateOgImage(
   handle: string,
   supabase: SupabaseClient<Database>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Retry transient failures (edge cold-start, network blips, storage hiccups)
+  // so a push reliably lands a fresh PNG. The stored PNG is the single source
+  // the og:image points at, so a silent miss here is what would let a stale
+  // card survive — worth a couple of retries.
+  const ATTEMPTS = 3;
+  let lastError = 'unknown';
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    const result = await regenerateOgImageOnce(handle, supabase);
+    if (result.ok) return result;
+    lastError = result.error;
+    if (attempt < ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
+  return { ok: false, error: `regen failed after ${ATTEMPTS} attempts: ${lastError}` };
+}
+
+async function regenerateOgImageOnce(
+  handle: string,
+  supabase: SupabaseClient<Database>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
 

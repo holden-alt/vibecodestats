@@ -7,6 +7,7 @@ import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
 import { ogImageUrl } from '@/lib/og/regenerate';
+import { OG_CARD_VERSION } from '@/lib/og/version';
 import { ProfileLive } from '@/components/ProfileLive';
 
 // Neon Arcade v2 type (legibility overhaul): Chakra Petch (display) + Sora
@@ -34,11 +35,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
-
-// Cache-key for the og:image URL. Bump on a card-design change OR after a
-// backfill so the image URL is one no CDN edge has cached with stale bytes —
-// every crawler region then fetches the current PNG. (v3 = post-v2-backfill.)
-const OG_CARD_VERSION = 'v3';
 
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;

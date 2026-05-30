@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
@@ -107,7 +107,7 @@ describe('ProfileLive (new layout)', () => {
   it('renders the derived tier badge letter (sole cohort member => S)', () => {
     // allTime.tokens = 487231 and allTimeByUser = { u1: 487231 }, so the single
     // active-cohort member is percentile 0 => S. The S letter is rendered on the
-    // IdentityStrip badge and the HeroBlock badge.
+    // identity-header tier pill and the player-card foil tier badge.
     render(
       <ProfileLive
         initialData={initialData}
@@ -121,7 +121,7 @@ describe('ProfileLive (new layout)', () => {
     expect(screen.getAllByText('S').length).toBeGreaterThan(0);
   });
 
-  it('renders the Team Scoreboard section', () => {
+  it('renders the Team Scoreboard after switching to the Team Daily view', () => {
     render(
       <ProfileLive
         initialData={initialData}
@@ -132,7 +132,25 @@ describe('ProfileLive (new layout)', () => {
         hasEverPushed={true}
       />,
     );
-    expect(screen.getByText('Team Scoreboard')).toBeInTheDocument();
+    // Team Scoreboard is a primary view, not the default Overview. Switch to it.
+    fireEvent.click(screen.getByRole('button', { name: /team daily/i }));
+    expect(screen.getByText(/Team Scoreboard · Today/i)).toBeInTheDocument();
+  });
+
+  it('exposes Tier Distribution as a primary view with a you-are-here marker', () => {
+    render(
+      <ProfileLive
+        initialData={initialData}
+        leaderboardData={leaderboardData}
+        today="2026-05-19"
+        initialLiveRanking={initialLiveRanking}
+        viewerIsOwner={false}
+        hasEverPushed={true}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /tier distribution/i }));
+    expect(screen.getByText(/where the/i)).toBeInTheDocument();
+    expect(screen.getByText(/you are here/i)).toBeInTheDocument();
   });
 
   it('keeps the TokenTrendChart tile rendered (KEEP guard)', () => {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Orbitron, Rajdhani } from 'next/font/google';
 import { todayLocal } from '@/lib/date';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -7,6 +8,23 @@ import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
 import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
+
+// Neon Arcade display + body type, loaded on the profile (a neon surface) the
+// same way the landing page loads them. The `variable` option exposes the
+// families as CSS custom properties the .neon-* utilities reference once we
+// re-point --font-display / --font-body on the .neon-surface wrapper below.
+const orbitron = Orbitron({
+  subsets: ['latin'],
+  weight: ['500', '700', '900'],
+  variable: '--neon-font-display',
+  display: 'swap',
+});
+const rajdhani = Rajdhani({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--neon-font-body',
+  display: 'swap',
+});
 
 
 type ProfilePageProps = {
@@ -106,5 +124,23 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   const liveRanking = await getLiveRanking(supabase, data.user.id, today);
 
-  return <ProfileLive initialData={data} leaderboardData={leaderboardData} today={today} initialLiveRanking={liveRanking} viewerIsOwner={viewerIsOwner} hasEverPushed={hasEverPushed} />;
+  return (
+    <div
+      className={`neon-surface ${orbitron.variable} ${rajdhani.variable}`}
+      style={{
+        ['--font-display' as string]: 'var(--neon-font-display), "Orbitron", ui-monospace, monospace',
+        ['--font-body' as string]: 'var(--neon-font-body), "Rajdhani", system-ui, sans-serif',
+        minHeight: '100vh',
+      }}
+    >
+      <ProfileLive
+        initialData={data}
+        leaderboardData={leaderboardData}
+        today={today}
+        initialLiveRanking={liveRanking}
+        viewerIsOwner={viewerIsOwner}
+        hasEverPushed={hasEverPushed}
+      />
+    </div>
+  );
 }

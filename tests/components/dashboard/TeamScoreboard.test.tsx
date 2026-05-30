@@ -1,43 +1,53 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { TeamScoreboard } from '@/components/dashboard/profile/TeamScoreboard';
 import { campScoreboard, type Camp, type Scoreboard } from '@/lib/stats/team';
 
-describe('TeamScoreboard: bars, percentages, sliding divider', () => {
-  const scoreboard: Scoreboard = {
+describe('TeamScoreboard: daily default, percentages, sliding divider, toggle', () => {
+  const daily: Scoreboard = {
     claude: 600,
     codex: 400,
     claudePct: 60,
     codexPct: 40,
     leader: 'claude_code',
   };
+  const allTime: Scoreboard = {
+    claude: 300,
+    codex: 700,
+    claudePct: 30,
+    codexPct: 70,
+    leader: 'codex',
+  };
 
-  it('renders the Team Scoreboard label and both camp percentage readouts', () => {
-    render(<TeamScoreboard scoreboard={scoreboard} />);
-    expect(screen.getByText('Team Scoreboard')).toBeInTheDocument();
-    expect(screen.getByText('TEAM CLAUDE CODE 60%')).toBeInTheDocument();
-    expect(screen.getByText('TEAM CODEX 40%')).toBeInTheDocument();
+  it('DEFAULTS to the daily view and shows both camp percentage readouts', () => {
+    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    // Daily is the default label + the daily split (60/40), not the all-time split.
+    expect(screen.getByText(/Team Scoreboard · Today/i)).toBeInTheDocument();
+    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(screen.getByText('40%')).toBeInTheDocument();
   });
 
-  it('places the divider at the live split (translateX(60%)) after mount', () => {
-    const { container } = render(<TeamScoreboard scoreboard={scoreboard} />);
+  it('places the divider at the live daily split (translateX(60%)) after mount', () => {
+    const { container } = render(<TeamScoreboard daily={daily} allTime={allTime} />);
     const divider = container.querySelector('.scoreboard-divider') as HTMLElement | null;
     expect(divider).not.toBeNull();
     // useEffect ran on mount, moving the divider from the centered 50% start to
-    // the live 60% split. Under reduced-motion the .scoreboard-divider transition
-    // is killed by the T4 CSS block, so this end-state is simply snapped to.
+    // the live daily 60% split. Reduced-motion snaps to this end state.
     expect(divider?.style.transform).toBe('translateX(60%)');
   });
 
-  it('shows the codex leader chip when codex leads', () => {
-    render(
-      <TeamScoreboard
-        scoreboard={{ claude: 400, codex: 600, claudePct: 40, codexPct: 60, leader: 'codex' }}
-      />,
-    );
-    // The leader chip text is TEAM CODEX (matches the codex-side readout too,
-    // so two matches are expected).
-    expect(screen.getAllByText(/TEAM CODEX/).length).toBeGreaterThanOrEqual(1);
+  it('switches to the all-time split when the all-time toggle is clicked', () => {
+    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    fireEvent.click(screen.getByRole('button', { name: /all-time/i }));
+    expect(screen.getByText(/Team Scoreboard · All-time/i)).toBeInTheDocument();
+    expect(screen.getByText('30%')).toBeInTheDocument();
+    expect(screen.getByText('70%')).toBeInTheDocument();
+  });
+
+  it('shows both team labels', () => {
+    render(<TeamScoreboard daily={daily} allTime={allTime} />);
+    expect(screen.getByText('TEAM CLAUDE CODE')).toBeInTheDocument();
+    expect(screen.getByText('TEAM CODEX')).toBeInTheDocument();
   });
 });
 

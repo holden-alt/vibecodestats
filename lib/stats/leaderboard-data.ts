@@ -110,3 +110,30 @@ export function getTeamScoreboardMaps(
     return (row.tokens_by_model ?? null) as Record<string, number> | null;
   });
 }
+
+// All-time variant of the scoreboard maps (Phase 5 / Task 3 toggle). For each
+// loaded user it merges every loaded daily row's tokens_by_model into a single
+// per-model total, so the resulting maps feed campScoreboard() exactly like the
+// daily path does — but over the user's entire (loaded) history rather than one
+// day. The daily view stays the DEFAULT because it visibly swings through the
+// day; this powers the optional all-time toggle.
+//
+// Same STATS_LIMIT boundedness as allTimeByUser / the daily helper above:
+// "all-time" here means "over the loaded rows", exact while total rows < cap.
+export function getTeamScoreboardMapsAllTime(
+  data: LeaderboardData,
+): Array<Record<string, number> | null> {
+  return Object.values(data.statsByUser).map((rows) => {
+    const merged: Record<string, number> = {};
+    let any = false;
+    for (const row of rows) {
+      const byModel = (row.tokens_by_model ?? null) as Record<string, number> | null;
+      if (!byModel) continue;
+      for (const [model, count] of Object.entries(byModel)) {
+        merged[model] = (merged[model] ?? 0) + (Number(count) || 0);
+        any = true;
+      }
+    }
+    return any ? merged : null;
+  });
+}

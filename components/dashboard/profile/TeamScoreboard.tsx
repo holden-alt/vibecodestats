@@ -1,78 +1,114 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { formatCompact } from '@/lib/format';
 import type { Scoreboard } from '@/lib/stats/team';
 
+type Mode = 'daily' | 'all';
+
 type Props = {
-  scoreboard: Scoreboard;
+  // Daily is the DEFAULT view (today's tokens_by_model split across the field),
+  // so it visibly changes through the day. All-time is the optional toggle.
+  daily: Scoreboard;
+  allTime: Scoreboard;
 };
 
-// Live daily Team Claude Code vs Team Codex scoreboard (Phase 5 T3).
-// The divider slides from center to the live split on load (SPEC line 105) via a
-// single one-shot `transform` transition (.scoreboard-divider, defined in
-// globals.css). Under prefers-reduced-motion the T4 kill block disables that
-// transition, so setting the live split on mount just snaps it there statically.
-export function TeamScoreboard({ scoreboard }: Props) {
-  const { claudePct, codexPct, leader } = scoreboard;
+// Team Claude Code vs Team Codex scoreboard — Neon Arcade reskin (Task 3).
+// DEFAULTS to the DAILY view. A glass panel with the two team headers, a
+// two-tone foil-glow split bar, a one-shot sliding divider to the live split,
+// and a daily/all-time toggle.
+//
+// MOTION POLICY: the divider slides to the live split ONCE on mount (and on
+// toggle) via a single transform transition. No idle motion. Reduced-motion
+// snaps it to the resolved split (the existing .scoreboard-divider kill block).
+export function TeamScoreboard({ daily, allTime }: Props) {
+  const [mode, setMode] = useState<Mode>('daily'); // daily is the default
+  const board = mode === 'daily' ? daily : allTime;
+  const { claude, codex, claudePct, codexPct, leader } = board;
 
-  // Start centered (50%), then move to the live split after mount so the
-  // one-shot transform transition animates. Reduced-motion users get the same
-  // end position, instantly (transition killed by the T4 CSS block).
+  // Start centered, then slide to the live split after mount (and whenever the
+  // split changes, e.g. on toggle) via the one-shot .scoreboard-divider
+  // transform transition. Reduced-motion snaps to the end state (T4 CSS kill).
   const [dividerPct, setDividerPct] = useState(50);
   useEffect(() => {
     setDividerPct(claudePct);
   }, [claudePct]);
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 3,
-        padding: '16px 20px',
-        background: 'transparent',
-      }}
-    >
+    <div className="neon-frame" style={{ padding: 'clamp(18px, 4vw, 26px)' }}>
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 10,
+          marginBottom: 14,
           flexWrap: 'wrap',
-          gap: 6,
+          gap: 10,
         }}
       >
-        <div style={{ fontSize: '0.65rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Team Scoreboard
+        <div
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 12,
+            letterSpacing: '0.24em',
+            textTransform: 'uppercase',
+            color: 'var(--team-cx)',
+            textShadow: '0 0 14px rgba(60,216,255,0.6)',
+          }}
+        >
+          Team Scoreboard · {mode === 'daily' ? 'Today' : 'All-time'}
         </div>
-        <span style={leaderChip(leader)}>
-          {leader === 'codex' ? 'TEAM CODEX' : 'TEAM CLAUDE CODE'}
-        </span>
+        {/* daily / all-time toggle — daily is the default + primary view */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['daily', 'all'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              style={chip(m === mode)}
+            >
+              {m === 'daily' ? 'today' : 'all-time'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Two-part horizontal bar: claude (warm) on the left, codex (cyan) on the
-          right, with a one-shot sliding divider at the live split. */}
+      {/* Team headers */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
+        <TeamLabel side="claude" leader={leader === 'claude_code'} />
+        <TeamLabel side="codex" leader={leader === 'codex'} />
+      </div>
+
+      {/* Two-tone split bar with a one-shot sliding divider at the live split */}
       <div
         style={{
           position: 'relative',
-          height: 14,
-          borderRadius: 2,
+          height: 34,
+          borderRadius: 999,
           overflow: 'hidden',
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-bg-2)',
+          border: '1px solid rgba(60,216,255,0.3)',
+          background: 'rgba(60,216,255,0.10)',
+          boxShadow: 'inset 0 0 22px rgba(60,216,255,0.16)',
         }}
       >
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(90deg, var(--team-cc-color) 0%, var(--team-cc-color) 50%, var(--team-cx-color) 50%, var(--team-cx-color) 100%)',
+            background:
+              'linear-gradient(90deg, var(--team-cc) 0%, var(--team-cc) 50%, var(--team-cx) 50%, var(--team-cx) 100%)',
+            boxShadow: '0 0 30px rgba(255,138,60,0.5)',
           }}
         />
-        {/* The divider element is the full bar width with a 2px left border as
-            the visible marker line; CSS translateX(%) resolves against the
-            element's own (bar-width) box, so translateX(60%) lands the marker
-            at the 60% mark. Its left edge clips out at the bar's overflow:hidden. */}
         <div
           className="scoreboard-divider"
           style={{
@@ -81,39 +117,118 @@ export function TeamScoreboard({ scoreboard }: Props) {
             bottom: -1,
             left: 0,
             width: '100%',
-            borderLeft: '2px solid var(--color-text)',
-            boxShadow: '0 0 0 1px var(--color-bg)',
+            borderLeft: '2px solid var(--neon-txt)',
+            boxShadow: '0 0 12px rgba(255,255,255,0.8)',
             pointerEvents: 'none',
             transform: `translateX(${dividerPct}%)`,
           }}
         />
       </div>
 
+      {/* Live numbers */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          marginTop: 8,
-          fontSize: '0.65rem',
-          fontFamily: 'ui-monospace, monospace',
-          letterSpacing: '0.04em',
+          marginTop: 12,
+          fontFamily: 'var(--font-display)',
+          fontWeight: 800,
+          fontSize: 20,
         }}
       >
-        <span style={{ color: 'var(--team-cc-color)' }}>TEAM CLAUDE CODE {claudePct}%</span>
-        <span style={{ color: 'var(--team-cx-color)' }}>TEAM CODEX {codexPct}%</span>
+        <span style={{ color: 'var(--team-cc)', textShadow: '0 0 14px rgba(255,138,60,0.6)' }}>
+          {claudePct}%
+        </span>
+        <span style={{ color: 'var(--team-cx)', textShadow: '0 0 14px rgba(60,216,255,0.6)' }}>
+          {codexPct}%
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 4,
+          fontFamily: 'var(--font-body)',
+          fontSize: '0.75rem',
+          color: 'var(--neon-txt-dim)',
+        }}
+      >
+        <span>{formatCompact(claude)} tokens</span>
+        <span>{formatCompact(codex)} tokens</span>
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-body)',
+          color: 'var(--neon-txt-dim)',
+          fontSize: '0.82rem',
+          marginTop: 10,
+          letterSpacing: '0.02em',
+        }}
+      >
+        {mode === 'daily'
+          ? 'Today across the field. This swings through the day. Pick a side and tip the balance.'
+          : 'Every loaded day combined. Pick a side and tip the balance.'}
       </div>
     </div>
   );
 }
 
-function leaderChip(leader: Scoreboard['leader']): React.CSSProperties {
-  const color = leader === 'codex' ? 'var(--team-cx-color)' : 'var(--team-cc-color)';
+function TeamLabel({ side, leader }: { side: 'claude' | 'codex'; leader: boolean }) {
+  const color = side === 'codex' ? 'var(--team-cx)' : 'var(--team-cc)';
+  const name = side === 'codex' ? 'TEAM CODEX' : 'TEAM CLAUDE CODE';
+  const swatch = (
+    <span
+      style={{
+        width: 14,
+        height: 14,
+        borderRadius: 4,
+        background: color,
+        boxShadow: `0 0 14px ${color}`,
+        flexShrink: 0,
+      }}
+    />
+  );
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        fontFamily: 'var(--font-display)',
+        fontWeight: 700,
+        fontSize: 14,
+        letterSpacing: '0.04em',
+        color,
+        textShadow: leader ? `0 0 12px ${color}` : undefined,
+        opacity: leader ? 1 : 0.85,
+      }}
+    >
+      {side === 'claude' ? (
+        <>
+          {swatch}
+          {name}
+        </>
+      ) : (
+        <>
+          {name}
+          {swatch}
+        </>
+      )}
+    </div>
+  );
+}
+
+function chip(active: boolean): React.CSSProperties {
   return {
-    fontSize: '0.65rem',
-    padding: '2px 6px',
-    borderRadius: 2,
-    background: color,
-    color: 'var(--color-bg)',
-    fontFamily: 'ui-monospace, monospace',
+    fontFamily: 'var(--font-display)',
+    fontSize: 10,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    padding: '4px 10px',
+    borderRadius: 999,
+    cursor: 'pointer',
+    background: active ? 'rgba(60,216,255,0.14)' : 'transparent',
+    border: `1px solid ${active ? 'var(--team-cx)' : 'var(--neon-line)'}`,
+    color: active ? 'var(--team-cx)' : 'var(--neon-txt-dim)',
   };
 }

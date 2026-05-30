@@ -93,7 +93,7 @@ export default async function HomePage() {
                 fontSize: '0.95rem',
               }}
             >
-              No activity yet today — be the first.
+              No activity yet today. Be the first.
             </div>
           ) : (
             top.map((r, i) => (

@@ -151,8 +151,11 @@ function Row({ rank, handle, value, max, viewer, index }: { rank: number; handle
             }}
           />
         </div>
+        {/* #1 value uses the static (placed) foil — continuous flow is reserved
+            for the two signature spots per the motion policy, so list rows stay
+            calm and match the static-foil rank number above. */}
         <span
-          className={isFirst ? 'neon-foil-text' : undefined}
+          className={isFirst ? 'neon-foil-text-static' : undefined}
           style={{
             fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14,
             minWidth: 56, textAlign: 'right',

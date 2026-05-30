@@ -58,10 +58,10 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
   const name = user.display_name || `@${handle}`;
   const tokens = tokensToday > 0 ? formatCompact(tokensToday) : null;
   const title = tokens
-    ? `@${handle} — ${tokens} AI tokens today`
+    ? `@${handle} · ${tokens} AI tokens today`
     : `@${handle} on vibecodestats.dev`;
   const description = tokens
-    ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard — track your own Claude Code + Codex usage too.`
+    ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard. Track your own Claude Code + Codex usage too.`
     : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage.`;
 
   // Point at the pre-rendered static PNG in Supabase Storage rather than the

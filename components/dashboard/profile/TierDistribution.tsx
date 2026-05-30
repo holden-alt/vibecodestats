@@ -39,8 +39,20 @@ export function TierDistribution({ cohortAllTime, viewerTier }: Props) {
   const maxCount = Math.max(1, ...buckets.map((b) => b.count));
 
   // One-shot grow-in on mount. Start at 0 width, transition to live width.
+  // Reduced-motion: render at full width immediately with no transition so the
+  // bars resolve statically (matches the global reduced-motion calm-everything
+  // policy; the inline width transition below is gated on the same flag).
   const [grown, setGrown] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (prefersReduced) {
+      setReducedMotion(true);
+      setGrown(true);
+      return;
+    }
     const id = requestAnimationFrame(() => setGrown(true));
     return () => cancelAnimationFrame(id);
   }, []);
@@ -156,7 +168,9 @@ export function TierDistribution({ cohortAllTime, viewerTier }: Props) {
                       ? '0 0 22px var(--neon-glow-foil)'
                       : `0 0 12px ${accent}`,
                     opacity: isViewer ? 1 : 0.85,
-                    transition: 'width 1s cubic-bezier(0.2,0.9,0.2,1)',
+                    transition: reducedMotion
+                      ? 'none'
+                      : 'width 1s cubic-bezier(0.2,0.9,0.2,1)',
                   }}
                 />
               </div>

@@ -108,9 +108,13 @@ export function RankList({ entries }: RankListProps) {
               </span>
             </span>
 
-            {/* Tokens / metric value — Orbitron; #1 gets the foil flow */}
+            {/* Tokens / metric value — Orbitron; #1 gets the static foil fill.
+                Motion policy: continuous foil flow is reserved for the two
+                signature spots (headline text + tier-badge glow), so list-cell
+                values use the placed (non-animated) foil to match the row's
+                rank number + tier badge. */}
             <span
-              className={isFirst ? 'neon-foil-text' : undefined}
+              className={isFirst ? 'neon-foil-text-static' : undefined}
               style={{
                 fontFamily: 'var(--font-display)',
                 fontWeight: 800,

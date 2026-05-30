@@ -1,6 +1,5 @@
 import { SITE_INTRO, renderMainPagesSection, renderCompareIndex } from '@/lib/seo/llms-content';
 
-export const runtime = 'edge';
 export const revalidate = 3600;
 
 export async function GET() {

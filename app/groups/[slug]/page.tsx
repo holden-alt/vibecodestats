@@ -5,7 +5,6 @@ import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { Leaderboard } from '@/components/leaderboard/Leaderboard';
 import { GroupHeader } from '@/components/groups/GroupHeader';
 
-export const runtime = 'edge';
 
 // v1: the viewer for the standalone group page is hardcoded to holden-alt,
 // matching /leaderboard. v2 resolves the viewer from the session.

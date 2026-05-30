@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { recordSignupEvent } from '@/lib/notify/signup';
 import { detectInAppBrowser } from '@/lib/auth/in-app-browser';
 
-export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

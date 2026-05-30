@@ -8,7 +8,6 @@ import { formatCompact } from '@/lib/format';
 import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
 
-export const runtime = 'edge';
 
 type ProfilePageProps = {
   params: Promise<{ handle: string }>;

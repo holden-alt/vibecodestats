@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCompareTool } from '@/lib/seo/compare-data';
 
-export const runtime = 'edge';
 
 type Props = {
   params: Promise<{ tool: string }>;

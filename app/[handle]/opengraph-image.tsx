@@ -2,23 +2,11 @@ import { ImageResponse } from 'next/og';
 import { createClient } from '@/lib/supabase/server';
 import { getCardData } from '@/lib/og/card-data';
 import { formatCompact } from '@/lib/format';
+import { orbitron900, rajdhani700 } from '@/lib/og/fonts';
 
-export const runtime = 'edge';
 export const alt = 'vibecodestats.dev profile';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-
-// ---------------------------------------------------------------------------
-// Font loading — bundled TTFs next to this route
-// ---------------------------------------------------------------------------
-
-async function loadFonts() {
-  const [orbitronData, rajdhaniData] = await Promise.all([
-    fetch(new URL('./Orbitron-900.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
-    fetch(new URL('./Rajdhani-700.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
-  ]);
-  return { orbitronData, rajdhaniData };
-}
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -77,11 +65,9 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
       return fallback(handle);
     }
 
-    const { orbitronData, rajdhaniData } = await loadFonts();
-
     const fonts = [
-      { name: 'Orbitron', data: orbitronData, weight: 900 as const, style: 'normal' as const },
-      { name: 'Rajdhani', data: rajdhaniData, weight: 700 as const, style: 'normal' as const },
+      { name: 'Orbitron', data: orbitron900, weight: 900 as const, style: 'normal' as const },
+      { name: 'Rajdhani', data: rajdhani700, weight: 700 as const, style: 'normal' as const },
     ];
 
     const nameStr = card.displayName ?? handle;

@@ -3,7 +3,6 @@ import { todayLocal } from '@/lib/date';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { Leaderboard } from '@/components/leaderboard/Leaderboard';
 
-export const runtime = 'edge';
 
 // v1: there is one real user, so the standalone leaderboard scopes to 'holden-alt'.
 // v2 resolves the viewer from the session (Key Decision 4).

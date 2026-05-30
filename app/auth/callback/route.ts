@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { recordSignupEvent } from '@/lib/notify/signup';
 
-export const runtime = 'edge';
 
 /**
  * Treat a user as "new" if their public users row was created within this

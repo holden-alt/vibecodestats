@@ -7,7 +7,6 @@ import type { SignupEvent } from '@/components/admin/SignupsFunnel';
 import type { Database } from '@/lib/types/database';
 import { ogImageUrl } from '@/lib/og/regenerate';
 
-export const runtime = 'edge';
 
 const OWNER_HANDLES = (process.env.OWNER_HANDLES ?? 'holden-alt,realholdengr')
   .split(',')

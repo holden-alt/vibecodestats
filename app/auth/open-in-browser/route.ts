@@ -7,7 +7,6 @@
 
 import { detectInAppBrowser, detectPlatform } from '@/lib/auth/in-app-browser';
 
-export const runtime = 'edge';
 
 function escape(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

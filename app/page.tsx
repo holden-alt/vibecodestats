@@ -5,7 +5,6 @@ import { formatCompact } from '@/lib/format';
 import { ShareSiteOnX } from '@/components/ShareSiteOnX';
 import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 
-export const runtime = 'edge';
 
 export default async function HomePage() {
   const supabase = await createClient();

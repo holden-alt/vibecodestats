@@ -4,7 +4,6 @@ import { CopyButton } from './CopyButton';
 import { RegenerateButton } from './RegenerateButton';
 import { PrivacyToggle } from './PrivacyToggle';
 
-export const runtime = 'edge';
 
 export default async function SetupPage() {
   const supabase = await createClient();

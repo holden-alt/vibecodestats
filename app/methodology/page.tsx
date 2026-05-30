@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const runtime = 'edge';
 
 export const metadata: Metadata = {
   title: 'How tiers and teams work · vibecodestats.dev',

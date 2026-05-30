@@ -3,7 +3,6 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { sendWelcomeEmail, notifyOwnerOfTeamPick } from '@/lib/notify/welcome';
 
-export const runtime = 'edge';
 
 type Team = 'claude_code' | 'codex';
 

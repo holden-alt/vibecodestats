@@ -5,7 +5,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -13,10 +13,12 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "db:types": "supabase gen types typescript --local > lib/types/database.ts",
-    "pages:build": "pnpm exec next-on-pages",
-    "pages:deploy": "pnpm pages:build && pnpm exec wrangler pages deploy .vercel/output/static"
+    "cf:build": "pnpm exec opennextjs-cloudflare build",
+    "cf:preview": "pnpm exec opennextjs-cloudflare build && pnpm exec opennextjs-cloudflare preview",
+    "cf:deploy": "pnpm exec opennextjs-cloudflare build && pnpm exec opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "@tremor/react": "^3.18.7",
@@ -28,7 +30,6 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.16",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",

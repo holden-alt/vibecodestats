@@ -2,8 +2,8 @@ import { ImageResponse } from 'next/og';
 import { createClient } from '@supabase/supabase-js';
 import { campScoreboard } from '@/lib/stats/team';
 import type { Database } from '@/lib/types/database';
+import { orbitron900, rajdhani700 } from '@/lib/og/fonts';
 
-export const runtime = 'edge';
 
 // ---------------------------------------------------------------------------
 // Data window: all-time aggregate across every daily_stats row (up to
@@ -13,18 +13,6 @@ export const runtime = 'edge';
 // server-side SUM aggregate (RPC/view) before the cap is reached.
 // ---------------------------------------------------------------------------
 const STATS_LIMIT = 4000;
-
-// ---------------------------------------------------------------------------
-// Font loading — TTFs co-located with this route (duplicated from
-// app/[handle]/opengraph-image.tsx so the two routes stay independent)
-// ---------------------------------------------------------------------------
-async function loadFonts() {
-  const [orbitronData, rajdhaniData] = await Promise.all([
-    fetch(new URL('./Orbitron-900.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
-    fetch(new URL('./Rajdhani-700.ttf', import.meta.url)).then((r) => r.arrayBuffer()),
-  ]);
-  return { orbitronData, rajdhaniData };
-}
 
 // ---------------------------------------------------------------------------
 // Design tokens (mirror app/[handle]/opengraph-image.tsx)
@@ -59,11 +47,10 @@ export async function GET(): Promise<Response> {
     );
     const { claude, codex, claudePct, codexPct, leader } = campScoreboard(maps);
 
-    // 3. Load fonts
-    const { orbitronData, rajdhaniData } = await loadFonts();
+    // 3. Fonts (inlined; see lib/og/fonts.ts for why)
     const fonts = [
-      { name: 'Orbitron', data: orbitronData, weight: 900 as const, style: 'normal' as const },
-      { name: 'Rajdhani', data: rajdhaniData, weight: 700 as const, style: 'normal' as const },
+      { name: 'Orbitron', data: orbitron900, weight: 900 as const, style: 'normal' as const },
+      { name: 'Rajdhani', data: rajdhani700, weight: 700 as const, style: 'normal' as const },
     ];
 
     // 4. Format totals for display (compact: 1.2B, 430M, etc.)

@@ -3,7 +3,6 @@ import { validateIngestPayload } from '@/lib/ingest/payload';
 import { regenerateOgImage } from '@/lib/og/regenerate';
 import type { Database } from '@/lib/types/database';
 
-export const runtime = 'edge';
 
 function mergeNumberRecords(
   a: Record<string, number>,

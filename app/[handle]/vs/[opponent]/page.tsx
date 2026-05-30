@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { getHeadToHeadData } from '@/lib/stats/head-to-head-data';
 import { HeadToHead } from '@/components/head-to-head/HeadToHead';
 
-export const runtime = 'edge';
 
 type HeadToHeadPageProps = {
   params: Promise<{ handle: string; opponent: string }>;

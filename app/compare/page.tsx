@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { compareTools } from '@/lib/seo/compare-data';
 
-export const runtime = 'edge';
 
 const SITE = 'https://vibecodestats.dev';
 

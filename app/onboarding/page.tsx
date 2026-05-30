@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { OnboardingForm } from './OnboardingForm';
 
-export const runtime = 'edge';
 
 export default async function OnboardingPage() {
   const supabase = await createClient();

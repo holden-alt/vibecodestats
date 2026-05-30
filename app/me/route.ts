@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
 
-export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const supabase = await createClient();

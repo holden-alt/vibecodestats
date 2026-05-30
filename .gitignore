@@ -56,3 +56,8 @@ __pycache__/
 *.pyc
 .gstack/
 .worktrees/
+
+# cloudflare / opennext
+.open-next/
+.dev.vars
+.wrangler/

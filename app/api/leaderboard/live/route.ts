@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import { todayLocal } from '@/lib/date';
 import { computeLiveDailyRanking } from '@/lib/stats/leaderboard-live';
 
-export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

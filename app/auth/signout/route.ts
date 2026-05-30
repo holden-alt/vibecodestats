@@ -3,7 +3,6 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Database } from '@/lib/types/database';
 
-export const runtime = 'edge';
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();

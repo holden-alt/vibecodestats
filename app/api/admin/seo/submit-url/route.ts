@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import { submitUrls, type IndexingResult } from '@/lib/seo/google-indexing';
 import { compareTools } from '@/lib/seo/compare-data';
 
-export const runtime = 'edge';
 
 const OWNER_HANDLES = (process.env.OWNER_HANDLES ?? 'holden-alt,realholdengr')
   .split(',')

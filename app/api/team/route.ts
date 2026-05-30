@@ -3,7 +3,6 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { canSwitchTeam, SWITCH_COOLDOWN_DAYS } from '@/lib/stats/team-switch';
 
-export const runtime = 'edge';
 
 type Team = 'claude_code' | 'codex';
 

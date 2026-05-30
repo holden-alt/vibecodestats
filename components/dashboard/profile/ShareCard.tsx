@@ -29,7 +29,11 @@ export function ShareCard({ handle, overallTier, todayTier, allTimeTokens, today
   const [hover, setHover] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const profileUrl = `https://vibecodestats.dev/${handle}`;
+  // MUST be www, not apex. The apex 301-redirects to www, and X does NOT follow
+  // that redirect for card scraping the way a browser/curl does — it falls back
+  // to the domain's homepage card (the site "_root.png"). Sharing www directly
+  // means X scrapes the actual profile page, no redirect to mishandle.
+  const profileUrl = `https://www.vibecodestats.dev/${handle}`;
   // The URL we actually share/copy carries a CONTENT token: it's identical
   // across shares while the card is unchanged (so X reuses its correct cached
   // card), and changes the instant the card content does (so X re-scrapes and

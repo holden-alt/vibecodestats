@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
+import { ogImageUrl } from '@/lib/og/regenerate';
 import { ProfileLive } from '@/components/ProfileLive';
 
 // Neon Arcade v2 type (legibility overhaul): Chakra Petch (display) + Sora
@@ -81,19 +82,19 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
     ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard. Track your own Claude Code + Codex usage too.`
     : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage.`;
 
-  // og:image points at the DYNAMIC route (/[handle]/opengraph-image), which
-  // renders the card live — so a share always gets the EXACT current card, no
-  // stored-PNG lag. The token makes the URL unique per share (threaded from the
-  // share button) so X re-fetches; a bare link falls back to a daily-stable
-  // token. We set the descriptor (width/height/type) explicitly, which is what
-  // a crawler wants from a dynamic OG route.
+  // og:image is the pre-rendered STATIC PNG in Supabase Storage — a plain CDN
+  // asset X reliably fetches. X is finicky with dynamic OG routes (Next #57349)
+  // and Cloudflare bot-protection can challenge Twitterbot on our worker, so a
+  // dynamic route makes the image fetch fail and X falls back to its old card.
+  // Static on Supabase's CDN sidesteps both.
   //
-  // The static Storage PNG path (lib/og/regenerate.ts + scripts/regenerate-all-og.mjs)
-  // stays in place as a one-line-revert fallback: swap ogUrl back to
-  // `${ogImageUrl(handle)}?v=${ogToken}` if a crawler ever mishandles the route.
+  // The token makes the URL UNIQUE per share (threaded from the share button)
+  // so X re-fetches instead of reusing a cached copy — the missing piece before
+  // (the old token was date-stable, so X cached one copy and never re-asked).
+  // The stored PNG is the v2 card (backfilled; refreshed on each ingest push).
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
   const ogToken = shareToken ?? `${OG_CARD_VERSION}-${today}`;
-  const ogUrl = `${siteUrl}/${encodeURIComponent(handle)}/opengraph-image?v=${encodeURIComponent(ogToken)}`;
+  const ogUrl = `${ogImageUrl(handle)}?v=${encodeURIComponent(ogToken)}`;
   const ogImage = {
     url: ogUrl,
     secureUrl: ogUrl,

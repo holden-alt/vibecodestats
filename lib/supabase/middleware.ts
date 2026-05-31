@@ -13,8 +13,14 @@ export async function updateSession(request: NextRequest) {
   // to the homepage card. So we serve crawlers the actual page on the apex (its
   // og:image is host-independent — a Supabase Storage URL — so the card is
   // correct regardless of host).
+  // /api routes must NEVER be host-redirected. The ingest client POSTs to
+  // /api/ingest; any redirect (even a method-preserving 308) breaks clients
+  // that don't re-issue POST — which silently 405'd every install for 1.5 days
+  // after the apex->www change shipped. API responses are host-independent, so
+  // serve them on whatever host they arrive on. Only canonicalize pages.
+  const isApiRoute = new URL(request.url).pathname.startsWith('/api/');
   const canonical = canonicalRedirectUrl(request.url);
-  if (canonical && !isSocialCrawler(request.headers.get('user-agent'))) {
+  if (canonical && !isApiRoute && !isSocialCrawler(request.headers.get('user-agent'))) {
     return NextResponse.redirect(canonical, 308);
   }
 

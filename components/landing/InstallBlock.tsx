@@ -5,7 +5,7 @@ import { useState } from 'react';
 // The real installer is a tokenized one-liner from the /setup page (you get your
 // TOKEN + HANDLE after signing in). This is the exact shape.
 const INSTALL_CMD =
-  'curl -fsSL https://vibecodestats.dev/install.sh | TOKEN=<your-token> HANDLE=<you> URL=https://vibecodestats.dev bash';
+  'curl -fsSL https://www.vibecodestats.dev/install.sh | TOKEN=<your-token> HANDLE=<you> URL=https://www.vibecodestats.dev bash';
 
 // Full copy-paste install line on the landing page, right under the 3 steps, so
 // a dev can grab it without leaving the page. Monospace for legibility.

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { validateIngestPayload } from '@/lib/ingest/payload';
 import { regenerateOgImage } from '@/lib/og/regenerate';
+import { logIngestEvent } from '@/lib/ingest/events';
 import type { Database } from '@/lib/types/database';
 
 
@@ -28,8 +29,10 @@ type MachineRow = {
 
 export async function POST(request: Request): Promise<Response> {
   const authHeader = request.headers.get('authorization');
+  const userAgent = request.headers.get('user-agent');
 
   if (!authHeader?.startsWith('Bearer ')) {
+    await logIngestEvent({ outcome: 'missing_auth', userAgent });
     return Response.json({ error: 'missing auth' }, { status: 401 });
   }
 
@@ -50,9 +53,11 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
 
   if (tokenError) {
+    await logIngestEvent({ outcome: 'error', detail: 'user lookup failed', userAgent });
     return Response.json({ error: 'user lookup failed' }, { status: 500 });
   }
   if (!tokenUser) {
+    await logIngestEvent({ outcome: 'invalid_token', userAgent });
     return Response.json({ error: 'invalid token' }, { status: 401 });
   }
 
@@ -64,11 +69,25 @@ export async function POST(request: Request): Promise<Response> {
   try {
     parsed = JSON.parse(rawBody);
   } catch {
+    await logIngestEvent({
+      outcome: 'bad_payload',
+      userId: authenticatedUserId,
+      githubHandle: authenticatedHandle,
+      detail: 'invalid json',
+      userAgent,
+    });
     return Response.json({ error: 'invalid json' }, { status: 400 });
   }
 
   const validation = validateIngestPayload(parsed);
   if (!validation.ok) {
+    await logIngestEvent({
+      outcome: 'bad_payload',
+      userId: authenticatedUserId,
+      githubHandle: authenticatedHandle,
+      detail: validation.error,
+      userAgent,
+    });
     return Response.json({ error: validation.error }, { status: 400 });
   }
   const payload = validation.value;
@@ -91,6 +110,14 @@ export async function POST(request: Request): Promise<Response> {
     { onConflict: 'user_id,date,machine' },
   );
   if (machineUpsertError) {
+    await logIngestEvent({
+      outcome: 'error',
+      userId: authenticatedUserId,
+      githubHandle: authenticatedHandle,
+      machine: payload.machine,
+      detail: `machine upsert: ${machineUpsertError.message}`,
+      userAgent,
+    });
     return Response.json(
       { error: 'machine upsert failed', detail: machineUpsertError.message },
       { status: 500 },
@@ -106,6 +133,13 @@ export async function POST(request: Request): Promise<Response> {
     .eq('user_id', authenticatedUserId)
     .eq('date', payload.date);
   if (rollupSelectError || !machineRows) {
+    await logIngestEvent({
+      outcome: 'error',
+      userId: authenticatedUserId,
+      githubHandle: authenticatedHandle,
+      detail: 'rollup select failed',
+      userAgent,
+    });
     return Response.json({ error: 'rollup select failed' }, { status: 500 });
   }
   const rows = machineRows as MachineRow[];
@@ -148,6 +182,14 @@ export async function POST(request: Request): Promise<Response> {
     .from('daily_stats')
     .upsert(rollup, { onConflict: 'user_id,date' });
   if (upsertError) {
+    await logIngestEvent({
+      outcome: 'error',
+      userId: authenticatedUserId,
+      githubHandle: authenticatedHandle,
+      machine: payload.machine,
+      detail: `daily upsert: ${upsertError.message}`,
+      userAgent,
+    });
     return Response.json({ error: 'upsert failed', detail: upsertError.message }, { status: 500 });
   }
 
@@ -155,6 +197,16 @@ export async function POST(request: Request): Promise<Response> {
   // push. Awaited via waitUntil-style pattern so the response returns fast
   // and X bots always see a fresh PNG when they unfurl a profile share.
   // Errors are swallowed — a failed regen never blocks a successful ingest.
+  await logIngestEvent({
+    outcome: 'success',
+    userId: authenticatedUserId,
+    githubHandle: authenticatedHandle,
+    machine: payload.machine,
+    payloadDate: payload.date,
+    tokensTotal: payload.tokens_total,
+    userAgent,
+  });
+
   if (authenticatedHandle) {
     void regenerateOgImage(authenticatedHandle, supabase).catch(() => {});
   }

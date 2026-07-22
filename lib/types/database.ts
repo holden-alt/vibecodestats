@@ -348,6 +348,137 @@ export type Database = {
         };
         Relationships: [];
       };
+
+      // ── Personal insights station (single-user; no user_id column) ──────────
+      // Owner-only LLM-productivity telemetry. `source` ∈ 'claude-code' | 'codex'
+      // | 'grok' | 'kimi'. input_tokens EXCLUDES cache reads for every source
+      // (cross-comparable). cost_usd is null for non-Anthropic sources.
+      llm_model_daily: {
+        Row: {
+          date: string;
+          source: string;
+          model: string;
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_tokens: number;
+          cache_create_tokens: number;
+          reasoning_tokens: number;
+          turns: number;
+          tool_calls: number;
+          sessions: number;
+          active_minutes: number;
+          cost_usd: number | null;
+        };
+        Insert: {
+          date: string;
+          source: string;
+          model: string;
+          input_tokens?: number;
+          output_tokens?: number;
+          cache_read_tokens?: number;
+          cache_create_tokens?: number;
+          reasoning_tokens?: number;
+          turns?: number;
+          tool_calls?: number;
+          sessions?: number;
+          active_minutes?: number;
+          cost_usd?: number | null;
+        };
+        Update: {
+          date?: string;
+          source?: string;
+          model?: string;
+          input_tokens?: number;
+          output_tokens?: number;
+          cache_read_tokens?: number;
+          cache_create_tokens?: number;
+          reasoning_tokens?: number;
+          turns?: number;
+          tool_calls?: number;
+          sessions?: number;
+          active_minutes?: number;
+          cost_usd?: number | null;
+        };
+        Relationships: [];
+      };
+      llm_project_model_daily: {
+        Row: {
+          date: string;
+          project: string;
+          source: string;
+          model: string;
+          tokens_total: number;
+          turns: number;
+        };
+        Insert: {
+          date: string;
+          project: string;
+          source: string;
+          model: string;
+          tokens_total?: number;
+          turns?: number;
+        };
+        Update: {
+          date?: string;
+          project?: string;
+          source?: string;
+          model?: string;
+          tokens_total?: number;
+          turns?: number;
+        };
+        Relationships: [];
+      };
+      llm_hourly: {
+        Row: {
+          date: string;
+          hour: number;
+          source: string;
+          model: string;
+          tokens: number;
+        };
+        Insert: {
+          date: string;
+          hour: number;
+          source: string;
+          model: string;
+          tokens?: number;
+        };
+        Update: {
+          date?: string;
+          hour?: number;
+          source?: string;
+          model?: string;
+          tokens?: number;
+        };
+        Relationships: [];
+      };
+      repo_ships_daily: {
+        Row: {
+          date: string;
+          repo: string;
+          commits: number;
+          insertions: number;
+          deletions: number;
+          files_changed: number;
+        };
+        Insert: {
+          date: string;
+          repo: string;
+          commits?: number;
+          insertions?: number;
+          deletions?: number;
+          files_changed?: number;
+        };
+        Update: {
+          date?: string;
+          repo?: string;
+          commits?: number;
+          insertions?: number;
+          deletions?: number;
+          files_changed?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════
+   CLASSIC TERMINAL SYSTEM  (restored — near-black + orange, all monospace)
+
+   The site's original look: bg #0d0d0d, warm ink #ece6dc, a single hero orange
+   #d97757 plus a quiet polychrome accent set, a warm heatmap ramp, and system
+   monospace everywhere with tabular numerals. No gradients, no foil, no glass,
+   no display fonts. Dense, quiet, orange-on-black.
+   ════════════════════════════════════════════════════════════════════════ */
+
 :root {
   /* Background + text */
   --color-bg: #0d0d0d;
@@ -17,76 +26,22 @@
   --color-blue: #7a9cd9;
   --color-red: #d97373;
 
-  /* Heatmap ramp */
+  /* Warm heatmap ramp (cool empty → hot orange) */
   --color-heat-0: #2e2820;
   --color-heat-1: #3a2a1f;
   --color-heat-2: #6b3e26;
   --color-heat-3: #a8623f;
   --color-heat-4: #d97757;
 
-  /* Fonts */
+  /* Fonts — system monospace only */
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, monospace;
 
-  /* shadcn chart tokens — map to existing terminal palette */
-  --chart-1: #d97757; /* orange — tokens, hero */
-  --chart-2: #6bbfd9; /* cyan — machines, sonnet */
-  --chart-3: #8fbc8f; /* green — sessions, haiku, positive deltas */
-  --chart-4: #c47cb8; /* magenta — persona, "now" indicators */
-  --chart-5: #e3c466; /* yellow — rank, ships */
-
-  /* Holo foil / glow - ported from the Phase 4 OG card so the browser foil
-     matches the share card. CC = warm, CX = cyan (Phase 4 OG team-chip colors). */
-  --foil-gradient: linear-gradient(110deg, #ff2db3 0%, #ff8a3c 18%, #ffe93c 34%, #3cff8a 52%, #3cd8ff 70%, #9b5cff 86%, #ff2db3 100%);
-  --glow-color: rgba(255, 233, 60, 0.35);
-  --team-cc-color: #ff8a3c;
-  --team-cx-color: #3cd8ff;
-
-  /* ── NEON ARCADE THEME FOUNDATION (Phase 5 redesign) ──────────────────
-     Ported from redesign-mockups/neon-arcade.html — the approved look.
-     Black/near-black base, neon foil headline text, glowing foil borders,
-     glassy dark panels. Components consume these vars + utility classes;
-     nothing here restyles a component on its own. */
-
-  /* Repeating foil for seamless flow (the gradient wraps so background-position
-     can sweep without a visible seam). LOCKED palette, repeated. */
-  --foil-flow: linear-gradient(110deg, #ff2db3, #ff8a3c, #ffe93c, #3cff8a, #3cd8ff, #9b5cff, #ff2db3, #ff8a3c, #ffe93c, #3cff8a, #3cd8ff, #9b5cff, #ff2db3);
-
-  /* Near-black arcade base + light ink. Kept distinct from the legacy
-     terminal --color-bg so existing pages are untouched; neon surfaces opt in
-     via the utility classes below. */
-  --neon-ink: #050208;
-  --neon-ink-2: #0a0410;
-  --neon-txt: #f4ecff;
-  --neon-txt-dim: #b39ad6;
-  --neon-line: rgba(255, 255, 255, 0.08);
-
-  /* Team colors (alias the locked values for neon-context use). */
-  --team-cc: #ff8a3c; /* Claude Code — warm */
-  --team-cx: #3cd8ff; /* Codex — cyan */
-
-  /* Neon glows (drop-shadow / box-shadow tints). */
-  --neon-glow-pink: rgba(255, 45, 179, 0.45);
-  --neon-glow-cyan: rgba(60, 216, 255, 0.5);
-  --neon-glow-purple: rgba(155, 92, 255, 0.5);
-  --neon-glow-foil: rgba(255, 90, 200, 0.6);
-
-  /* Glass panel surface (dark translucent + subtle edge). v2: more opaque
-     faces for legibility (Holden's #1 ask) — data reads on a solid-feeling
-     dark glass, not a washed-out translucent panel. */
-  --glass-panel: rgba(10, 4, 22, 0.96);
-  --glass-blur: 14px;
-  --glass-edge: rgba(255, 255, 255, 0.14);
-
-  /* Type system (legibility-first arcade, v2). Loaded via next/font on neon
-     surfaces; system fallbacks keep legacy pages intact.
-       display = techy headings (Chakra Petch)
-       body    = readable sans (Sora)
-       num     = tabular MONOSPACE (JetBrains Mono) for EVERY stat/number so
-                 data reads like a scoreboard. Was Orbitron/Rajdhani — numbers
-                 were unreadable. */
-  --font-display: "Chakra Petch", var(--font-mono);
-  --font-body: "Sora", system-ui, sans-serif;
-  --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Chart tokens map onto the terminal palette (recharts / ui/chart.tsx) */
+  --chart-1: #d97757; /* orange  — tokens, hero, Claude */
+  --chart-2: #6bbfd9; /* cyan    — Codex / secondary */
+  --chart-3: #8fbc8f; /* green   — sessions, positive deltas */
+  --chart-4: #c47cb8; /* magenta — accents, "now" markers */
+  --chart-5: #e3c466; /* yellow  — ships, rank */
 }
 
 @theme inline {
@@ -115,42 +70,183 @@ html, body {
 
 ::selection { background: var(--color-orange); color: var(--color-bg); }
 
+/* Defensive: nothing should ever burst the viewport horizontally. Children that
+   need to scroll (wide tables, heatmap) opt into their own overflow-x:auto. */
+html, body { overflow-x: hidden; }
+
+/* ── Terminal dashboard utilities ────────────────────────────────────────── */
+
+/* Uppercase mono section eyebrow. */
+.term-eyebrow {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-dim);
+}
+
+/* Bordered panel — 1px hairline on the base bg. */
+.term-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-bg);
+}
+.term-panel-raised { background: var(--color-bg-2); }
+
+/* Horizontal-scroll wrapper for wide tables / charts on narrow viewports. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Dense stat table. Tabular numerals, hairline row rules. */
+.term-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+}
+.term-table th {
+  text-align: right;
+  font-weight: 500;
+  color: var(--color-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.58rem;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.term-table th:first-child,
+.term-table td:first-child { text-align: left; }
+.term-table td {
+  text-align: right;
+  padding: 7px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  white-space: nowrap;
+}
+.term-table tbody tr:last-child td { border-bottom: none; }
+.term-table tbody tr:hover td { background: color-mix(in srgb, var(--color-bg-2) 60%, transparent); }
+
+/* Blinking cursor / live dot pulse. */
+@keyframes term-blink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0.15; } }
+.term-cursor { animation: term-blink 1.1s steps(1) infinite; }
+@media (prefers-reduced-motion: reduce) { .term-cursor { animation: none; } }
+
+/* Heatmap wrapper (legacy contribution heatmap + hours heatmap). */
+.cc-heatmap-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Insights station: two-up panel row (heatmap + projects) that collapses to a
+   single column on narrow viewports. Each panel manages its own inner scroll. */
+.insights-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .insights-two-col { grid-template-columns: 1fr; }
+}
+
+/* Auth widget (fixed top-right, from layout.tsx). */
+.cc-auth-widget { max-width: 100vw; flex-wrap: wrap; row-gap: 0.25rem; }
+@media (max-width: 480px) {
+  .cc-auth-widget {
+    font-size: 0.65rem !important;
+    padding: 0.35rem 0.55rem !important;
+    gap: 0.4rem !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   LEGACY COMPATIBILITY SHIM  (demoted routes only)
+
+   The profile / leaderboard / compare / groups routes still carry the old
+   "Neon Arcade" class names + CSS-var references in their inline styles. Those
+   routes are demoted (off the primary nav) but must still COMPILE AND RENDER.
+   Rather than crash or show invisible foil-clipped text, this block re-points
+   every neon token at a classic terminal equivalent and neutralizes the foil /
+   glass / gradient effects to flat orange-on-black. Result: demoted pages read
+   as plain terminal surfaces — no neon anywhere on the site.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Neon vars → terminal equivalents. */
+  --team-cc: var(--color-orange);
+  --team-cx: var(--color-cyan);
+  --team-cc-color: var(--color-orange);
+  --team-cx-color: var(--color-cyan);
+  --neon-ink: var(--color-bg);
+  --neon-ink-2: var(--color-bg-2);
+  --neon-txt: var(--color-text);
+  --neon-txt-dim: var(--color-dim);
+  --neon-line: var(--color-border);
+  --glass-panel: var(--color-bg-2);
+  --glass-edge: var(--color-border);
+  --font-display: var(--font-mono);
+  --font-body: var(--font-mono);
+  --font-num: var(--font-mono);
+  /* Neutralize any lingering gradient/glow references to flat values. */
+  --foil-gradient: none;
+  --foil-flow: none;
+  --glow-color: transparent;
+}
+
+.neon-surface {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+/* Foil headline / stat text → solid orange (was background-clip: text, which
+   renders INVISIBLE without the class defining the gradient). */
+.neon-foil-text,
+.neon-foil-text-static {
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--color-orange) !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+/* Glass / foil-framed cards → flat terminal panels. */
+.neon-glass,
+.neon-frame {
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+.neon-frame::before,
+.neon-frame::after,
+.neon-sheen-bar { display: none !important; }
+
+/* Kill all neon motion + interaction effects. */
+.neon-row,
+.neon-enter,
+.neon-card-in,
+.neon-row-in,
+.neon-tier-badge,
+.neon-tier-reveal,
+.neon-score-fill,
+.foil,
+.tier-reveal { animation: none !important; transform: none !important; }
+.neon-row:hover { transform: none !important; box-shadow: none !important; }
+.neon-tier-badge {
+  background: var(--color-bg-2) !important;
+  border: 1px solid var(--color-border);
+  box-shadow: none !important;
+}
+
+/* Legacy bento tiles + grid (profile route). */
 .bento-tile { cursor: default; }
 a.bento-tile:hover {
-  border-color: var(--color-orange, #d97757) !important;
-  box-shadow: inset 0 0 0 1px rgba(217, 119, 87, 0.15);
+  border-color: var(--color-orange) !important;
   cursor: pointer;
 }
-@media (prefers-reduced-motion: reduce) {
-  .bento-tile { transition: none !important; }
-}
-
-@keyframes cc-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
-}
-@media (prefers-reduced-motion: reduce) {
-  [style*="cc-pulse"] { animation: none !important; }
-}
-
-.hero-token {
-  /* Responsive: scale with viewport so a 9-digit token total doesn't blow past
-     the right edge on mobile. ~9 chars × ~0.55em width ≈ 5em, plus the page
-     padding. 11vw fits "206,833,XXX" on a 393px iPhone (~43px font ≈ 240px text
-     in 345px content area). Capped at 4.5rem on desktop, floored at 2rem so the
-     headline never disappears entirely. */
-  font-size: clamp(2rem, 11vw, 4.5rem);
-  font-weight: 700;
-  color: var(--chart-1);
-  letter-spacing: -0.02em;
-  line-height: 1;
-  /* Tabular-num so leading commas don't drift while the number animates */
-  font-variant-numeric: tabular-nums;
-  /* Last-resort: if it still doesn't fit, clip at the container edge instead of
-     pushing the page width. HeroBlock already sets overflow:hidden. */
-  word-break: break-all;
-}
-
 .cc-bento-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -160,415 +256,22 @@ a.bento-tile:hover {
   .cc-bento-grid { grid-template-columns: 1fr; }
   .cc-bento-grid > * { grid-column: span 1 !important; grid-row: span 1 !important; }
 }
+.cc-rank-pb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+@media (max-width: 768px) { .cc-rank-pb-row { grid-template-columns: minmax(0, 1fr) !important; } }
+.cc-world-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 880px) { .cc-world-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .cc-profile-main { padding-top: 64px !important; } }
 
-@keyframes cc-tile-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.cc-bento-grid > .bento-tile,
-main > .bento-tile {
-  animation: cc-tile-in 400ms ease-out both;
-}
-.cc-bento-grid > .bento-tile:nth-child(1) { animation-delay: 0ms; }
-.cc-bento-grid > .bento-tile:nth-child(2) { animation-delay: 50ms; }
-.cc-bento-grid > .bento-tile:nth-child(3) { animation-delay: 100ms; }
-.cc-bento-grid > .bento-tile:nth-child(4) { animation-delay: 150ms; }
-.cc-bento-grid > .bento-tile:nth-child(5) { animation-delay: 200ms; }
-.cc-bento-grid > .bento-tile:nth-child(6) { animation-delay: 250ms; }
-.cc-bento-grid > .bento-tile:nth-child(7) { animation-delay: 300ms; }
-.cc-bento-grid > .bento-tile:nth-child(8) { animation-delay: 350ms; }
-.cc-bento-grid > .bento-tile:nth-child(9) { animation-delay: 400ms; }
-.cc-bento-grid > .bento-tile:nth-child(n+10) { animation-delay: 450ms; }
-@media (prefers-reduced-motion: reduce) {
-  .cc-bento-grid > .bento-tile,
-  main > .bento-tile { animation: none !important; }
-}
-
-/* ── Holo foil / glow aesthetic (Phase 5 T4) ─────────────────────────────
-   GPU-only: animates background-position / transform / opacity only.
-   Every keyframe below has a matching prefers-reduced-motion kill block. */
-@keyframes foil-shimmer {
-  0% { background-position: 0% center; }
-  100% { background-position: 200% center; }
-}
-@keyframes tier-reveal {
-  from { opacity: 0; transform: scale(0.82); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* Continuous holo sheen - background-position only (compositor-friendly). */
-.foil {
-  background-image: var(--foil-gradient);
-  background-size: 200% 100%;
-  animation: foil-shimmer 4s linear infinite;
-}
-/* Badge scale-in + glow on mount (transform/opacity only). */
-.tier-reveal {
-  animation: tier-reveal 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-/* S-tier gets the longer holographic sweep (SPEC line 103). */
-.tier-reveal-s {
-  animation-duration: 800ms;
-}
-/* One-shot divider slide to the live split on load (single transform transition). */
-.scoreboard-divider {
-  transition: transform 1000ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-/* Leaderboard row foil-shift on hover only. Idle is static, no looping
-   animation, and no foil on touch (no hover capability): SPEC line 106. */
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .foil-hover:hover {
-    background-image: var(--foil-gradient);
-    background-size: 200% 100%;
-    animation: foil-shimmer 600ms linear;
-  }
-}
-
-/* REQUIRED reduced-motion kill block - mirrors lines 78-80 / 128-131.
-   Static foil shows the rainbow gradient placed (SPEC line 102). */
-@media (prefers-reduced-motion: reduce) {
-  .foil {
-    animation: none !important;
-    background-position: center !important;
-  }
-  .tier-reveal,
-  .tier-reveal-s { animation: none !important; }
-  .scoreboard-divider { transition: none !important; }
-  .foil-hover:hover { animation: none !important; }
-}
-
-/* Old rule below was a no-op — overflow on the SVG itself does nothing. The
-   real fix is overflow-x:auto on the wrapper <div>, which ContributionHeatmap
-   now sets directly. Keeping the rule removed to avoid confusion. */
-
-/* Use minmax(0, 1fr) so the grid columns can shrink below their content's
-   min-content size. Without this, a wide flex child (like PersonalBests' 3
-   tiles with min-width:120) would force the column wider than the viewport
-   and make the whole page horizontally scrollable. */
-.cc-rank-pb-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-}
-@media (max-width: 768px) {
-  .cc-rank-pb-row { grid-template-columns: minmax(0, 1fr) !important; }
-}
-
-/* AuthWidget: position:fixed in layout.tsx. On narrow viewports the default
-   sizing pushed the widget past the right edge ("[ sign in with github ]"
-   wrapped weirdly). Allow it to wrap and stay within the viewport. */
-.cc-auth-widget {
-  max-width: 100vw;
-  flex-wrap: wrap;
-  row-gap: 0.25rem;
-}
-@media (max-width: 480px) {
-  .cc-auth-widget {
-    font-size: 0.65rem !important;
-    padding: 0.35rem 0.55rem !important;
-    gap: 0.4rem !important;
-  }
-}
-
-/* Heatmap wrapper — give it a horizontal scroll on narrow viewports so the
-   720-px wide HeatMap SVG can scroll instead of overflowing the page. */
-.cc-heatmap-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Defensive: nothing inside main should ever burst the viewport. If we slip,
-   contain it rather than horizontal-scrolling the entire page. Individual
-   children that need to scroll (heatmap) use their own overflow-x:auto. */
-html, body { overflow-x: hidden; }
-
-/* On mobile the .cc-auth-widget is fixed top-right and wraps to ~2 lines
-   (~50px tall). Add extra top padding to the profile main so the first
-   row (IdentityStrip + PersonalBests etc.) isn't covered by the widget. */
-@media (max-width: 768px) {
-  .cc-profile-main { padding-top: 64px !important; }
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   NEON ARCADE — reusable theme + utilities (Phase 5 redesign)
-
-   Ported from redesign-mockups/neon-arcade.html. These are OPT-IN classes the
-   redesigned components will consume in later tasks. Adding them here changes
-   nothing on existing pages (no component currently uses these class names).
-
-   MOTION POLICY (client toned it down): the only CONTINUOUS animation lives in
-   two signature spots — the headline foil-text flow (.neon-foil-text) and a slow
-   glow-breathe on the tier badge (.neon-tier-badge). Everything else is ONE-SHOT
-   on load (count-up, tier reveal, scoreboard fill, section entrance) or runs only
-   ON INTERACTION (hover lift / sheen). The prefers-reduced-motion block at the
-   bottom calms ALL of it to a static resolved state. GPU-only properties
-   (background-position / transform / opacity / filter) — no layout thrash.
-   ════════════════════════════════════════════════════════════════════════ */
-
-/* ── Base surface helper ─────────────────────────────────────────────────
-   Opt-in: put .neon-surface on a wrapper to get the arcade base + light ink +
-   body type. Does NOT touch <body>, so legacy terminal pages stay as-is. */
-.neon-surface {
-  background: var(--neon-ink);
-  color: var(--neon-txt);
-  font-family: var(--font-body);
-}
-
-/* ── Shared keyframes ─────────────────────────────────────────────────── */
-/* Seamless foil sweep — only background-position moves (compositor-friendly). */
-@keyframes neon-foil-flow {
-  from { background-position: 0% 50%; }
-  to   { background-position: 300% 50%; }
-}
-/* Slow gentle glow-breathe — box-shadow tint only, signature tier-badge spot. */
-@keyframes neon-glow-breathe {
-  0%, 100% { box-shadow: 0 0 40px var(--neon-glow-foil); }
-  50%      { box-shadow: 0 0 75px var(--neon-glow-cyan); }
-}
-/* One-shot entrances (load-time only). */
-@keyframes neon-fade-up {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes neon-row-in {
-  from { opacity: 0; transform: translateX(-30px); }
-  to   { opacity: 1; transform: none; }
-}
-@keyframes neon-tier-reveal {
-  0%   { opacity: 0; transform: scale(0.3) rotate(-25deg); filter: brightness(2.4); }
-  60%  { opacity: 1; transform: scale(1.18) rotate(6deg); filter: brightness(1.5); }
-  100% { transform: scale(1) rotate(0); filter: brightness(1); }
-}
-@keyframes neon-card-in {
-  from { opacity: 0; transform: perspective(1000px) rotateX(14deg) translateY(40px) scale(0.95); }
-  to   { opacity: 1; transform: perspective(1000px) rotateX(0) translateY(0) scale(1); }
-}
-@keyframes neon-score-fill {
-  to { transform: scaleX(1); }
-}
-
-/* ── Neon gradient TEXT (headlines) — SIGNATURE continuous animation ───────
-   background-clip:text fill with the foil flowing. This is one of the two
-   allowed continuous-motion spots per the motion policy. */
-.neon-foil-text {
-  background-image: var(--foil-flow);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: neon-foil-flow 6s linear infinite;
-  filter: drop-shadow(0 0 14px var(--neon-glow-pink));
-}
-/* Static foil fill — same look, no motion. Use for non-headline foil text
-   (e.g. stat values) so the page isn't full of moving gradients. */
-.neon-foil-text-static {
-  background-image: var(--foil-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter: drop-shadow(0 0 10px var(--neon-glow-pink));
-}
-
-/* ── Glowing foil-gradient BORDER / frame for cards ────────────────────────
-   Animated foil rim drawn with a mask so only the 2px edge shows. The rim
-   itself does NOT loop by default (motion policy) — it's a static placed foil
-   border + outer bloom. Hover adds a lift; the optional .neon-frame-flow
-   modifier turns the rim flow on if a specific signature card wants it. */
-.neon-frame {
-  position: relative;
-  background: var(--glass-panel);
-  border-radius: 20px;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  isolation: isolate;
-  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.5s ease;
-}
-.neon-frame::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 2px;
-  background-image: var(--foil-flow);
-  background-size: 300% 100%;
-  background-position: 0% 50%;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          mask-composite: exclude;
-  z-index: -1;
-  filter: saturate(160%);
-}
-.neon-frame::after {
-  /* outer bloom glow (static placed). v2: dialed down so the foil is an accent,
-     not a wash — keeps card faces legible (no foil-on-foil bloom). */
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background-image: var(--foil-flow);
-  background-size: 300% 100%;
-  filter: blur(22px);
-  opacity: 0.15;
-  z-index: -2;
-  transition: opacity 0.5s ease;
-}
-.neon-frame.neon-frame-flow::before,
-.neon-frame.neon-frame-flow::after {
-  animation: neon-foil-flow 5s linear infinite;
-}
-
-/* ── Glass panel (dark translucent + blur + subtle gradient edge) ──────────
-   Lighter-weight than .neon-frame — no foil rim, just a glassy dark surface
-   with a faint gradient hairline edge. */
-.neon-glass {
-  position: relative;
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 45%),
-    var(--glass-panel);
-  border: 1px solid var(--glass-edge);
-  border-radius: 16px;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-}
-
-/* ── Hover LIFT + SHEEN for cards (interaction-only) ──────────────────────
-   Pairs with .neon-frame or any positioned card. Idle is static. */
-@media (hover: hover) {
-  .neon-frame:hover {
-    transform: translateY(-8px) scale(1.012);
-    box-shadow: 0 30px 80px -20px var(--neon-glow-pink);
-  }
-  .neon-frame:hover::after { opacity: 0.6; }
-}
-/* Moving sheen sweep on hover. Put .neon-sheen on the card and a
-   <span class="neon-sheen-bar"> inside it. */
-.neon-sheen { overflow: hidden; }
-.neon-sheen-bar {
-  position: absolute;
-  top: -60%;
-  left: -120%;
-  width: 60%;
-  height: 220%;
-  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.42), transparent);
-  transform: skewX(-18deg);
-  transition: left 0.7s ease;
-  pointer-events: none;
-  z-index: 4;
-}
-@media (hover: hover) {
-  .neon-sheen:hover .neon-sheen-bar { left: 140%; }
-}
-
-/* ── TIER BADGE (foil fill + gentle glow-breathe) ──────────────────────────
-   The other allowed continuous-motion spot: a SLOW glow-breathe. The foil fill
-   itself is placed (static); only the surrounding glow breathes. Pair with
-   .neon-tier-reveal for the one-shot entrance on load. */
-.neon-tier-badge {
-  position: relative;
-  display: grid;
-  place-items: center;
-  border-radius: 28px;
-  background-image: var(--foil-gradient);
-  box-shadow: 0 0 50px var(--neon-glow-foil);
-  animation: neon-glow-breathe 4.5s ease-in-out infinite;
-}
-.neon-tier-badge > .neon-tier-letter {
-  font-family: var(--font-display);
-  font-weight: 900;
-  color: #0a0010;
-  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
+.hero-token {
+  font-size: clamp(2rem, 11vw, 4.5rem);
+  font-weight: 700;
+  color: var(--color-orange);
+  letter-spacing: -0.02em;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
 }
 
-/* ── ONE-SHOT: tier reveal on load ──────────────────────────────────────── */
-.neon-tier-reveal {
-  animation: neon-tier-reveal 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-/* ── ONE-SHOT: scoreboard fill ────────────────────────────────────────────
-   The fill bar scales in from the left to its live split on load, once. Set
-   the live width with an inline width on a wrapper and let this scale to 1. */
-.neon-score-fill {
-  transform: scaleX(0);
-  transform-origin: left;
-  animation: neon-score-fill 1.8s 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
-}
-
-/* ── ONE-SHOT: section + row entrances ────────────────────────────────────
-   Load-time only; no looping. Stagger with inline animation-delay if needed. */
-.neon-enter { animation: neon-fade-up 0.9s both; }
-.neon-card-in { animation: neon-card-in 1s 0.1s both; }
-.neon-row-in { animation: neon-row-in 0.7s both; }
-
-/* ── Hover sheen/foil for LEADERBOARD ROWS (interaction-only) ──────────────
-   Idle rows are static. On hover a row lifts slightly and a faint foil wash
-   fades in. Mobile (no hover) stays fully static. */
-.neon-row {
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
-              box-shadow 0.35s ease, border-color 0.35s ease;
-}
-.neon-row::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: var(--foil-flow);
-  background-size: 300% 100%;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-@media (hover: hover) {
-  .neon-row:hover {
-    transform: translateX(8px) scale(1.01);
-    border-color: transparent;
-    box-shadow: 0 16px 50px -18px var(--neon-glow-pink),
-                -8px 0 40px -16px var(--neon-glow-cyan);
-  }
-  .neon-row:hover::before { opacity: 0.16; }
-}
-
-/* ── REDUCED MOTION — calm EVERYTHING to a static resolved state ───────────
-   Extends the existing reduced-motion kill blocks (lines above). Foils sit
-   placed, the scoreboard fill is at its final width, the tier badge holds its
-   glow, and all entrances/reveals are resolved. */
 @media (prefers-reduced-motion: reduce) {
-  .neon-foil-text,
-  .neon-foil-text-static {
-    animation: none !important;
-    background-image: var(--foil-gradient) !important;
-    background-position: center !important;
-  }
-  .neon-frame,
-  .neon-frame::before,
-  .neon-frame::after,
-  .neon-frame.neon-frame-flow::before,
-  .neon-frame.neon-frame-flow::after { animation: none !important; }
-  .neon-tier-badge { animation: none !important; }
-  .neon-tier-reveal { animation: none !important; }
-  .neon-score-fill {
-    animation: none !important;
-    transform: scaleX(1) !important;
-  }
-  .neon-enter,
-  .neon-card-in,
-  .neon-row-in { animation: none !important; }
-  .neon-sheen-bar { transition: none !important; }
-  .neon-row { transition: none !important; }
-}
-
-/* Redesign (v2): side-by-side Standings section (leaderboard + tier
-   distribution/percentile column), collapses to one column on narrow
-   viewports. */
-.cc-world-grid {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 20px;
-  align-items: start;
-}
-@media (max-width: 880px) {
-  .cc-world-grid { grid-template-columns: 1fr; }
+  .bento-tile { transition: none !important; }
 }

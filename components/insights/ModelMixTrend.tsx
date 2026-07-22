@@ -49,22 +49,37 @@ export function ModelMixTrend({
     return { top, otherSet, allowedSet, hasOther: otherSet.size > 0 };
   }, [models, source]);
 
-  // Windowed, flattened rows for recharts (one numeric key per visible model + `other`).
+  // Calendar-complete, zero-filled rows for recharts. Recharts leaves holes
+  // where a series key is missing and compresses skipped calendar days, which
+  // reads as jagged/choppy. So we (a) walk EVERY day in the window and (b)
+  // zero-fill every visible series on every day, giving continuous, evenly
+  // spaced stacked areas. The window start is clamped to the first day that has
+  // any data so the 90d view shows real history instead of dead left margin.
   const data = useMemo(() => {
-    const start = windowStart(today, WINDOW_DAYS[win]);
-    return points
-      .filter((p) => p.date >= start && p.date <= today)
-      .map((p) => {
-        const row: Record<string, number | string> = { date: p.date };
-        let other = 0;
-        for (const [model, tok] of Object.entries(p.models)) {
-          if (!series.allowedSet.has(model)) continue;
-          if (series.otherSet.has(model)) other += tok;
-          else row[model] = tok;
-        }
-        if (series.hasOther) row.__other = other;
-        return row;
-      });
+    const earliest = points[0]?.date; // points are sorted ascending upstream
+    let start = windowStart(today, WINDOW_DAYS[win]);
+    if (earliest && earliest > start) start = earliest;
+
+    const byDate = new Map(points.map((p) => [p.date, p.models]));
+    const rows: Record<string, number | string>[] = [];
+    const cur = new Date(start + 'T00:00:00Z');
+    const end = new Date(today + 'T00:00:00Z');
+    while (cur <= end) {
+      const date = cur.toISOString().slice(0, 10);
+      const dayModels = byDate.get(date) ?? {};
+      const row: Record<string, number | string> = { date };
+      for (const m of series.top) row[m.model] = 0; // zero-fill visible series
+      let other = 0;
+      for (const [model, tok] of Object.entries(dayModels)) {
+        if (!series.allowedSet.has(model)) continue;
+        if (series.otherSet.has(model)) other += tok;
+        else row[model] = tok;
+      }
+      if (series.hasOther) row.__other = other;
+      rows.push(row);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return rows;
   }, [points, today, win, series]);
 
   const hasData = data.some((row) =>
@@ -110,27 +125,31 @@ export function ModelMixTrend({
                 {series.top.map((m) => (
                   <Area
                     key={m.model}
-                    type="monotone"
+                    type="linear"
                     dataKey={m.model}
                     name={prettyModel(m.model)}
                     stackId="1"
                     stroke={m.color}
                     fill={m.color}
-                    fillOpacity={0.28}
-                    strokeWidth={1.4}
+                    fillOpacity={0.32}
+                    strokeWidth={1.25}
+                    dot={false}
+                    activeDot={{ r: 2.5, strokeWidth: 0 }}
                     isAnimationActive={false}
                   />
                 ))}
                 {series.hasOther && (
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="__other"
                     name="other"
                     stackId="1"
                     stroke={OTHER_COLOR}
                     fill={OTHER_COLOR}
-                    fillOpacity={0.2}
+                    fillOpacity={0.22}
                     strokeWidth={1}
+                    dot={false}
+                    activeDot={{ r: 2.5, strokeWidth: 0 }}
                     isAnimationActive={false}
                   />
                 )}

@@ -196,9 +196,8 @@ def deep_work_minutes(timestamps):
     return int(total_seconds // 60)
 
 
-def parse_codex_day(jsonl_paths, target_date, home):
-    """Parse Codex CLI session files for target_date. Same return shape as
-    parse_day() so the two can be merged additively.
+def build_codex_registry(jsonl_paths, home):
+    """One pass over Codex session files -> dedupe registry of REAL turns.
 
     Codex JSONL schema (different from Claude's, fully decoded):
       - Each line: {type: "response_item"|"event_msg"|"turn_context"|"session_meta",
@@ -210,33 +209,40 @@ def parse_codex_day(jsonl_paths, target_date, home):
             output_tokens
             reasoning_output_tokens (thinking — added to output for our purposes)
             total_tokens (= input + output, EXCLUDES reasoning)
+        and the session-cumulative counter in payload.info.total_token_usage.
       - turn_context event carries the current model (e.g. "gpt-5.5") and cwd.
         Both can change per turn within a session.
-      - function_call + custom_tool_call response_items = tool invocations.
-      - user_message + agent_message event_msgs = turn boundaries for sessions
-        and deep_work timestamp collection.
 
-    No dedupe needed (one token_count per turn, marginal, no streaming
-    snapshots). We DO carry forward the most-recent (model, cwd) seen so each
-    token_count is attributed correctly even on long sessions that switch
-    cwd mid-stream.
+    REPLAY DEDUPE (the 2026-07-21 3.3B-token blowup): VS Code Codex
+    subagent/fork threads write a NEW rollout file per fork that REPLAYS the
+    parent thread's entire event history — including every historical
+    token_count — stamped with the file-creation time, then append live work.
+    A long-running thread snapshotted ~25x/day therefore counts its whole
+    history ~25x if rows are summed naively (observed: 3.32B for a real
+    ~460M day). Replayed lines carry no marker, so dedupe is by CONTENT:
+    (last_token_usage, total_token_usage) — the cumulative counter makes each
+    real turn unique within a lineage, and identical across every replayed
+    copy of it. Each key keeps its EARLIEST-timestamped instance (the live
+    occurrence; replays are always stamped later), so date attribution
+    follows the turn's real time. Old-schema rows without total_token_usage
+    predate forking and get a per-(file,line) key — counted as-is, no dedupe.
+
+    Registry value: {ts, total, model, project, session} for the earliest
+    instance. Build ONCE per run and aggregate per date with
+    codex_day_from_registry() — the registry is date-independent.
     """
-    tokens_by_model = defaultdict(int)
-    tokens_by_project = defaultdict(int)
-    tokens_by_hour = defaultdict(int)
-    sessions = set()
-    timestamps = []
-    grand_total = 0
-
+    registry = {}
     for path in jsonl_paths:
         # Session id = filename UUID after "rollout-<timestamp>-".
         base = os.path.basename(path)
         session_id = base.replace('rollout-', '').replace('.jsonl', '')
         current_model = None
         current_cwd = None
+        line_no = 0
         try:
             with open(path) as f:
                 for line in f:
+                    line_no += 1
                     try:
                         d = json.loads(line)
                     except json.JSONDecodeError:
@@ -245,7 +251,6 @@ def parse_codex_day(jsonl_paths, target_date, home):
                     if not isinstance(payload, dict):
                         continue
                     top = d.get('type')
-                    kind = payload.get('type')
 
                     # Pick up cwd from session_meta (one-time, session-wide
                     # default) — turn_context.cwd overrides on the fly.
@@ -261,19 +266,15 @@ def parse_codex_day(jsonl_paths, target_date, home):
                             current_cwd = payload['cwd']
                         continue
 
-                    ts = d.get('timestamp')
-                    if not ts or local_date(ts) != target_date:
+                    if payload.get('type') != 'token_count':
                         continue
-
-                    if kind in ('user_message', 'agent_message'):
-                        sessions.add(session_id)
-                        timestamps.append(ts)
-
-                    if kind not in ('token_count',):
+                    ts = d.get('timestamp')
+                    if not ts:
                         continue
 
                     info = payload.get('info') or {}
                     last = info.get('last_token_usage') or {}
+                    total_usage = info.get('total_token_usage')
                     in_tok = int(last.get('input_tokens') or 0)
                     out_tok = int(last.get('output_tokens') or 0)
                     reason = int(last.get('reasoning_output_tokens') or 0)
@@ -283,19 +284,54 @@ def parse_codex_day(jsonl_paths, target_date, home):
                     if turn_total <= 0:
                         continue
 
-                    model = current_model or 'gpt-unknown'
-                    label = short_project(current_cwd, home)
-                    local_hour = datetime.fromisoformat(
-                        ts.replace('Z', '+00:00')
-                    ).astimezone().hour
-
-                    tokens_by_model[model] += turn_total
-                    tokens_by_project[label] += turn_total
-                    tokens_by_hour[str(local_hour)] += turn_total
-                    grand_total += turn_total
+                    if isinstance(total_usage, dict):
+                        key = (tuple(sorted(last.items())),
+                               tuple(sorted(total_usage.items())))
+                    else:
+                        key = (path, line_no)
+                    prev = registry.get(key)
+                    # ISO-8601 Z timestamps compare correctly as strings.
+                    if prev is None or ts < prev['ts']:
+                        registry[key] = {
+                            'ts': ts,
+                            'total': turn_total,
+                            'model': current_model or 'gpt-unknown',
+                            'project': short_project(current_cwd, home),
+                            'session': session_id,
+                        }
         except OSError:
             continue
+    return registry
 
+
+def codex_day_from_registry(registry, target_date):
+    """Aggregate a codex registry for one LOCAL date. Same return shape as
+    parse_day() so the two can be merged additively.
+
+    sessions and deep-work timestamps come from the DEDUPED turns (not from
+    user_message/agent_message events) — replayed history duplicates those
+    too, so a fork file with zero new work must not register as a session or
+    as deep-work minutes.
+    """
+    tokens_by_model = defaultdict(int)
+    tokens_by_project = defaultdict(int)
+    tokens_by_hour = defaultdict(int)
+    sessions = set()
+    timestamps = []
+    grand_total = 0
+    for rec in registry.values():
+        ts = rec['ts']
+        if local_date(ts) != target_date:
+            continue
+        local_hour = datetime.fromisoformat(
+            ts.replace('Z', '+00:00')
+        ).astimezone().hour
+        tokens_by_model[rec['model']] += rec['total']
+        tokens_by_project[rec['project']] += rec['total']
+        tokens_by_hour[str(local_hour)] += rec['total']
+        sessions.add(rec['session'])
+        timestamps.append(ts)
+        grand_total += rec['total']
     return {
         'tokens_total': grand_total,
         'tokens_by_model': dict(tokens_by_model),
@@ -304,6 +340,14 @@ def parse_codex_day(jsonl_paths, target_date, home):
         'tokens_by_hour': dict(tokens_by_hour),
         'timestamps': timestamps,
     }
+
+
+def parse_codex_day(jsonl_paths, target_date, home):
+    """One-shot registry build + single-date aggregate (compat wrapper).
+    Multi-date callers should build the registry once and call
+    codex_day_from_registry() per date."""
+    return codex_day_from_registry(build_codex_registry(jsonl_paths, home),
+                                   target_date)
 
 
 def merge_days(a, b):
@@ -539,10 +583,11 @@ def incremental_payloads(projects_dir, codex_sessions_dir, now_ts, home,
     """
     cfiles = recent_jsonl_files(projects_dir, now_ts, window_hours)
     xfiles = recent_codex_files(codex_sessions_dir, now_ts, window_hours)
+    xreg = build_codex_registry(xfiles, home)
     out = []
     for date in date_window(now_ts, back_days):
         day = merge_days(parse_day(cfiles, date, home),
-                         parse_codex_day(xfiles, date, home))
+                         codex_day_from_registry(xreg, date))
         out.append((date, day))
     return out
 
@@ -580,8 +625,56 @@ def git_author_email():
     return 'unknown@local'
 
 
+def stable_machine_name():
+    """Stable per-machine label that does NOT drift with network/DHCP.
+
+    socket.gethostname() on macOS returns the *transient* hostname, which
+    silently falls back to the bare default 'Mac' when the static HostName is
+    unset (the macOS default) and the network supplies no name — e.g. on a DHCP
+    lease change or a network switch. That makes one physical Mac push under two
+    different machine names ('MacBook-Air' normally, 'Mac' after a network
+    event), and the dashboard SUMS rows across machine names — producing a
+    phantom machine and ~2x double-counted tokens for the day. Diagnosed
+    2026-06-09 after a single Mac created both 'MacBook-Air' and 'Mac' rows with
+    byte-identical token breakdowns.
+
+    Resolution order (first hit wins):
+      1. CC_DASHBOARD_MACHINE env override — explicit pin, authoritative.
+      2. macOS ComputerName via scutil — user-set, stable across networks.
+      3. socket.gethostname() — last resort (Linux/other, or scutil missing).
+    Spaces collapse to hyphens so 'MacBook Air' -> 'MacBook-Air', matching the
+    historical row names.
+    """
+    pin = os.environ.get('CC_DASHBOARD_MACHINE')
+    if pin and pin.strip():
+        return pin.strip().replace(' ', '-')
+    if sys.platform == 'darwin':
+        try:
+            out = subprocess.run(['scutil', '--get', 'ComputerName'],
+                                 capture_output=True, text=True, timeout=5)
+            name = out.stdout.strip()
+            if out.returncode == 0 and name:
+                return name.replace(' ', '-')
+        except (subprocess.SubprocessError, OSError):
+            pass
+    return socket.gethostname().split('.')[0].replace(' ', '-')
+
+
 def main():
     backfill = '--backfill' in sys.argv
+    # --since YYYY-MM-DD (backfill only): re-push only dates >= since. The
+    # codex dedupe registry still spans ALL files so pre-since history keeps
+    # its true first-seen dates; claude files are mtime-pruned (a file can't
+    # contain events later than its mtime, so mtime < since-midnight files
+    # can't contribute to any pushed date).
+    since = None
+    if '--since' in sys.argv:
+        try:
+            since = sys.argv[sys.argv.index('--since') + 1]
+            datetime.strptime(since, '%Y-%m-%d')
+        except (IndexError, ValueError):
+            print('dashboard-push: --since requires YYYY-MM-DD', file=sys.stderr)
+            return 1
 
     url = os.environ.get('CC_DASHBOARD_URL')
     token = os.environ.get('CC_DASHBOARD_TOKEN')
@@ -603,7 +696,7 @@ def main():
     if not backfill and is_debounced(LAST_PUSH_FILE, DEBOUNCE_SECONDS):
         return 0  # pushed recently — skip silently
 
-    machine = socket.gethostname().split('.')[0]
+    machine = stable_machine_name()
     claude_dir = os.path.join(HOME, 'Claude')
     author_email = git_author_email()
 
@@ -611,6 +704,20 @@ def main():
         # one row per date present across either Claude OR Codex sessions.
         all_claude = all_jsonl_files(PROJECTS_DIR)
         all_codex = all_codex_files(CODEX_SESSIONS_DIR)
+        # Codex dedupe registry spans ALL files (never --since-pruned) so each
+        # turn keys to its true first-seen date. Built once; per-date
+        # aggregation is a cheap in-memory pass.
+        codex_registry = build_codex_registry(all_codex, HOME)
+        if since:
+            since_cutoff = datetime.strptime(since, '%Y-%m-%d').timestamp()
+            pruned = []
+            for path in all_claude:
+                try:
+                    if os.path.getmtime(path) >= since_cutoff:
+                        pruned.append(path)
+                except OSError:
+                    continue
+            all_claude = pruned
         dates = set()
         for path in all_claude:
             try:
@@ -624,25 +731,17 @@ def main():
                             dates.add(local_date(ts))
             except OSError:
                 continue
-        # Codex events carry UTC timestamps too; key them by local date so they
-        # land on the same day as parse_codex_day attributes them (the by-path
-        # YYYY/MM/DD only marks the session's start dir, which can differ).
-        for path in all_codex:
-            try:
-                with open(path) as f:
-                    for line in f:
-                        try:
-                            ts = json.loads(line).get('timestamp')
-                        except json.JSONDecodeError:
-                            continue
-                        if ts:
-                            dates.add(local_date(ts))
-            except OSError:
-                continue
+        # Codex events carry UTC timestamps too; the registry already keyed
+        # them by earliest instance — take dates from there so replay copies
+        # don't invent extra days.
+        for rec in codex_registry.values():
+            dates.add(local_date(rec['ts']))
         dates.discard(None)  # malformed timestamps -> local_date() returned None
+        if since:
+            dates = {dt for dt in dates if dt >= since}
         for target_date in sorted(dates):
             claude_day = parse_day(all_claude, target_date, HOME)
-            codex_day = parse_codex_day(all_codex, target_date, HOME)
+            codex_day = codex_day_from_registry(codex_registry, target_date)
             day = merge_days(claude_day, codex_day)
             if day['tokens_total'] == 0:
                 continue

@@ -1,10 +1,14 @@
 import { SOURCE_COLOR, SOURCE_LABEL, type TodaySummary } from '@/lib/insights/types';
 import { fmtCost, fmtDuration, fmtInt, fmtTokens } from '@/lib/insights/format';
 
-// Today strip — the current LOCAL day's totals: tokens (per source), active
-// time, and shipped work so far. Server-rendered; no interactivity.
+// Today strip — the current LOCAL day's usage + outcomes: tokens (per source),
+// active time, interactive done/blocked, automation fleet. Server-rendered.
 export function TodayStrip({ summary }: { summary: TodaySummary }) {
-  const empty = summary.totalTokens === 0 && summary.commits === 0 && summary.totalActiveMinutes === 0;
+  const empty =
+    summary.totalTokens === 0 &&
+    summary.totalActiveMinutes === 0 &&
+    summary.interactiveTotal === 0 &&
+    summary.automationRuns === 0;
 
   return (
     <section
@@ -51,8 +55,21 @@ export function TodayStrip({ summary }: { summary: TodaySummary }) {
         </div>
 
         <Stat label="active" value={fmtDuration(summary.totalActiveMinutes)} />
-        <Stat label="commits" value={fmtInt(summary.commits)} />
-        <Stat label="lines shipped" value={`+${fmtInt(summary.insertions)}`} />
+        <Stat
+          label="plans done"
+          value={`${fmtInt(summary.interactiveCompleted)}/${fmtInt(summary.interactiveTotal)}`}
+          color={summary.interactiveCompleted > 0 ? 'var(--color-green)' : undefined}
+        />
+        <Stat
+          label="blocked"
+          value={fmtInt(summary.interactiveBlocked)}
+          color={summary.interactiveBlocked > 0 ? 'var(--color-red)' : undefined}
+          dim={summary.interactiveBlocked === 0}
+        />
+        <Stat
+          label="automations"
+          value={`${fmtInt(summary.automationCompleted)}/${fmtInt(summary.automationRuns)}`}
+        />
         <Stat label="cost" value={fmtCost(summary.cost)} dim={summary.cost == null} />
       </div>
 
@@ -95,7 +112,17 @@ export function TodayStrip({ summary }: { summary: TodaySummary }) {
   );
 }
 
-function Stat({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
+function Stat({
+  label,
+  value,
+  dim,
+  color,
+}: {
+  label: string;
+  value: string;
+  dim?: boolean | undefined;
+  color?: string | undefined;
+}) {
   return (
     <div>
       <div
@@ -103,7 +130,7 @@ function Stat({ label, value, dim }: { label: string; value: string; dim?: boole
           fontSize: '1.15rem',
           fontWeight: 600,
           lineHeight: 1.1,
-          color: dim ? 'var(--color-dim)' : 'var(--color-text)',
+          color: color ?? (dim ? 'var(--color-dim)' : 'var(--color-text)'),
           fontVariantNumeric: 'tabular-nums',
         }}
       >

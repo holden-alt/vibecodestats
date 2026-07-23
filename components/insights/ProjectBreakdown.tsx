@@ -114,8 +114,12 @@ function ProjectRowView({ row, colors }: { row: ProjectRow; colors: Record<strin
         }}
       >
         <span>{fmtInt(row.turns)} turns</span>
-        {row.commits > 0 && <span>{fmtInt(row.commits)} commits</span>}
-        {row.insertions > 0 && <span>+{fmtInt(row.insertions)} lines</span>}
+        {row.completed > 0 && (
+          <span style={{ color: 'var(--color-green)' }}>{fmtInt(row.completed)} done</span>
+        )}
+        {row.blocked > 0 && (
+          <span style={{ color: 'var(--color-red)' }}>{fmtInt(row.blocked)} blocked</span>
+        )}
         {segs.slice(0, 3).map((s) => (
           <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, background: s.color }} />

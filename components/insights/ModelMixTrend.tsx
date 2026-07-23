@@ -29,7 +29,7 @@ export function ModelMixTrend({
   today: string;
   availableSources: string[];
 }) {
-  const [win, setWin] = useState<WindowKey>('30d');
+  const [win, setWin] = useState<WindowKey>('90d');
   const [source, setSource] = useState<SourceOpt>('all');
 
   const sourceOptions = useMemo(

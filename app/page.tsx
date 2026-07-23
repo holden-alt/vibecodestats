@@ -5,26 +5,33 @@ import { createClient } from '@/lib/supabase/server';
 import { getInsightsBundle } from '@/lib/insights/queries';
 import {
   buildCallouts,
-  buildEfficiencyRows,
   buildHourlyAgg,
+  buildModelEffectiveness,
+  buildPlansSessions,
+  buildProblems,
   buildProjectRows,
+  buildSystemsBoard,
   buildTodaySummary,
   buildTrend,
 } from '@/lib/insights/compute';
 import { SOURCES } from '@/lib/insights/types';
 import { TodayStrip } from '@/components/insights/TodayStrip';
 import { InsightCallouts } from '@/components/insights/InsightCallouts';
+import { PlansSessions } from '@/components/insights/PlansSessions';
+import { ProblemsPanel } from '@/components/insights/ProblemsPanel';
+import { SystemsBoard } from '@/components/insights/SystemsBoard';
+import { ModelEffectiveness } from '@/components/insights/ModelEffectiveness';
 import { ModelMixTrend } from '@/components/insights/ModelMixTrend';
-import { EfficiencyTable } from '@/components/insights/EfficiencyTable';
 import { HoursHeatmap } from '@/components/insights/HoursHeatmap';
 import { ProjectBreakdown } from '@/components/insights/ProjectBreakdown';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
+const HEALTH_WINDOW = 30;
 
 export const metadata: Metadata = {
   title: 'personal insights station · vibecodestats.dev',
   description:
-    'A single-user terminal dashboard for LLM coding productivity: token mix by model, model efficiency with shipped-work attribution, productive-hours heatmap, and computed insights across Claude Code, Codex, Grok, and Kimi.',
+    'A single-user terminal dashboard for LLM work: what plans get finished, which models work, what keeps breaking, and how the systems are running — across Claude Code, Codex, Grok, and Kimi.',
   alternates: { canonical: '/' },
 };
 
@@ -34,7 +41,7 @@ const WEBSITE_JSONLD = {
   name: 'vibecodestats.dev',
   alternateName: 'personal insights station',
   url: SITE_URL,
-  description: 'Personal LLM-productivity insights station.',
+  description: 'Personal LLM-work insights station: outcomes, problems, and systems health.',
 };
 
 export default async function HomePage() {
@@ -43,19 +50,24 @@ export default async function HomePage() {
   const bundle = await getInsightsBundle(supabase, today);
 
   // ── Server-side compute (RSC) — everything derived once, here. ──────────────
-  const todaySummary = buildTodaySummary(bundle.modelDaily, bundle.ships, today);
-  const { points, models } = buildTrend(bundle.modelDaily);
-  const hourlyAgg = buildHourlyAgg(bundle.hourly);
-  const callouts = buildCallouts(bundle.modelDaily, bundle.projectModel, bundle.ships, hourlyAgg, today);
+  const todaySummary = buildTodaySummary(bundle.modelDaily, bundle.outcomes, today);
+  const plans = buildPlansSessions(bundle.outcomes, today, 30);
+  const problems = buildProblems(bundle.problems, today, 90);
+  const systems = buildSystemsBoard(bundle.health, today, HEALTH_WINDOW);
+  const callouts = buildCallouts(bundle.modelDaily, bundle.outcomes, bundle.problems, bundle.health, today);
 
   const effByWindow = {
-    '7d': buildEfficiencyRows(bundle.modelDaily, bundle.projectModel, bundle.ships, today, 7),
-    '30d': buildEfficiencyRows(bundle.modelDaily, bundle.projectModel, bundle.ships, today, 30),
+    '7d': buildModelEffectiveness(bundle.modelDaily, bundle.outcomes, today, 7),
+    '30d': buildModelEffectiveness(bundle.modelDaily, bundle.outcomes, today, 30),
   };
+
+  const { points, models } = buildTrend(bundle.modelDaily);
+  const hourlyAgg = buildHourlyAgg(bundle.hourly);
+
   const projByWindow = {
-    '7d': buildProjectRows(bundle.projectModel, bundle.ships, today, 7),
-    '30d': buildProjectRows(bundle.projectModel, bundle.ships, today, 30),
-    '90d': buildProjectRows(bundle.projectModel, bundle.ships, today, 90),
+    '7d': buildProjectRows(bundle.projectModel, bundle.outcomes, today, 7),
+    '30d': buildProjectRows(bundle.projectModel, bundle.outcomes, today, 30),
+    '90d': buildProjectRows(bundle.projectModel, bundle.outcomes, today, 90),
   };
 
   const present = new Set<string>();
@@ -94,9 +106,9 @@ export default async function HomePage() {
             _
           </span>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--color-dim)', lineHeight: 1.5, maxWidth: 640 }}>
-          LLM coding-productivity telemetry — Claude Code · Codex · Grok · Kimi. Token mix, per-model efficiency
-          with shipped-work attribution, and the hours the work actually happens.
+        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--color-dim)', lineHeight: 1.5, maxWidth: 660 }}>
+          What&apos;s getting finished, which models actually work, what keeps breaking, and how the systems are
+          running — across Claude Code, Codex, Grok &amp; Kimi. Usage trends underneath.
         </p>
       </header>
 
@@ -105,12 +117,22 @@ export default async function HomePage() {
           className="term-panel"
           style={{ padding: '16px 18px', fontSize: '0.72rem', color: 'var(--color-dim)', lineHeight: 1.6 }}
         >
-          <span style={{ color: 'var(--color-orange)' }}>›</span> No telemetry is readable yet. The dashboard is
-          wired to <code style={{ color: 'var(--color-text)' }}>llm_model_daily</code>,{' '}
-          <code style={{ color: 'var(--color-text)' }}>llm_project_model_daily</code>,{' '}
-          <code style={{ color: 'var(--color-text)' }}>llm_hourly</code>, and{' '}
-          <code style={{ color: 'var(--color-text)' }}>repo_ships_daily</code>. Once public-read access to those
-          tables is live, every panel below fills in automatically.
+          <span style={{ color: 'var(--color-orange)' }}>›</span> No telemetry is readable yet. The station reads{' '}
+          <code style={{ color: 'var(--color-text)' }}>session_outcomes</code>,{' '}
+          <code style={{ color: 'var(--color-text)' }}>problem_events</code>,{' '}
+          <code style={{ color: 'var(--color-text)' }}>system_health_daily</code>, and the{' '}
+          <code style={{ color: 'var(--color-text)' }}>llm_*</code> usage tables. Every panel fills in automatically
+          once data lands.
+        </div>
+      )}
+
+      {bundle.hasData && !bundle.hasOutcomeData && (
+        <div
+          className="term-panel"
+          style={{ padding: '12px 16px', fontSize: '0.68rem', color: 'var(--color-dim)', lineHeight: 1.5 }}
+        >
+          <span style={{ color: 'var(--color-orange)' }}>›</span> Usage data is live; the outcome / problem / systems
+          miners are still populating (nightly + backfill in progress). Those panels fill in as rows land.
         </div>
       )}
 
@@ -118,9 +140,15 @@ export default async function HomePage() {
 
       <TodayStrip summary={todaySummary} />
 
-      <ModelMixTrend points={points} models={models} today={today} availableSources={availableSources} />
+      <PlansSessions data={plans} />
 
-      <EfficiencyTable byWindow={effByWindow} />
+      <ProblemsPanel problems={problems} today={today} />
+
+      <SystemsBoard systems={systems} windowDays={HEALTH_WINDOW} />
+
+      <ModelEffectiveness byWindow={effByWindow} />
+
+      <ModelMixTrend points={points} models={models} today={today} availableSources={availableSources} />
 
       <div className="insights-two-col">
         <HoursHeatmap agg={hourlyAgg} today={today} availableSources={availableSources} />

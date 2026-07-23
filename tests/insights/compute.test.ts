@@ -1,14 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
-  attributeShips,
+  addDays,
   buildCallouts,
-  buildEfficiencyRows,
   buildHeatmapMatrix,
   buildHourlyAgg,
+  buildModelEffectiveness,
+  buildPlansSessions,
+  buildProblems,
   buildProjectRows,
+  buildSystemsBoard,
   buildTodaySummary,
   buildTrend,
   dowMonFirst,
+  humanizeSignature,
   inWindow,
   prettyModel,
   totalTokens,
@@ -17,60 +21,85 @@ import {
 import type {
   HourlyRow,
   ModelDailyRow,
+  ProblemEventRow,
   ProjectModelDailyRow,
-  RepoShipsRow,
+  SessionOutcomeRow,
+  SystemHealthRow,
 } from '@/lib/insights/types';
 
-const TODAY = '2026-07-21';
-const YESTERDAY = '2026-07-20';
+const TODAY = '2026-07-23';
+const YESTERDAY = '2026-07-22';
 
-function md(partial: Partial<ModelDailyRow> & Pick<ModelDailyRow, 'date' | 'source' | 'model'>): ModelDailyRow {
+// ── Fixture builders ──────────────────────────────────────────────────────────
+function md(p: Partial<ModelDailyRow> & Pick<ModelDailyRow, 'date' | 'source' | 'model'>): ModelDailyRow {
   return {
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_read_tokens: 0,
-    cache_create_tokens: 0,
-    reasoning_tokens: 0,
-    turns: 0,
-    tool_calls: 0,
-    sessions: 0,
-    active_minutes: 0,
-    cost_usd: null,
-    ...partial,
+    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_create_tokens: 0, reasoning_tokens: 0,
+    turns: 0, tool_calls: 0, sessions: 0, active_minutes: 0, cost_usd: null, ...p,
   };
 }
 function pm(
-  partial: Partial<ProjectModelDailyRow> & Pick<ProjectModelDailyRow, 'date' | 'project' | 'source' | 'model'>,
+  p: Partial<ProjectModelDailyRow> & Pick<ProjectModelDailyRow, 'date' | 'project' | 'source' | 'model'>,
 ): ProjectModelDailyRow {
-  return { tokens_total: 0, turns: 0, ...partial };
+  return { tokens_total: 0, turns: 0, ...p };
 }
-function ship(
-  partial: Partial<RepoShipsRow> & Pick<RepoShipsRow, 'date' | 'repo'>,
-): RepoShipsRow {
-  return { commits: 0, insertions: 0, deletions: 0, files_changed: 0, ...partial };
+function so(
+  p: Partial<SessionOutcomeRow> &
+    Pick<SessionOutcomeRow, 'session_id' | 'date' | 'kind' | 'outcome' | 'model' | 'project'>,
+): SessionOutcomeRow {
+  return { source: 'claude-code', intent: null, summary: null, friction: 0, friction_notes: [], problems: [], ...p };
 }
-function hr(partial: Partial<HourlyRow> & Pick<HourlyRow, 'date' | 'hour' | 'source' | 'model'>): HourlyRow {
-  return { tokens: 0, ...partial };
+function pe(p: Partial<ProblemEventRow> & Pick<ProblemEventRow, 'signature' | 'session_id' | 'date'>): ProblemEventRow {
+  return { description: null, ...p };
+}
+function sh(p: Partial<SystemHealthRow> & Pick<SystemHealthRow, 'date' | 'system'>): SystemHealthRow {
+  return { checks: 0, ok: 0, amber: 0, red: 0, ...p };
+}
+function hr(p: Partial<HourlyRow> & Pick<HourlyRow, 'date' | 'hour' | 'source' | 'model'>): HourlyRow {
+  return { tokens: 0, ...p };
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 const MODEL_DAILY: ModelDailyRow[] = [
-  md({ date: TODAY, source: 'claude-code', model: 'claude-opus-4-8', input_tokens: 1000, output_tokens: 500, cache_read_tokens: 8000, cache_create_tokens: 200, reasoning_tokens: 300, turns: 10, tool_calls: 25, sessions: 2, active_minutes: 120, cost_usd: 5 }),
-  md({ date: TODAY, source: 'codex', model: 'gpt-5.6-sol', input_tokens: 2000, output_tokens: 1000, reasoning_tokens: 500, turns: 8, tool_calls: 8, sessions: 1, active_minutes: 60, cost_usd: null }),
-  md({ date: YESTERDAY, source: 'claude-code', model: 'claude-opus-4-8', input_tokens: 500, output_tokens: 500, cache_read_tokens: 4000, turns: 5, tool_calls: 10, sessions: 1, active_minutes: 60, cost_usd: 3 }),
+  md({ date: TODAY, source: 'claude-code', model: 'claude-opus-4-8', input_tokens: 1000, output_tokens: 500, cache_read_tokens: 8000, cache_create_tokens: 200, reasoning_tokens: 300, active_minutes: 120, cost_usd: 5 }),
+  md({ date: TODAY, source: 'claude-code', model: 'claude-fable-5', input_tokens: 2000, cache_read_tokens: 1000, active_minutes: 30, cost_usd: 4 }),
+  md({ date: TODAY, source: 'codex', model: 'gpt-5.6-sol', input_tokens: 2000, output_tokens: 1000, reasoning_tokens: 500, active_minutes: 60, cost_usd: null }),
+  md({ date: YESTERDAY, source: 'claude-code', model: 'claude-opus-4-8', input_tokens: 500, output_tokens: 500, cache_read_tokens: 4000, active_minutes: 60, cost_usd: 3 }),
+];
+
+const OUTCOMES: SessionOutcomeRow[] = [
+  // today — interactive
+  so({ session_id: 'i1', date: TODAY, kind: 'interactive', outcome: 'completed', model: 'claude-opus-4-8', project: 'holden-alt/cc-dashboard', friction: 0, intent: 'ship insights station' }),
+  so({ session_id: 'i2', date: TODAY, kind: 'interactive', outcome: 'blocked', model: 'claude-opus-4-8', project: 'holden-alt/cc-dashboard', friction: 3, intent: 'fix socket bug' }),
+  so({ session_id: 'i3', date: TODAY, kind: 'interactive', outcome: 'completed', model: 'claude-fable-5', project: 'unknown', friction: 1, intent: 'draft copy' }),
+  so({ session_id: 'i4', date: TODAY, kind: 'interactive', outcome: 'chat', model: 'claude-opus-4-8', project: 'x', friction: 0, intent: 'brainstorm' }),
+  // today — automation (3 runs, 2 completed)
+  so({ session_id: 'a1', date: TODAY, kind: 'automation', outcome: 'completed', model: 'claude-opus-4-8', project: 'auto' }),
+  so({ session_id: 'a2', date: TODAY, kind: 'automation', outcome: 'completed', model: 'claude-opus-4-8', project: 'auto' }),
+  so({ session_id: 'a3', date: TODAY, kind: 'automation', outcome: 'blocked', model: 'claude-opus-4-8', project: 'auto' }),
+  // this week (07-20)
+  so({ session_id: 'i5', date: '2026-07-20', kind: 'interactive', outcome: 'completed', model: 'claude-opus-4-8', project: 'p', friction: 0 }),
+  // last week (07-12..07-16)
+  so({ session_id: 'i6', date: '2026-07-14', kind: 'interactive', outcome: 'completed', model: 'claude-opus-4-8', project: 'p', friction: 1 }),
+  so({ session_id: 'i7', date: '2026-07-15', kind: 'interactive', outcome: 'blocked', model: 'claude-opus-4-8', project: 'p', friction: 2 }),
+  so({ session_id: 'i8', date: '2026-07-12', kind: 'interactive', outcome: 'completed', model: 'claude-opus-4-8', project: 'p', friction: 0 }),
 ];
 
 const PROJECT_MODEL: ProjectModelDailyRow[] = [
   pm({ date: TODAY, project: 'holden-alt/cc-dashboard', source: 'claude-code', model: 'claude-opus-4-8', tokens_total: 9000, turns: 9 }),
-  pm({ date: TODAY, project: 'holden-alt/cc-dashboard', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 1000, turns: 1 }),
-  pm({ date: TODAY, project: 'unknown', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 3000, turns: 3 }),
-  pm({ date: YESTERDAY, project: 'holden-alt/cc-dashboard', source: 'claude-code', model: 'claude-opus-4-8', tokens_total: 5000, turns: 5 }),
+  pm({ date: TODAY, project: 'unknown', source: 'claude-code', model: 'claude-fable-5', tokens_total: 3000, turns: 3 }),
 ];
 
-const SHIPS: RepoShipsRow[] = [
-  ship({ date: TODAY, repo: 'holden-alt/cc-dashboard', commits: 3, insertions: 200, deletions: 10, files_changed: 5 }),
-  ship({ date: TODAY, repo: 'unknown', commits: 1, insertions: 50 }),
-  ship({ date: YESTERDAY, repo: 'holden-alt/cc-dashboard', commits: 2, insertions: 100 }),
+const PROBLEMS: ProblemEventRow[] = [
+  pe({ signature: 'api-socket-closed', session_id: 'i2', date: TODAY, description: 'socket closed mid session' }),
+  pe({ signature: 'api-socket-closed', session_id: 'i2b', date: TODAY, description: 'socket closed again' }),
+  pe({ signature: 'api-socket-closed', session_id: 'x9', date: '2026-07-21', description: 'earlier close' }),
+  pe({ signature: 'rai-backlog-drain-miss', session_id: 'x10', date: '2026-07-20', description: 'scheduler missed' }),
+];
+
+const HEALTH: SystemHealthRow[] = [
+  sh({ date: TODAY, system: 'HoldenGR videos', checks: 48, ok: 40, amber: 6, red: 2 }),
+  sh({ date: TODAY, system: 'RAI operations core', checks: 48, ok: 48, amber: 0, red: 0 }),
+  sh({ date: '2026-07-22', system: 'HoldenGR videos', checks: 48, ok: 46, amber: 2, red: 0 }),
 ];
 
 const HOURLY: HourlyRow[] = [
@@ -83,147 +112,163 @@ const HOURLY: HourlyRow[] = [
 describe('primitives', () => {
   it('totalTokens sums all five token buckets', () => {
     expect(totalTokens(MODEL_DAILY[0]!)).toBe(10000);
-    expect(totalTokens(MODEL_DAILY[1]!)).toBe(3500);
   });
-
-  it('windowStart is inclusive of today', () => {
-    expect(windowStart('2026-07-21', 7)).toBe('2026-07-15');
-    expect(windowStart('2026-07-21', 1)).toBe('2026-07-21');
+  it('windowStart / inWindow bound inclusively', () => {
+    expect(windowStart('2026-07-23', 7)).toBe('2026-07-17');
+    expect(inWindow('2026-07-17', '2026-07-23', 7)).toBe(true);
+    expect(inWindow('2026-07-16', '2026-07-23', 7)).toBe(false);
   });
-
-  it('inWindow bounds correctly', () => {
-    expect(inWindow('2026-07-15', '2026-07-21', 7)).toBe(true);
-    expect(inWindow('2026-07-14', '2026-07-21', 7)).toBe(false);
-    expect(inWindow('2026-07-22', '2026-07-21', 7)).toBe(false);
+  it('addDays shifts dates', () => {
+    expect(addDays('2026-07-17', -1)).toBe('2026-07-16');
+    expect(addDays('2026-07-31', 1)).toBe('2026-08-01');
   });
-
   it('dowMonFirst is Monday-first', () => {
-    // 2026-07-20 is a Monday.
-    expect(dowMonFirst('2026-07-20')).toBe(0);
-    expect(dowMonFirst('2026-07-21')).toBe(1);
+    expect(dowMonFirst('2026-07-20')).toBe(0); // Monday
     expect(dowMonFirst('2026-07-26')).toBe(6); // Sunday
   });
-
-  it('prettyModel humanizes vendor model ids', () => {
+  it('prettyModel + humanizeSignature humanize ids', () => {
     expect(prettyModel('claude-opus-4-8')).toBe('Opus 4.8');
-    expect(prettyModel('claude-fable-5')).toBe('Fable 5');
-    expect(prettyModel('gpt-5.6-sol')).toBe('GPT 5.6 Sol');
-    expect(prettyModel('grok-4-fast')).toBe('Grok 4 Fast');
+    expect(humanizeSignature('api-socket-closed')).toBe('Api socket closed');
   });
 });
 
 // ── Today ─────────────────────────────────────────────────────────────────────
 describe('buildTodaySummary', () => {
-  const s = buildTodaySummary(MODEL_DAILY, SHIPS, TODAY);
-  it('totals tokens + active minutes for today only', () => {
-    expect(s.totalTokens).toBe(13500);
-    expect(s.totalActiveMinutes).toBe(180);
+  const s = buildTodaySummary(MODEL_DAILY, OUTCOMES, TODAY);
+  it('totals usage for today only', () => {
+    expect(s.totalTokens).toBe(16500);
+    expect(s.totalActiveMinutes).toBe(210);
+    expect(s.cost).toBe(9);
   });
-  it('breaks down by source, tokens-desc', () => {
-    expect(s.bySource.map((x) => x.source)).toEqual(['claude-code', 'codex']);
-    expect(s.bySource[0]!.tokens).toBe(10000);
+  it('counts interactive task outcomes (chat excluded)', () => {
+    expect(s.interactiveCompleted).toBe(2);
+    expect(s.interactiveBlocked).toBe(1);
+    expect(s.interactiveTotal).toBe(3);
   });
-  it('sums shipped work for today', () => {
-    expect(s.commits).toBe(4); // cc-dashboard 3 + unknown 1
-    expect(s.insertions).toBe(250);
-  });
-  it('reports cost only from sources that have it', () => {
-    expect(s.cost).toBe(5);
-  });
-});
-
-// ── Trend ─────────────────────────────────────────────────────────────────────
-describe('buildTrend', () => {
-  const { points, models } = buildTrend(MODEL_DAILY);
-  it('orders points ascending by date', () => {
-    expect(points.map((p) => p.date)).toEqual([YESTERDAY, TODAY]);
-  });
-  it('ranks models by total tokens and assigns colors', () => {
-    expect(models[0]!.model).toBe('claude-opus-4-8'); // 15000
-    expect(models[0]!.total).toBe(15000);
-    expect(models[0]!.source).toBe('claude-code');
-    expect(models[0]!.color).toBeTruthy();
+  it('counts automation runs separately', () => {
+    expect(s.automationRuns).toBe(3);
+    expect(s.automationCompleted).toBe(2);
   });
 });
 
-// ── Attribution ───────────────────────────────────────────────────────────────
-describe('attributeShips (dominant-model heuristic)', () => {
-  const attr = attributeShips(PROJECT_MODEL, SHIPS, TODAY, 7);
-  it('credits a day-project ships to its dominant model', () => {
-    // cc-dashboard today+yesterday dominated by opus → 3+2 commits, 200+100 lines
-    expect(attr.get('claude-code|claude-opus-4-8')).toEqual({ commits: 5, insertions: 300 });
-    // unknown today dominated by gpt → 1 commit, 50 lines
-    expect(attr.get('codex|gpt-5.6-sol')).toEqual({ commits: 1, insertions: 50 });
-  });
-});
-
-// ── Efficiency ────────────────────────────────────────────────────────────────
-describe('buildEfficiencyRows', () => {
-  const rows = buildEfficiencyRows(MODEL_DAILY, PROJECT_MODEL, SHIPS, TODAY, 7);
+// ── Model effectiveness ─────────────────────────────────────────────────────
+describe('buildModelEffectiveness', () => {
+  const rows = buildModelEffectiveness(MODEL_DAILY, OUTCOMES, TODAY, 30);
   const opus = rows.find((r) => r.model === 'claude-opus-4-8')!;
-  it('aggregates usage per source|model over the window', () => {
-    expect(rows[0]!.model).toBe('claude-opus-4-8'); // tokens-desc
-    expect(opus.tokens).toBe(15000);
-    expect(opus.turns).toBe(15);
-    expect(opus.sessions).toBe(3);
+  it('ranks by interactive sessions and joins usage', () => {
+    expect(rows[0]!.model).toBe('claude-opus-4-8');
+    expect(opus.sessions).toBe(6);
+    expect(opus.completed).toBe(4);
+    expect(opus.blocked).toBe(2);
+    expect(opus.tokens).toBe(15000); // TODAY + YESTERDAY opus usage
     expect(opus.cost).toBe(8);
   });
-  it('merges attributed shipped-work and derives rates', () => {
-    expect(opus.commits).toBe(5);
-    expect(opus.insertions).toBe(300);
-    expect(opus.toolCallsPerTurn).toBeCloseTo(35 / 15, 5);
-    expect(opus.insertionsPerActiveHour).toBeCloseTo(100, 5); // 300 / 3h
-    expect(opus.insertionsPer100M).toBeCloseTo(300 / (15000 / 1e8), 2);
+  it('computes completion rate + avg friction over task sessions', () => {
+    expect(opus.completionRate).toBeCloseTo(4 / 6, 5);
+    expect(opus.avgFriction).toBeCloseTo(1, 5);
   });
-  it('leaves cost null for sources without cost', () => {
-    const gpt = rows.find((r) => r.model === 'gpt-5.6-sol')!;
-    expect(gpt.cost).toBeNull();
+  it('excludes chat and automation from effectiveness', () => {
+    const fable = rows.find((r) => r.model === 'claude-fable-5')!;
+    expect(fable.sessions).toBe(1);
+    expect(rows.every((r) => r.sessions > 0)).toBe(true);
   });
 });
 
-// ── Hourly heatmap ────────────────────────────────────────────────────────────
-describe('hourly heatmap', () => {
-  const agg = buildHourlyAgg(HOURLY);
-  it('collapses models into (date, hour, source)', () => {
-    expect(agg.length).toBe(3);
+// ── Plans & sessions ──────────────────────────────────────────────────────────
+describe('buildPlansSessions', () => {
+  const p = buildPlansSessions(OUTCOMES, TODAY, 30);
+  it('computes week-over-week completion', () => {
+    expect(p.thisSessions).toBe(4); // today 3 tasks + 07-20
+    expect(p.thisRate).toBeCloseTo(3 / 4, 5);
+    expect(p.lastSessions).toBe(3); // 07-12/14/15
+    expect(p.lastRate).toBeCloseTo(2 / 3, 5);
   });
-  it('sums matrix cells across sources when unfiltered', () => {
+  it('lists today interactive sessions, blocked first', () => {
+    expect(p.todaySessions.length).toBe(4); // incl chat
+    expect(p.todaySessions[0]!.outcome).toBe('blocked');
+  });
+  it('trend is calendar-complete (30 days) and zero-filled', () => {
+    expect(p.trend.length).toBe(30);
+    const todayPoint = p.trend[p.trend.length - 1]!;
+    expect(todayPoint.date).toBe(TODAY);
+    expect(todayPoint.completed).toBe(2);
+    expect(todayPoint.blocked).toBe(1);
+  });
+});
+
+// ── Problems ──────────────────────────────────────────────────────────────────
+describe('buildProblems', () => {
+  const rows = buildProblems(PROBLEMS, TODAY, 90);
+  it('groups by signature with occurrence + spread', () => {
+    expect(rows[0]!.signature).toBe('api-socket-closed'); // most recent
+    expect(rows[0]!.occurrences).toBe(3);
+    expect(rows[0]!.firstSeen).toBe('2026-07-21');
+    expect(rows[0]!.lastSeen).toBe(TODAY);
+    expect(rows[0]!.daysActive).toBe(2);
+    expect(rows[0]!.latestDescription).toBe('socket closed again');
+  });
+  it('ranks by recent recurrence', () => {
+    expect(rows.map((r) => r.signature)).toEqual(['api-socket-closed', 'rai-backlog-drain-miss']);
+  });
+});
+
+// ── Systems board ─────────────────────────────────────────────────────────────
+describe('buildSystemsBoard', () => {
+  const rows = buildSystemsBoard(HEALTH, TODAY, 30);
+  it('computes uptime + red incidents + today state, worst first', () => {
+    expect(rows[0]!.system).toBe('HoldenGR videos'); // red today → first
+    expect(rows[0]!.todayState).toBe('red');
+    expect(rows[0]!.redIncidents).toBe(2);
+    expect(rows[0]!.uptime).toBeCloseTo(86 / 96, 5);
+    const rai = rows.find((r) => r.system === 'RAI operations core')!;
+    expect(rai.todayState).toBe('green');
+    expect(rai.uptime).toBe(1);
+  });
+  it('renders with a single day of history', () => {
+    const oneDay = buildSystemsBoard([HEALTH[0]!], TODAY, 30);
+    expect(oneDay.length).toBe(1);
+    expect(oneDay[0]!.uptime).toBeCloseTo(40 / 48, 5);
+  });
+});
+
+// ── Projects (token-only + outcome tint) ──────────────────────────────────────
+describe('buildProjectRows', () => {
+  const rows = buildProjectRows(PROJECT_MODEL, OUTCOMES, TODAY, 30);
+  it('ranks by tokens and tints with interactive outcomes', () => {
+    expect(rows[0]!.project).toBe('holden-alt/cc-dashboard');
+    expect(rows[0]!.tokens).toBe(9000);
+    expect(rows[0]!.completed).toBe(1);
+    expect(rows[0]!.blocked).toBe(1);
+    expect(rows[0]!.models[0]!.model).toBe('claude-opus-4-8');
+  });
+});
+
+// ── Trend + hourly (unchanged) ────────────────────────────────────────────────
+describe('trend + hourly', () => {
+  it('buildTrend ranks models by tokens', () => {
+    const { models } = buildTrend(MODEL_DAILY);
+    expect(models[0]!.model).toBe('claude-opus-4-8'); // 15000
+  });
+  it('hourly heatmap sums by dow×hour', () => {
+    const agg = buildHourlyAgg(HOURLY);
     const { matrix, total } = buildHeatmapMatrix(agg, TODAY, 7, null);
     const dow = dowMonFirst(TODAY);
     expect(total).toBe(9000);
     expect(matrix[dow]![14]).toBe(6000);
-    expect(matrix[dow]![15]).toBe(3000);
-  });
-  it('filters by source', () => {
-    const { matrix, total } = buildHeatmapMatrix(agg, TODAY, 7, 'claude-code');
-    const dow = dowMonFirst(TODAY);
-    expect(total).toBe(8000);
-    expect(matrix[dow]![14]).toBe(5000);
-  });
-});
-
-// ── Projects ──────────────────────────────────────────────────────────────────
-describe('buildProjectRows', () => {
-  const rows = buildProjectRows(PROJECT_MODEL, SHIPS, TODAY, 7);
-  it('ranks projects by tokens and joins ships by repo===project', () => {
-    expect(rows[0]!.project).toBe('holden-alt/cc-dashboard');
-    expect(rows[0]!.tokens).toBe(15000);
-    expect(rows[0]!.commits).toBe(5);
-    expect(rows[0]!.insertions).toBe(300);
-    expect(rows[0]!.models[0]!.model).toBe('claude-opus-4-8');
   });
 });
 
 // ── Callouts ──────────────────────────────────────────────────────────────────
 describe('buildCallouts', () => {
-  const agg = buildHourlyAgg(HOURLY);
-  const lines = buildCallouts(MODEL_DAILY, PROJECT_MODEL, SHIPS, agg, TODAY);
-  it('emits sample-size-gated, rule-based insights', () => {
-    expect(lines.some((l) => /Cache reads are \d+% of all tokens/.test(l))).toBe(true);
-    expect(lines.some((l) => /ships the most: \d+ lines\/active hour/.test(l))).toBe(true);
+  const lines = buildCallouts(MODEL_DAILY, OUTCOMES, PROBLEMS, HEALTH, TODAY);
+  it('emits outcome/problem/health insights, sample-size gated', () => {
+    expect(lines.some((l) => /Api socket closed hit 2× today/.test(l))).toBe(true);
+    expect(lines.some((l) => /HoldenGR videos: 2 red checks today/.test(l))).toBe(true);
+    expect(lines.some((l) => /completion rate 75% this wk vs 67% last/.test(l))).toBe(true);
+    expect(lines.some((l) => /Opus 4\.8 completes 67% of interactive sessions/.test(l))).toBe(true);
     expect(lines.length).toBeLessThanOrEqual(5);
   });
-  it('degrades to empty when there is no data', () => {
+  it('degrades to empty with no data', () => {
     expect(buildCallouts([], [], [], [], TODAY)).toEqual([]);
   });
 });

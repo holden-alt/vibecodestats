@@ -479,6 +479,106 @@ export type Database = {
         };
         Relationships: [];
       };
+
+      // ── Outcome / systems telemetry (single-user; LLM-mined nightly) ────────
+      // One row per session per its last-judged day. kind ∈ 'interactive' |
+      // 'automation'; outcome ∈ 'completed'|'partial'|'blocked'|'abandoned'|'chat'.
+      // friction 0-3. friction_notes = string[]; problems = {signature,description}[].
+      session_outcomes: {
+        Row: {
+          session_id: string;
+          date: string;
+          source: string;
+          project: string;
+          model: string;
+          kind: string;
+          intent: string | null;
+          outcome: string;
+          summary: string | null;
+          friction: number;
+          friction_notes: Json;
+          problems: Json;
+        };
+        Insert: {
+          session_id: string;
+          date: string;
+          source: string;
+          project: string;
+          model: string;
+          kind: string;
+          intent?: string | null;
+          outcome: string;
+          summary?: string | null;
+          friction?: number;
+          friction_notes?: Json;
+          problems?: Json;
+        };
+        Update: {
+          session_id?: string;
+          date?: string;
+          source?: string;
+          project?: string;
+          model?: string;
+          kind?: string;
+          intent?: string | null;
+          outcome?: string;
+          summary?: string | null;
+          friction?: number;
+          friction_notes?: Json;
+          problems?: Json;
+        };
+        Relationships: [];
+      };
+      // Recurring-problem occurrences. Group by signature for counts + spread.
+      problem_events: {
+        Row: {
+          signature: string;
+          session_id: string;
+          date: string;
+          description: string | null;
+        };
+        Insert: {
+          signature: string;
+          session_id: string;
+          date: string;
+          description?: string | null;
+        };
+        Update: {
+          signature?: string;
+          session_id?: string;
+          date?: string;
+          description?: string | null;
+        };
+        Relationships: [];
+      };
+      // Mission-control health counters (incremented every 30 min per system).
+      system_health_daily: {
+        Row: {
+          date: string;
+          system: string;
+          checks: number;
+          ok: number;
+          amber: number;
+          red: number;
+        };
+        Insert: {
+          date: string;
+          system: string;
+          checks?: number;
+          ok?: number;
+          amber?: number;
+          red?: number;
+        };
+        Update: {
+          date?: string;
+          system?: string;
+          checks?: number;
+          ok?: number;
+          amber?: number;
+          red?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

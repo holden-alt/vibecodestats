@@ -1,17 +1,27 @@
 import {
   MODEL_PALETTE,
   OTHER_COLOR,
-  type EfficiencyRow,
+  TASK_OUTCOMES,
+  type EffectivenessRow,
   type HourlyAgg,
   type HourlyRow,
   type ModelDailyRow,
   type ModelMeta,
+  type OutcomeTrendPoint,
+  type PlansData,
+  type ProblemEventRow,
+  type ProblemRow,
   type ProjectModelDailyRow,
   type ProjectRow,
-  type RepoShipsRow,
+  type SessionListItem,
+  type SessionOutcomeRow,
+  type SystemHealthRow,
+  type SystemRow,
   type TodaySummary,
   type TrendPoint,
 } from './types';
+
+const TASK_SET = new Set<string>(TASK_OUTCOMES); // completed/partial/blocked/abandoned
 
 // ── Small numeric helpers ────────────────────────────────────────────────────
 const n = (x: unknown): number => {
@@ -49,6 +59,13 @@ export function inWindow(date: string, today: string, days: number): boolean {
   return date >= start && date <= today;
 }
 
+/** Shift a 'YYYY-MM-DD' date by `delta` days. */
+export function addDays(date: string, delta: number): string {
+  const d = new Date(date + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Mon-first day-of-week index (0=Mon .. 6=Sun) for a 'YYYY-MM-DD' date. */
 export function dowMonFirst(date: string): number {
   const jsDow = new Date(date + 'T00:00:00Z').getUTCDay(); // 0=Sun..6=Sat
@@ -72,10 +89,22 @@ export function prettyModel(model: string): string {
     .join(' ');
 }
 
-// ── Today strip ──────────────────────────────────────────────────────────────
+/** Humanize a kebab-case problem signature: 'api-socket-closed' → 'Api socket closed'. */
+export function humanizeSignature(sig: string): string {
+  const s = sig.replace(/[-_]/g, ' ').trim();
+  return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : sig;
+}
+
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? 'th');
+}
+
+// ── Today strip (usage + interactive/automation outcomes) ─────────────────────
 export function buildTodaySummary(
   modelDaily: ModelDailyRow[],
-  ships: RepoShipsRow[],
+  outcomes: SessionOutcomeRow[],
   today: string,
 ): TodaySummary {
   const todayRows = modelDaily.filter((r) => r.date === today);
@@ -96,18 +125,38 @@ export function buildTodaySummary(
     .map(([source, v]) => ({ source, ...v }))
     .sort((a, b) => b.tokens - a.tokens);
 
-  const shipToday = ships.filter((s) => s.date === today);
-  const commits = shipToday.reduce((acc, s) => acc + n(s.commits), 0);
-  const insertions = shipToday.reduce((acc, s) => acc + n(s.insertions), 0);
+  let interactiveCompleted = 0;
+  let interactiveBlocked = 0;
+  let interactivePartial = 0;
+  let interactiveTotal = 0;
+  let automationRuns = 0;
+  let automationCompleted = 0;
+  for (const o of outcomes) {
+    if (o.date !== today) continue;
+    if (o.kind === 'interactive') {
+      if (!TASK_SET.has(o.outcome)) continue; // exclude chat
+      interactiveTotal++;
+      if (o.outcome === 'completed') interactiveCompleted++;
+      else if (o.outcome === 'blocked') interactiveBlocked++;
+      else if (o.outcome === 'partial') interactivePartial++;
+    } else if (o.kind === 'automation') {
+      automationRuns++;
+      if (o.outcome === 'completed') automationCompleted++;
+    }
+  }
 
   return {
     date: today,
     bySource,
     totalTokens: bySource.reduce((acc, s) => acc + s.tokens, 0),
     totalActiveMinutes: bySource.reduce((acc, s) => acc + s.activeMinutes, 0),
-    commits,
-    insertions,
     cost: hasCost ? cost : null,
+    interactiveCompleted,
+    interactiveBlocked,
+    interactivePartial,
+    interactiveTotal,
+    automationRuns,
+    automationCompleted,
   };
 }
 
@@ -160,103 +209,76 @@ export function buildTrend(modelDaily: ModelDailyRow[]): {
   return { points, models };
 }
 
-// ── Shipped-work attribution (dominant-model heuristic) ───────────────────────
-// For each (date, project) pick the (source, model) with the most tokens in
-// llm_project_model_daily, then attribute that day-project's commits/insertions
-// (from repo_ships_daily joined on repo === project) to that model.
-export function attributeShips(
-  projectModel: ProjectModelDailyRow[],
-  ships: RepoShipsRow[],
-  today: string,
-  days: number,
-): Map<string, { commits: number; insertions: number }> {
-  const best = new Map<string, { source: string; model: string; tokens: number }>();
-  for (const pm of projectModel) {
-    if (!inWindow(pm.date, today, days)) continue;
-    const key = pm.date + '|' + pm.project;
-    const cur = best.get(key);
-    const tok = n(pm.tokens_total);
-    if (!cur || tok > cur.tokens) best.set(key, { source: pm.source, model: pm.model, tokens: tok });
-  }
-
-  const attr = new Map<string, { commits: number; insertions: number }>();
-  for (const s of ships) {
-    if (!inWindow(s.date, today, days)) continue;
-    const dom = best.get(s.date + '|' + s.repo);
-    if (!dom) continue; // no model activity recorded for that day-project → unattributable
-    const mk = dom.source + '|' + dom.model;
-    const cur = attr.get(mk) ?? { commits: 0, insertions: 0 };
-    cur.commits += n(s.commits);
-    cur.insertions += n(s.insertions);
-    attr.set(mk, cur);
-  }
-  return attr;
-}
-
-// ── Model-efficiency table ────────────────────────────────────────────────────
-export function buildEfficiencyRows(
+// ── Model effectiveness (interactive outcomes + usage anchor) ─────────────────
+// "Which models work for me": per model over a window, using INTERACTIVE task
+// sessions only (chat excluded). Tokens + cost come from llm_model_daily so the
+// usage trend stays visible; outcome columns come from session_outcomes.
+export function buildModelEffectiveness(
   modelDaily: ModelDailyRow[],
-  projectModel: ProjectModelDailyRow[],
-  ships: RepoShipsRow[],
+  outcomes: SessionOutcomeRow[],
   today: string,
   days: number,
-): EfficiencyRow[] {
-  type Agg = {
-    tokens: number;
-    turns: number;
-    toolCalls: number;
-    sessions: number;
-    activeMinutes: number;
-    cost: number;
-    hasCost: boolean;
-  };
-  const agg = new Map<string, Agg>();
+): EffectivenessRow[] {
+  // Usage per model (all sources) from llm_model_daily.
+  const usage = new Map<string, { source: string; tokens: number; cost: number; hasCost: boolean }>();
   for (const r of modelDaily) {
     if (!inWindow(r.date, today, days)) continue;
-    const key = r.source + '|' + r.model;
-    const a =
-      agg.get(key) ??
-      { tokens: 0, turns: 0, toolCalls: 0, sessions: 0, activeMinutes: 0, cost: 0, hasCost: false };
-    a.tokens += totalTokens(r);
-    a.turns += n(r.turns);
-    a.toolCalls += n(r.tool_calls);
-    a.sessions += n(r.sessions);
-    a.activeMinutes += n(r.active_minutes);
+    const u = usage.get(r.model) ?? { source: r.source, tokens: 0, cost: 0, hasCost: false };
+    u.tokens += totalTokens(r);
     if (r.cost_usd != null) {
-      a.cost += n(r.cost_usd);
-      a.hasCost = true;
+      u.cost += n(r.cost_usd);
+      u.hasCost = true;
     }
-    agg.set(key, a);
+    usage.set(r.model, u);
   }
 
-  const attr = attributeShips(projectModel, ships, today, days);
+  // Interactive task outcomes per model from session_outcomes.
+  type OAgg = {
+    source: string;
+    sessions: number;
+    completed: number;
+    partial: number;
+    blocked: number;
+    abandoned: number;
+    friction: number;
+  };
+  const oagg = new Map<string, OAgg>();
+  for (const o of outcomes) {
+    if (o.kind !== 'interactive') continue;
+    if (!inWindow(o.date, today, days)) continue;
+    if (!TASK_SET.has(o.outcome)) continue; // exclude chat
+    const a =
+      oagg.get(o.model) ??
+      { source: o.source, sessions: 0, completed: 0, partial: 0, blocked: 0, abandoned: 0, friction: 0 };
+    a.sessions++;
+    if (o.outcome === 'completed') a.completed++;
+    else if (o.outcome === 'partial') a.partial++;
+    else if (o.outcome === 'blocked') a.blocked++;
+    else if (o.outcome === 'abandoned') a.abandoned++;
+    a.friction += n(o.friction);
+    oagg.set(o.model, a);
+  }
 
-  const rows: EfficiencyRow[] = [...agg.entries()].map(([key, a]) => {
-    const [source = '', model = ''] = key.split('|');
-    const shipped = attr.get(key) ?? { commits: 0, insertions: 0 };
-    const activeHours = a.activeMinutes / 60;
-    const per100M = a.tokens / 100_000_000;
+  // Rows: models that have at least one interactive task session.
+  const rows: EffectivenessRow[] = [...oagg.entries()].map(([model, a]) => {
+    const u = usage.get(model);
     return {
-      source,
       model,
-      tokens: a.tokens,
-      turns: a.turns,
-      toolCalls: a.toolCalls,
+      source: u?.source ?? a.source,
+      tokens: u?.tokens ?? 0,
+      cost: u?.hasCost ? u.cost : null,
+      hasCost: u?.hasCost ?? false,
       sessions: a.sessions,
-      activeMinutes: a.activeMinutes,
-      cost: a.hasCost ? a.cost : null,
-      hasCost: a.hasCost,
-      commits: shipped.commits,
-      insertions: shipped.insertions,
-      toolCallsPerTurn: a.turns > 0 ? a.toolCalls / a.turns : 0,
-      commitsPerActiveHour: activeHours > 0 ? shipped.commits / activeHours : 0,
-      insertionsPerActiveHour: activeHours > 0 ? shipped.insertions / activeHours : 0,
-      commitsPer100M: per100M > 0 ? shipped.commits / per100M : 0,
-      insertionsPer100M: per100M > 0 ? shipped.insertions / per100M : 0,
+      completed: a.completed,
+      partial: a.partial,
+      blocked: a.blocked,
+      abandoned: a.abandoned,
+      completionRate: a.sessions > 0 ? a.completed / a.sessions : null,
+      avgFriction: a.sessions > 0 ? a.friction / a.sessions : null,
     };
   });
 
-  return rows.sort((a, b) => b.tokens - a.tokens);
+  return rows.sort((x, y) => y.sessions - x.sessions || y.tokens - x.tokens);
 }
 
 // ── Hourly heatmap ────────────────────────────────────────────────────────────
@@ -297,10 +319,10 @@ export function buildHeatmapMatrix(
   return { matrix, max, total };
 }
 
-// ── Project breakdown ─────────────────────────────────────────────────────────
+// ── Project breakdown (token-only + interactive outcome tint) ─────────────────
 export function buildProjectRows(
   projectModel: ProjectModelDailyRow[],
-  ships: RepoShipsRow[],
+  outcomes: SessionOutcomeRow[],
   today: string,
   days: number,
 ): ProjectRow[] {
@@ -318,17 +340,19 @@ export function buildProjectRows(
     byProject.set(pm.project, acc);
   }
 
-  const shipsByRepo = new Map<string, { commits: number; insertions: number }>();
-  for (const s of ships) {
-    if (!inWindow(s.date, today, days)) continue;
-    const cur = shipsByRepo.get(s.repo) ?? { commits: 0, insertions: 0 };
-    cur.commits += n(s.commits);
-    cur.insertions += n(s.insertions);
-    shipsByRepo.set(s.repo, cur);
+  // Interactive outcome tint per project.
+  const outByProject = new Map<string, { completed: number; blocked: number }>();
+  for (const o of outcomes) {
+    if (o.kind !== 'interactive') continue;
+    if (!inWindow(o.date, today, days)) continue;
+    const cur = outByProject.get(o.project) ?? { completed: 0, blocked: 0 };
+    if (o.outcome === 'completed') cur.completed++;
+    else if (o.outcome === 'blocked') cur.blocked++;
+    outByProject.set(o.project, cur);
   }
 
   const rows: ProjectRow[] = [...byProject.entries()].map(([project, acc]) => {
-    const shipped = shipsByRepo.get(project) ?? { commits: 0, insertions: 0 };
+    const out = outByProject.get(project) ?? { completed: 0, blocked: 0 };
     const models = [...acc.models.entries()]
       .map(([model, v]) => ({ model, source: v.source, tokens: v.tokens }))
       .sort((a, b) => b.tokens - a.tokens);
@@ -336,8 +360,8 @@ export function buildProjectRows(
       project,
       tokens: acc.tokens,
       turns: acc.turns,
-      commits: shipped.commits,
-      insertions: shipped.insertions,
+      completed: out.completed,
+      blocked: out.blocked,
       models,
     };
   });
@@ -345,161 +369,267 @@ export function buildProjectRows(
   return rows.sort((a, b) => b.tokens - a.tokens);
 }
 
-// ── Insight callouts (rule-based, sample-size gated) ──────────────────────────
-const MIN_ACTIVE_DAYS = 3;
-
-function activeDayCountByModel(
-  modelDaily: ModelDailyRow[],
-  today: string,
-  days: number,
-): Map<string, number> {
-  const daysByModel = new Map<string, Set<string>>();
-  for (const r of modelDaily) {
-    if (!inWindow(r.date, today, days)) continue;
-    if (totalTokens(r) <= 0) continue;
-    const set = daysByModel.get(r.model) ?? new Set<string>();
-    set.add(r.date);
-    daysByModel.set(r.model, set);
+// ── Plans & sessions (interactive outcomes) ───────────────────────────────────
+/** Interactive TASK completion rate over an inclusive [start, end] date range. */
+function completionInRange(
+  outcomes: SessionOutcomeRow[],
+  start: string,
+  end: string,
+): { sessions: number; completed: number; rate: number | null } {
+  let sessions = 0;
+  let completed = 0;
+  for (const o of outcomes) {
+    if (o.kind !== 'interactive' || !TASK_SET.has(o.outcome)) continue;
+    if (o.date < start || o.date > end) continue;
+    sessions++;
+    if (o.outcome === 'completed') completed++;
   }
-  const out = new Map<string, number>();
-  for (const [m, set] of daysByModel) out.set(m, set.size);
-  return out;
+  return { sessions, completed, rate: sessions > 0 ? completed / sessions : null };
 }
 
+const OUTCOME_SEVERITY: Record<string, number> = {
+  blocked: 0,
+  partial: 1,
+  abandoned: 2,
+  completed: 3,
+  chat: 4,
+};
+
+export function buildPlansSessions(
+  outcomes: SessionOutcomeRow[],
+  today: string,
+  trendDays = 30,
+): PlansData {
+  // Trend: calendar-complete, zero-filled interactive TASK counts per day.
+  const byDate = new Map<string, { completed: number; partial: number; blocked: number; abandoned: number }>();
+  for (const o of outcomes) {
+    if (o.kind !== 'interactive' || !TASK_SET.has(o.outcome)) continue;
+    if (!inWindow(o.date, today, trendDays)) continue;
+    const d = byDate.get(o.date) ?? { completed: 0, partial: 0, blocked: 0, abandoned: 0 };
+    if (o.outcome === 'completed') d.completed++;
+    else if (o.outcome === 'partial') d.partial++;
+    else if (o.outcome === 'blocked') d.blocked++;
+    else if (o.outcome === 'abandoned') d.abandoned++;
+    byDate.set(o.date, d);
+  }
+  const trend: OutcomeTrendPoint[] = [];
+  const cur = new Date(windowStart(today, trendDays) + 'T00:00:00Z');
+  const end = new Date(today + 'T00:00:00Z');
+  while (cur <= end) {
+    const date = cur.toISOString().slice(0, 10);
+    const d = byDate.get(date) ?? { completed: 0, partial: 0, blocked: 0, abandoned: 0 };
+    trend.push({ date, ...d });
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  // Week-over-week completion rate.
+  const thisStart = windowStart(today, 7);
+  const lastStart = windowStart(today, 14);
+  const lastEnd = addDays(thisStart, -1);
+  const t = completionInRange(outcomes, thisStart, today);
+  const l = completionInRange(outcomes, lastStart, lastEnd);
+
+  // Today's interactive sessions (incl. chat), most-actionable first.
+  const todaySessions: SessionListItem[] = outcomes
+    .filter((o) => o.date === today && o.kind === 'interactive')
+    .map((o) => ({
+      sessionId: o.session_id,
+      project: o.project,
+      model: o.model,
+      intent: (o.intent ?? '').trim(),
+      outcome: o.outcome,
+      friction: n(o.friction),
+      summary: (o.summary ?? '').trim(),
+    }))
+    .sort(
+      (a, b) =>
+        (OUTCOME_SEVERITY[a.outcome] ?? 9) - (OUTCOME_SEVERITY[b.outcome] ?? 9) ||
+        b.friction - a.friction,
+    )
+    .slice(0, 12);
+
+  return {
+    trend,
+    thisRate: t.rate,
+    lastRate: l.rate,
+    thisSessions: t.sessions,
+    lastSessions: l.sessions,
+    todaySessions,
+  };
+}
+
+// ── Problems I keep fixing ─────────────────────────────────────────────────────
+export function buildProblems(
+  events: ProblemEventRow[],
+  today: string,
+  windowDays = 90,
+): ProblemRow[] {
+  type Acc = {
+    occurrences: number;
+    firstSeen: string;
+    lastSeen: string;
+    days: Set<string>;
+    latestDate: string;
+    latestDesc: string;
+  };
+  const bySig = new Map<string, Acc>();
+  for (const e of events) {
+    if (!inWindow(e.date, today, windowDays)) continue;
+    const a =
+      bySig.get(e.signature) ??
+      { occurrences: 0, firstSeen: e.date, lastSeen: e.date, days: new Set<string>(), latestDate: '', latestDesc: '' };
+    a.occurrences++;
+    if (e.date < a.firstSeen) a.firstSeen = e.date;
+    if (e.date > a.lastSeen) a.lastSeen = e.date;
+    a.days.add(e.date);
+    if (e.date >= a.latestDate) {
+      a.latestDate = e.date;
+      a.latestDesc = (e.description ?? '').trim();
+    }
+    bySig.set(e.signature, a);
+  }
+  const rows: ProblemRow[] = [...bySig.entries()].map(([signature, a]) => ({
+    signature,
+    occurrences: a.occurrences,
+    firstSeen: a.firstSeen,
+    lastSeen: a.lastSeen,
+    daysActive: a.days.size,
+    latestDescription: a.latestDesc,
+  }));
+  // Ranked by recent recurrence: most-recently-seen first, then most occurrences.
+  return rows
+    .sort((x, y) => (x.lastSeen < y.lastSeen ? 1 : x.lastSeen > y.lastSeen ? -1 : 0) || y.occurrences - x.occurrences)
+    .slice(0, 12);
+}
+
+// ── Systems board ──────────────────────────────────────────────────────────────
+function stateOf(red: number, amber: number, checks: number): SystemRow['todayState'] {
+  if (checks <= 0) return 'none';
+  if (red > 0) return 'red';
+  if (amber > 0) return 'amber';
+  return 'green';
+}
+const STATE_SEVERITY: Record<string, number> = { red: 0, amber: 1, green: 2, none: 3 };
+
+export function buildSystemsBoard(
+  health: SystemHealthRow[],
+  today: string,
+  windowDays = 30,
+): SystemRow[] {
+  type Acc = {
+    checks: number;
+    ok: number;
+    amber: number;
+    red: number;
+    today: { red: number; amber: number; checks: number } | null;
+  };
+  const bySys = new Map<string, Acc>();
+  for (const h of health) {
+    if (!inWindow(h.date, today, windowDays)) continue;
+    const a = bySys.get(h.system) ?? { checks: 0, ok: 0, amber: 0, red: 0, today: null };
+    a.checks += n(h.checks);
+    a.ok += n(h.ok);
+    a.amber += n(h.amber);
+    a.red += n(h.red);
+    if (h.date === today) a.today = { red: n(h.red), amber: n(h.amber), checks: n(h.checks) };
+    bySys.set(h.system, a);
+  }
+  const rows: SystemRow[] = [...bySys.entries()].map(([system, a]) => ({
+    system,
+    checks: a.checks,
+    ok: a.ok,
+    amber: a.amber,
+    red: a.red,
+    uptime: a.checks > 0 ? a.ok / a.checks : null,
+    redIncidents: a.red,
+    todayState: a.today ? stateOf(a.today.red, a.today.amber, a.today.checks) : 'none',
+  }));
+  return rows.sort(
+    (x, y) =>
+      (STATE_SEVERITY[x.todayState] ?? 9) - (STATE_SEVERITY[y.todayState] ?? 9) ||
+      (x.uptime ?? 1) - (y.uptime ?? 1) ||
+      y.redIncidents - x.redIncidents,
+  );
+}
+
+// ── Insight callouts (rule-based, sample-size gated) ──────────────────────────
 export function buildCallouts(
   modelDaily: ModelDailyRow[],
-  projectModel: ProjectModelDailyRow[],
-  ships: RepoShipsRow[],
-  hourlyAgg: HourlyAgg[],
+  outcomes: SessionOutcomeRow[],
+  problems: ProblemEventRow[],
+  health: SystemHealthRow[],
   today: string,
 ): string[] {
   const out: string[] = [];
 
-  // (1) Lines-per-Mtok contrast between the two heaviest models (14d).
+  // (1) A problem that recurred today (2+ times).
   {
-    const W = 14;
-    const eff = buildEfficiencyRows(modelDaily, projectModel, ships, today, W);
-    const activeDays = activeDayCountByModel(modelDaily, today, W);
-    const linesPerMtok = (r: EfficiencyRow) =>
-      r.tokens > 0 ? r.insertions / (r.tokens / 1_000_000) : 0;
-    const cands = eff
-      .filter((r) => (activeDays.get(r.model) ?? 0) >= MIN_ACTIVE_DAYS && r.insertions > 0)
-      .slice(0, 4);
-    if (cands.length >= 2) {
-      const sorted = [...cands].sort((a, b) => linesPerMtok(b) - linesPerMtok(a));
-      const hi = sorted[0]!;
-      const lo = sorted[sorted.length - 1]!;
-      const rHi = linesPerMtok(hi);
-      const rLo = linesPerMtok(lo);
-      if (rLo > 0 && rHi / rLo >= 1.2 && hi.model !== lo.model) {
-        out.push(
-          `${prettyModel(hi.model)} days ship ${(rHi / rLo).toFixed(1)}× more lines per Mtok than ${prettyModel(lo.model)} days (${W}d)`,
-        );
+    const todayCount = new Map<string, number>();
+    for (const e of problems) {
+      if (e.date === today) todayCount.set(e.signature, (todayCount.get(e.signature) ?? 0) + 1);
+    }
+    let sig = '';
+    let cnt = 0;
+    for (const [s, c] of todayCount) if (c > cnt) { cnt = c; sig = s; }
+    if (sig && cnt >= 2) {
+      const weekDays = new Set<string>();
+      for (const e of problems) {
+        if (e.signature === sig && inWindow(e.date, today, 7)) weekDays.add(e.date);
       }
+      out.push(`${humanizeSignature(sig)} hit ${cnt}× today (${ordinal(weekDays.size)} day this week)`);
     }
   }
 
-  // (2) Peak activity window (best rolling 3-hour block, 30d).
+  // (2) A system red today.
   {
-    const W = 30;
-    const byHour = new Array(24).fill(0);
-    let anyHour = 0;
-    for (const r of hourlyAgg) {
-      if (!inWindow(r.date, today, W)) continue;
-      byHour[r.hour] += r.tokens;
-      if (r.tokens > 0) anyHour++;
+    let sys = '';
+    let red = 0;
+    for (const h of health) {
+      if (h.date === today && n(h.red) > red) { red = n(h.red); sys = h.system; }
     }
-    const totalHourTokens = byHour.reduce((a: number, b: number) => a + b, 0);
-    if (totalHourTokens > 0 && anyHour >= 5) {
-      let bestStart = 0;
-      let bestSum = -1;
-      for (let h = 0; h < 24; h++) {
-        const sum = byHour[h] + byHour[(h + 1) % 24] + byHour[(h + 2) % 24];
-        if (sum > bestSum) {
-          bestSum = sum;
-          bestStart = h;
-        }
-      }
-      out.push(`Peak activity window: ${fmtHour(bestStart)}–${fmtHour((bestStart + 3) % 24)} (30d)`);
-    }
+    if (sys && red > 0) out.push(`${sys}: ${red} red check${red === 1 ? '' : 's'} today`);
   }
 
-  // (3) Biggest source week-over-week move.
+  // (3) Interactive completion rate week-over-week.
   {
-    const sums = new Map<string, { cur: number; prev: number }>();
-    for (const r of modelDaily) {
-      const inCur = inWindow(r.date, today, 7);
-      const prevEnd = windowStart(today, 7); // day after prev window
-      const inPrev = r.date < prevEnd && inWindow(r.date, today, 14);
-      if (!inCur && !inPrev) continue;
-      const s = sums.get(r.source) ?? { cur: 0, prev: 0 };
-      if (inCur) s.cur += totalTokens(r);
-      else if (inPrev) s.prev += totalTokens(r);
-      sums.set(r.source, s);
-    }
-    let pick: { source: string; ratio: number } | null = null;
-    for (const [source, s] of sums) {
-      if (s.prev <= 0) continue;
-      if (Math.max(s.cur, s.prev) < 1_000_000) continue;
-      const ratio = (s.cur - s.prev) / s.prev;
-      if (Math.abs(ratio) < 0.25) continue;
-      if (!pick || Math.abs(ratio) > Math.abs(pick.ratio)) pick = { source, ratio };
-    }
-    if (pick) {
-      const dir = pick.ratio >= 0 ? 'up' : 'down';
+    const thisStart = windowStart(today, 7);
+    const lastStart = windowStart(today, 14);
+    const lastEnd = addDays(thisStart, -1);
+    const t = completionInRange(outcomes, thisStart, today);
+    const l = completionInRange(outcomes, lastStart, lastEnd);
+    if (t.sessions >= 3 && l.sessions >= 3 && t.rate != null && l.rate != null) {
       out.push(
-        `${SOURCE_LABEL_SAFE(pick.source)} usage ${dir} ${Math.abs(Math.round(pick.ratio * 100))}% w/w`,
+        `Interactive completion rate ${Math.round(t.rate * 100)}% this wk vs ${Math.round(l.rate * 100)}% last`,
       );
     }
   }
 
-  // (4) Cache-read dominance (30d).
+  // (4) Best model by interactive completion (30d).
   {
-    const W = 30;
-    let cache = 0;
-    let total = 0;
-    for (const r of modelDaily) {
-      if (!inWindow(r.date, today, W)) continue;
-      cache += n(r.cache_read_tokens);
-      total += totalTokens(r);
-    }
-    if (total > 0) {
-      const share = cache / total;
-      if (share >= 0.5) {
-        out.push(`Cache reads are ${Math.round(share * 100)}% of all tokens processed (30d)`);
-      }
+    const eff = buildModelEffectiveness(modelDaily, outcomes, today, 30);
+    const cands = eff.filter((r) => r.sessions >= 5 && r.completionRate != null);
+    const top = [...cands].sort((a, b) => (b.completionRate ?? 0) - (a.completionRate ?? 0))[0];
+    if (top && top.completionRate != null) {
+      out.push(
+        `${prettyModel(top.model)} completes ${Math.round(top.completionRate * 100)}% of interactive sessions (30d)`,
+      );
     }
   }
 
-  // (5) Most productive model by lines/active hour (30d).
+  // (5) Automation reliability today.
   {
-    const W = 30;
-    const eff = buildEfficiencyRows(modelDaily, projectModel, ships, today, W);
-    const cands = eff.filter((r) => r.activeMinutes >= 180 && r.insertions > 0);
-    const top = [...cands].sort((a, b) => b.insertionsPerActiveHour - a.insertionsPerActiveHour)[0];
-    if (top) {
-      out.push(
-        `${prettyModel(top.model)} ships the most: ${Math.round(top.insertionsPerActiveHour)} lines/active hour (30d)`,
-      );
+    let runs = 0;
+    let done = 0;
+    for (const o of outcomes) {
+      if (o.date === today && o.kind === 'automation') {
+        runs++;
+        if (o.outcome === 'completed') done++;
+      }
+    }
+    if (runs >= 5) {
+      out.push(done === runs ? `All ${runs} automation runs completed today` : `Automations: ${done}/${runs} completed today`);
     }
   }
 
   return out.slice(0, 5);
-}
-
-function fmtHour(h: number): string {
-  const suffix = h < 12 ? 'AM' : 'PM';
-  const hr = h % 12 === 0 ? 12 : h % 12;
-  return `${hr} ${suffix}`;
-}
-
-// local mirror of SOURCE_LABEL to avoid a circular import surprise in tests
-function SOURCE_LABEL_SAFE(source: string): string {
-  const map: Record<string, string> = {
-    'claude-code': 'Claude Code',
-    codex: 'Codex',
-    grok: 'Grok',
-    kimi: 'Kimi',
-  };
-  return map[source] ?? source;
 }

@@ -73,6 +73,9 @@ export function ModelMixTrend({
     const byDate = new Map(points.map((p) => [p.date, p.models]));
     const keys = [...series.top.map((m) => m.model), ...(series.hasOther ? ['__other'] : [])];
 
+    // Buckets are labeled by their END date, so the rightmost point always
+    // reads as today — start-labeled buckets made the 90d view look like it
+    // cut off a week early (the last bucket held 7/30–8/4 but said "07-30").
     const rows: Record<string, number | string>[] = [];
     const cur = new Date(start + 'T00:00:00Z');
     const end = new Date(today + 'T00:00:00Z');
@@ -85,6 +88,7 @@ export function ModelMixTrend({
         for (const k of keys) bucketRow[k] = 0;
         rows.push(bucketRow);
       }
+      bucketRow!.date = date; // last day folded in wins → end-of-bucket label
       const dayModels = byDate.get(date) ?? {};
       for (const [model, tok] of Object.entries(dayModels)) {
         if (!series.allowedSet.has(model)) continue;
@@ -123,13 +127,12 @@ export function ModelMixTrend({
     const sortedRowDates = data.map((r) => r.date as string);
     const snap = (d: string) => {
       if (visibleDates.has(d)) return d;
-      // weekly buckets: snap to the bucket containing d
-      let best: string | null = null;
+      // Rows are end-of-bucket labeled: the bucket containing d is the first
+      // row whose date is >= d.
       for (const rd of sortedRowDates) {
-        if (rd <= d) best = rd;
-        else break;
+        if (rd >= d) return rd;
       }
-      return best;
+      return null;
     };
     return series.top
       .filter((m) => m.model !== 'approx-history')

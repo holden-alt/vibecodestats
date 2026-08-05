@@ -2,7 +2,11 @@ import {
   MODEL_PALETTE,
   OTHER_COLOR,
   TASK_OUTCOMES,
+  type EfficiencyPoint,
   type EffectivenessRow,
+  type HistoryDayRow,
+  type OdometerPoint,
+  type RecordsData,
   type HourlyAgg,
   type HourlyRow,
   type ModelDailyRow,
@@ -207,6 +211,118 @@ export function buildTrend(modelDaily: ModelDailyRow[]): {
     .map(([date, models]) => ({ date, models }));
 
   return { points, models };
+}
+
+// ── Records / odometer (full-history daily_stats) ────────────────────────────
+const MILESTONES_B = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+export function buildRecords(history: HistoryDayRow[], today: string): RecordsData {
+  const rows = [...history]
+    .filter((r) => n(r.tokens_total) > 0)
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  let cumulative = 0;
+  const odometer: OdometerPoint[] = rows.map((r) => {
+    const day = n(r.tokens_total);
+    cumulative += day;
+    return { date: r.date, cumulative, day };
+  });
+
+  const bestDay = rows.reduce<{ date: string; tokens: number } | null>((best, r) => {
+    const t = n(r.tokens_total);
+    return !best || t > best.tokens ? { date: r.date, tokens: t } : best;
+  }, null);
+
+  // Streaks over CALENDAR days (a zero/missing day breaks the run). The current
+  // streak tolerates "today has no row yet" — the day isn't over.
+  const active = new Set(rows.map((r) => r.date));
+  let longest: { days: number; end: string } | null = null;
+  let run = 0;
+  if (rows.length) {
+    const cur = new Date(rows[0]!.date + 'T00:00:00Z');
+    const end = new Date(rows[rows.length - 1]!.date + 'T00:00:00Z');
+    while (cur <= end) {
+      const d = cur.toISOString().slice(0, 10);
+      if (active.has(d)) {
+        run++;
+        if (!longest || run > longest.days) longest = { days: run, end: d };
+      } else {
+        run = 0;
+      }
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+  let currentStreak = 0;
+  {
+    let d = active.has(today) ? today : addDays(today, -1);
+    while (active.has(d)) {
+      currentStreak++;
+      d = addDays(d, -1);
+    }
+  }
+
+  // Best rolling 7-day span.
+  let bestWeek: { start: string; tokens: number } | null = null;
+  const byDate = new Map(rows.map((r) => [r.date, n(r.tokens_total)]));
+  for (const r of rows) {
+    let sum = 0;
+    for (let i = 0; i < 7; i++) sum += byDate.get(addDays(r.date, i)) ?? 0;
+    if (!bestWeek || sum > bestWeek.tokens) bestWeek = { start: r.date, tokens: sum };
+  }
+
+  const nextMilestone =
+    (MILESTONES_B.find((m) => m * 1e9 > cumulative) ?? MILESTONES_B[MILESTONES_B.length - 1]!) * 1e9;
+
+  return {
+    lifetimeTokens: cumulative,
+    daysTracked: rows.length,
+    bestDay,
+    billionDays: rows.filter((r) => n(r.tokens_total) >= 1e9).length,
+    halfBillionDays: rows.filter((r) => n(r.tokens_total) >= 5e8).length,
+    currentStreak,
+    longestStreak: longest,
+    bestWeek,
+    nextMilestone,
+    odometer,
+  };
+}
+
+// ── Efficiency trends (how the tokens behave) ────────────────────────────────
+// Derived only from REAL (non-approx) rows — restored history carries day totals
+// but no class/turn split, so these series simply start where the detail starts.
+export function buildEfficiency(
+  modelDaily: ModelDailyRow[],
+  today: string,
+  days: number,
+): EfficiencyPoint[] {
+  type Acc = { input: number; read: number; create: number; total: number; turns: number; tools: number };
+  const acc = new Map<string, Acc>(); // "date|source"
+  for (const r of modelDaily) {
+    if (r.approx) continue;
+    if (!inWindow(r.date, today, days)) continue;
+    const key = r.date + '|' + r.source;
+    const a = acc.get(key) ?? { input: 0, read: 0, create: 0, total: 0, turns: 0, tools: 0 };
+    a.input += n(r.input_tokens);
+    a.read += n(r.cache_read_tokens);
+    a.create += n(r.cache_create_tokens);
+    a.total += totalTokens(r);
+    a.turns += n(r.turns);
+    a.tools += n(r.tool_calls);
+    acc.set(key, a);
+  }
+  const out: EfficiencyPoint[] = [];
+  for (const [key, a] of acc) {
+    const [date, source] = key.split('|') as [string, string];
+    const inputAll = a.input + a.read + a.create;
+    out.push({
+      date,
+      source,
+      cacheRate: inputAll > 0 ? a.read / inputAll : null,
+      tokensPerTurn: a.turns > 0 ? a.total / a.turns : null,
+      toolCallsPerTurn: a.turns > 0 ? a.tools / a.turns : null,
+    });
+  }
+  return out.sort((x, y) => (x.date < y.date ? -1 : 1));
 }
 
 // ── Model effectiveness (interactive outcomes + usage anchor) ─────────────────

@@ -1,7 +1,11 @@
 import type { Database } from '@/lib/types/database';
 
 // ── Raw row aliases (generated DB types) ────────────────────────────────────
-export type ModelDailyRow = Database['public']['Tables']['llm_model_daily']['Row'];
+// `approx` was added to the live table 2026-07-23 (restored-history rows carry
+// day totals only); the generated Database types predate it.
+export type ModelDailyRow = Database['public']['Tables']['llm_model_daily']['Row'] & {
+  approx?: boolean | null;
+};
 export type ProjectModelDailyRow = Database['public']['Tables']['llm_project_model_daily']['Row'];
 export type HourlyRow = Database['public']['Tables']['llm_hourly']['Row'];
 export type SessionOutcomeRow = Database['public']['Tables']['session_outcomes']['Row'];
@@ -188,3 +192,44 @@ export type SystemRow = {
 };
 
 export type WindowKey = '7d' | '30d' | '90d';
+
+// ── Records / odometer (full-history daily_stats) ────────────────────────────
+
+/** Minimal full-history day row from daily_stats (survives transcript cleanup). */
+export type HistoryDayRow = {
+  date: string;
+  tokens_total: number;
+  sessions: number | null;
+};
+
+/** One point on the cumulative odometer line. */
+export type OdometerPoint = {
+  date: string;
+  cumulative: number;
+  day: number;
+};
+
+/** Records board payload — lifetime bests derived from full history. */
+export type RecordsData = {
+  lifetimeTokens: number;
+  daysTracked: number;
+  bestDay: { date: string; tokens: number } | null;
+  billionDays: number; // days at >= 1B tokens
+  halfBillionDays: number; // days at >= 500M tokens
+  currentStreak: number;
+  longestStreak: { days: number; end: string } | null;
+  bestWeek: { start: string; tokens: number } | null; // best rolling 7-day span
+  nextMilestone: number; // next round cumulative target (e.g. 50B)
+  odometer: OdometerPoint[];
+};
+
+// ── Efficiency trends (non-approx llm_model_daily rows only) ─────────────────
+
+/** Per-day per-source efficiency sample. Null metric = not derivable that day. */
+export type EfficiencyPoint = {
+  date: string;
+  source: string;
+  cacheRate: number | null; // cache_read / (input + cache_read + cache_create)
+  tokensPerTurn: number | null; // all-classes tokens / turns
+  toolCallsPerTurn: number | null;
+};

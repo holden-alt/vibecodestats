@@ -272,3 +272,79 @@ describe('buildCallouts', () => {
     expect(buildCallouts([], [], [], [], TODAY)).toEqual([]);
   });
 });
+
+// ── Records + efficiency (added 2026-08-04 with the usage-station build) ──────
+import { buildEfficiency, buildRecords } from '@/lib/insights/compute';
+import type { HistoryDayRow } from '@/lib/insights/types';
+
+const hist = (date: string, tokens: number): HistoryDayRow => ({ date, tokens_total: tokens, sessions: null });
+
+describe('buildRecords', () => {
+  const rows = [
+    hist('2026-07-18', 200_000_000),
+    hist('2026-07-19', 1_200_000_000),
+    hist('2026-07-20', 600_000_000),
+    // 07-21 missing — breaks the streak
+    hist('2026-07-22', 100_000_000),
+    hist('2026-07-23', 50_000_000),
+  ];
+  const r = buildRecords(rows, TODAY);
+
+  it('sums lifetime and counts days', () => {
+    expect(r.lifetimeTokens).toBe(2_150_000_000);
+    expect(r.daysTracked).toBe(5);
+  });
+  it('finds best day and billion/half-billion clubs', () => {
+    expect(r.bestDay).toEqual({ date: '2026-07-19', tokens: 1_200_000_000 });
+    expect(r.billionDays).toBe(1);
+    expect(r.halfBillionDays).toBe(2);
+  });
+  it('computes streaks across the gap', () => {
+    expect(r.longestStreak).toEqual({ days: 3, end: '2026-07-20' });
+    expect(r.currentStreak).toBe(2); // 22nd + 23rd
+  });
+  it('tolerates today having no row yet', () => {
+    const r2 = buildRecords(rows.slice(0, -1), TODAY); // no row for TODAY
+    expect(r2.currentStreak).toBe(1); // yesterday's run still counts
+  });
+  it('picks the next round milestone above lifetime', () => {
+    expect(r.nextMilestone).toBe(5e9);
+  });
+  it('odometer is cumulative and ascending', () => {
+    expect(r.odometer.map((p) => p.cumulative)).toEqual([
+      200_000_000, 1_400_000_000, 2_000_000_000, 2_100_000_000, 2_150_000_000,
+    ]);
+  });
+});
+
+describe('buildEfficiency', () => {
+  const rowsEff: ModelDailyRow[] = [
+    md({ date: YESTERDAY, source: 'claude-code', model: 'claude-fable-5',
+         input_tokens: 100, cache_read_tokens: 800, cache_create_tokens: 100,
+         output_tokens: 50, turns: 10, tool_calls: 30 }),
+    md({ date: YESTERDAY, source: 'claude-code', model: 'claude-haiku-4-5',
+         input_tokens: 100, cache_read_tokens: 0, cache_create_tokens: 0,
+         output_tokens: 950, turns: 10, tool_calls: 10 }),
+    // approx rows carry no class/turn detail and must be excluded
+    md({ date: YESTERDAY, source: 'claude-code', model: 'approx-history',
+         cache_read_tokens: 5_000_000, approx: true } as Partial<ModelDailyRow> & Pick<ModelDailyRow, 'date' | 'source' | 'model'>),
+  ];
+  const eff = buildEfficiency(rowsEff, TODAY, 7);
+
+  it('aggregates per date+source, excluding approx rows', () => {
+    expect(eff).toHaveLength(1);
+    const p = eff[0]!;
+    expect(p.source).toBe('claude-code');
+    // cache rate = 800 / (200 input + 800 read + 100 create)
+    expect(p.cacheRate).toBeCloseTo(800 / 1100);
+    // tokens/turn = all-classes total 2100 / 20 turns
+    expect(p.tokensPerTurn).toBeCloseTo(2100 / 20);
+    expect(p.toolCallsPerTurn).toBeCloseTo(40 / 20);
+  });
+  it('nulls metrics when turns are zero', () => {
+    const noTurns = buildEfficiency(
+      [md({ date: YESTERDAY, source: 'grok', model: 'g', input_tokens: 100 })], TODAY, 7);
+    expect(noTurns[0]!.tokensPerTurn).toBeNull();
+    expect(noTurns[0]!.cacheRate).toBeCloseTo(0);
+  });
+});

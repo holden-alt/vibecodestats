@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { windowStart } from './compute';
-import type { HourlyRow, ModelDailyRow, ProjectModelDailyRow } from './types';
+import type { HistoryDayRow, HourlyRow, ModelDailyRow, ProjectModelDailyRow } from './types';
 
 // How far back each table is pulled. The page computes every window (7/30/90d)
 // client- and server-side from these bounded fetches.
@@ -17,6 +17,10 @@ export type InsightsBundle = {
   modelDaily: ModelDailyRow[];
   projectModel: ProjectModelDailyRow[];
   hourly: HourlyRow[];
+  /** FULL-history day totals from daily_stats (~1 row/day since 2026-04-20).
+   *  This store outlives transcript cleanup, so records/odometer read it
+   *  instead of anything recomputed from raw session files. */
+  history: HistoryDayRow[];
   /** true if any usage data was returned. */
   hasData: boolean;
 };
@@ -34,7 +38,7 @@ export async function getInsightsBundle(
   supabase: SupabaseClient<Database>,
   today: string,
 ): Promise<InsightsBundle> {
-  const [modelRes, projectRes, hourlyRes] = await Promise.all([
+  const [modelRes, projectRes, hourlyRes, historyRes] = await Promise.all([
     supabase
       .from('llm_model_daily')
       .select('*')
@@ -56,13 +60,20 @@ export async function getInsightsBundle(
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
+    supabase
+      .from('daily_stats')
+      .select('date, tokens_total, sessions')
+      .lte('date', today)
+      .order('date', { ascending: true })
+      .limit(ROW_LIMIT),
   ]);
 
   const modelDaily = (modelRes.data ?? []) as ModelDailyRow[];
   const projectModel = (projectRes.data ?? []) as ProjectModelDailyRow[];
   const hourly = (hourlyRes.data ?? []) as HourlyRow[];
+  const history = (historyRes.data ?? []) as HistoryDayRow[];
 
   const hasData = modelDaily.length > 0 || projectModel.length > 0 || hourly.length > 0;
 
-  return { today, modelDaily, projectModel, hourly, hasData };
+  return { today, modelDaily, projectModel, hourly, history, hasData };
 }

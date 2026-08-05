@@ -4,14 +4,18 @@ import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/supabase/server';
 import { getInsightsBundle } from '@/lib/insights/queries';
 import {
+  buildEfficiency,
   buildHourlyAgg,
   buildProjectRows,
+  buildRecords,
   buildTodaySummary,
   buildTrend,
 } from '@/lib/insights/compute';
 import { SOURCES } from '@/lib/insights/types';
 import { TodayStrip } from '@/components/insights/TodayStrip';
+import { RecordsBoard } from '@/components/insights/RecordsBoard';
 import { ModelMixTrend } from '@/components/insights/ModelMixTrend';
+import { EfficiencyPanel } from '@/components/insights/EfficiencyPanel';
 import { HoursHeatmap } from '@/components/insights/HoursHeatmap';
 import { ProjectBreakdown } from '@/components/insights/ProjectBreakdown';
 
@@ -40,6 +44,8 @@ export default async function HomePage() {
 
   // ── Server-side compute (RSC) — everything derived once, here. ──────────────
   const todaySummary = buildTodaySummary(bundle.modelDaily, [], today);
+  const records = buildRecords(bundle.history, today);
+  const efficiency = buildEfficiency(bundle.modelDaily, today, 90);
 
   const { points, models } = buildTrend(bundle.modelDaily);
   const hourlyAgg = buildHourlyAgg(bundle.hourly);
@@ -104,7 +110,11 @@ export default async function HomePage() {
 
       <TodayStrip summary={todaySummary} />
 
+      <RecordsBoard records={records} />
+
       <ModelMixTrend points={points} models={models} today={today} availableSources={availableSources} />
+
+      <EfficiencyPanel points={efficiency} />
 
       <div className="insights-two-col">
         <HoursHeatmap agg={hourlyAgg} today={today} availableSources={availableSources} />

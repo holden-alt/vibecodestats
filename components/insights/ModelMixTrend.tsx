@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { prettyModel, windowStart } from '@/lib/insights/compute';
 import { OTHER_COLOR, SOURCE_COLOR, SOURCE_LABEL, type ModelMeta, type TrendPoint, type WindowKey } from '@/lib/insights/types';
 import { fmtTokens } from '@/lib/insights/format';
@@ -15,8 +15,14 @@ const WINDOWS: { id: WindowKey; label: string }[] = [
 ];
 const WINDOW_DAYS: Record<WindowKey, number> = { '7d': 7, '30d': 30, '90d': 90 };
 const MAX_SERIES = 8;
+const MAX_MARKERS = 5;
 
 type SourceOpt = 'all' | string;
+type Mode = 'tokens' | 'share';
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'tokens', label: 'tokens' },
+  { id: 'share', label: 'share' },
+];
 
 export function ModelMixTrend({
   points,
@@ -31,6 +37,11 @@ export function ModelMixTrend({
 }) {
   const [win, setWin] = useState<WindowKey>('90d');
   const [source, setSource] = useState<SourceOpt>('all');
+  const [mode, setMode] = useState<Mode>('tokens');
+
+  // The 90d view aggregates by week — 90 daily spikes read as noise; 13 weekly
+  // bands show the drift. 7d/30d stay daily.
+  const weekly = win === '90d';
 
   const sourceOptions = useMemo(
     () => [
@@ -49,52 +60,102 @@ export function ModelMixTrend({
     return { top, otherSet, allowedSet, hasOther: otherSet.size > 0 };
   }, [models, source]);
 
-  // Calendar-complete, zero-filled rows for recharts. Recharts leaves holes
-  // where a series key is missing and compresses skipped calendar days, which
-  // reads as jagged/choppy. So we (a) walk EVERY day in the window and (b)
-  // zero-fill every visible series on every day, giving continuous, evenly
-  // spaced stacked areas. The window start is clamped to the first day that has
-  // any data so the 90d view shows real history instead of dead left margin.
+  // Calendar-complete, zero-filled rows for recharts (see 2026-07 fix notes:
+  // recharts leaves holes + compresses skipped days otherwise). Weekly view
+  // sums the zero-filled days into 7-day buckets anchored at the window start;
+  // share mode then normalizes each row to percentages (raw total kept on
+  // __totalAbs for the tooltip footer).
   const data = useMemo(() => {
     const earliest = points[0]?.date; // points are sorted ascending upstream
     let start = windowStart(today, WINDOW_DAYS[win]);
     if (earliest && earliest > start) start = earliest;
 
     const byDate = new Map(points.map((p) => [p.date, p.models]));
+    const keys = [...series.top.map((m) => m.model), ...(series.hasOther ? ['__other'] : [])];
+
     const rows: Record<string, number | string>[] = [];
     const cur = new Date(start + 'T00:00:00Z');
     const end = new Date(today + 'T00:00:00Z');
+    let bucketRow: Record<string, number | string> | null = null;
+    let dayIdx = 0;
     while (cur <= end) {
       const date = cur.toISOString().slice(0, 10);
+      if (!weekly || dayIdx % 7 === 0) {
+        bucketRow = { date };
+        for (const k of keys) bucketRow[k] = 0;
+        rows.push(bucketRow);
+      }
       const dayModels = byDate.get(date) ?? {};
-      const row: Record<string, number | string> = { date };
-      for (const m of series.top) row[m.model] = 0; // zero-fill visible series
-      let other = 0;
       for (const [model, tok] of Object.entries(dayModels)) {
         if (!series.allowedSet.has(model)) continue;
-        if (series.otherSet.has(model)) other += tok;
-        else row[model] = tok;
+        const k = series.otherSet.has(model) ? '__other' : model;
+        if (k === '__other' && !series.hasOther) continue;
+        bucketRow![k] = ((bucketRow![k] as number) ?? 0) + tok;
       }
-      if (series.hasOther) row.__other = other;
-      rows.push(row);
       cur.setUTCDate(cur.getUTCDate() + 1);
+      dayIdx++;
+    }
+
+    for (const row of rows) {
+      const total = keys.reduce((acc, k) => acc + ((row[k] as number) || 0), 0);
+      row.__totalAbs = total;
+      if (mode === 'share' && total > 0) {
+        for (const k of keys) row[k] = (((row[k] as number) || 0) / total) * 100;
+      }
     }
     return rows;
-  }, [points, today, win, series]);
+  }, [points, today, win, series, weekly, mode]);
 
-  const hasData = data.some((row) =>
-    Object.entries(row).some(([k, v]) => k !== 'date' && typeof v === 'number' && v > 0),
-  );
+  // "First seen" markers — the day a model first appears in the data. Watching
+  // a new model take over is the point of this chart. Skips synthetic history
+  // and anything that was already present on day one of the data.
+  const markers = useMemo(() => {
+    const dataStart = points[0]?.date;
+    if (!dataStart) return [];
+    const firstSeen = new Map<string, string>();
+    for (const p of points) {
+      for (const [model, tok] of Object.entries(p.models)) {
+        if (tok <= 0) continue;
+        if (!firstSeen.has(model)) firstSeen.set(model, p.date);
+      }
+    }
+    const visibleDates = new Set(data.map((r) => r.date as string));
+    const sortedRowDates = data.map((r) => r.date as string);
+    const snap = (d: string) => {
+      if (visibleDates.has(d)) return d;
+      // weekly buckets: snap to the bucket containing d
+      let best: string | null = null;
+      for (const rd of sortedRowDates) {
+        if (rd <= d) best = rd;
+        else break;
+      }
+      return best;
+    };
+    return series.top
+      .filter((m) => m.model !== 'approx-history')
+      .slice(0, MAX_MARKERS)
+      .map((m) => ({ model: m.model, date: firstSeen.get(m.model) }))
+      .filter((m): m is { model: string; date: string } => !!m.date && m.date > dataStart)
+      .map((m) => ({ ...m, x: snap(m.date) }))
+      .filter((m): m is { model: string; date: string; x: string } => !!m.x);
+  }, [points, data, series]);
+
+  const hasData = data.some((row) => ((row.__totalAbs as number) || 0) > 0);
 
   const controls = (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Pills options={MODES} value={mode} onChange={setMode} ariaLabel="value mode" />
       <Pills options={sourceOptions} value={source} onChange={setSource} ariaLabel="source filter" />
       <Pills options={WINDOWS} value={win} onChange={setWin} ariaLabel="time window" />
     </div>
   );
 
   return (
-    <PanelShell title="Model mix" hint="daily tokens, stacked by model" right={controls}>
+    <PanelShell
+      title="Model mix"
+      hint={`${weekly ? 'weekly' : 'daily'} tokens, stacked by model${mode === 'share' ? ' · % of total' : ''}`}
+      right={controls}
+    >
       {!hasData ? (
         <EmptyChart />
       ) : (
@@ -115,13 +176,30 @@ export function ModelMixTrend({
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 10, fill: 'var(--color-dim)' }}
-                  tickFormatter={(v: number) => fmtTokens(v)}
+                  tickFormatter={(v: number) => (mode === 'share' ? `${Math.round(v)}%` : fmtTokens(v))}
                   width={46}
+                  {...(mode === 'share' ? { domain: [0, 100] as [number, number] } : {})}
                 />
                 <Tooltip
                   cursor={{ stroke: 'var(--color-orange)', strokeOpacity: 0.4, strokeWidth: 1 }}
-                  content={<TrendTooltip />}
+                  content={<TrendTooltip mode={mode} />}
                 />
+                {markers.map((m) => (
+                  <ReferenceLine
+                    key={m.model}
+                    x={m.x}
+                    stroke="var(--color-dim)"
+                    strokeDasharray="3 4"
+                    label={{
+                      value: prettyModel(m.model),
+                      position: 'insideTopLeft',
+                      angle: -90,
+                      fontSize: 9,
+                      fill: 'var(--color-dim)',
+                      offset: 10,
+                    }}
+                  />
+                ))}
                 {series.top.map((m) => (
                   <Area
                     key={m.model}
@@ -185,13 +263,24 @@ function EmptyChart() {
   );
 }
 
-type TooltipItem = { name?: string; value?: number; color?: string; dataKey?: string };
-function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
+type TooltipItem = { name?: string; value?: number; color?: string; dataKey?: string; payload?: Record<string, number | string> };
+function TrendTooltip({
+  active,
+  payload,
+  label,
+  mode,
+}: {
+  active?: boolean;
+  payload?: TooltipItem[];
+  label?: string;
+  mode?: Mode;
+}) {
   if (!active || !payload?.length) return null;
   const items = payload
     .filter((p) => typeof p.value === 'number' && p.value > 0)
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  const total = items.reduce((acc, p) => acc + (p.value ?? 0), 0);
+  const totalAbs = Number(payload[0]?.payload?.__totalAbs ?? 0);
+  const fmt = (v: number) => (mode === 'share' ? `${v.toFixed(1)}%` : fmtTokens(v));
   return (
     <div
       style={{
@@ -211,12 +300,12 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
           <span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, background: p.color }} />
           <span style={{ color: 'var(--color-dim)' }}>{p.name}</span>
-          <span style={{ marginLeft: 'auto' }}>{fmtTokens(p.value ?? 0)}</span>
+          <span style={{ marginLeft: 'auto' }}>{fmt(p.value ?? 0)}</span>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 7, marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--color-border)' }}>
         <span style={{ color: 'var(--color-dim)' }}>total</span>
-        <span style={{ marginLeft: 'auto', color: 'var(--color-orange)' }}>{fmtTokens(total)}</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--color-orange)' }}>{fmtTokens(totalAbs)}</span>
       </div>
     </div>
   );

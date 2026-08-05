@@ -491,29 +491,48 @@ def all_jsonl_files(projects_dir):
     return glob.glob(os.path.join(projects_dir, '**', '*.jsonl'), recursive=True)
 
 
+def _codex_roots(codex_sessions_dir):
+    """The live sessions tree plus Codex's flat archive of closed threads.
+
+    Codex MOVES a thread's rollout file into ~/.codex/archived_sessions when
+    the thread is archived — scanning only the live tree made archived days'
+    tokens vanish from history and the rolling re-push then overwrote the
+    previously-correct rows with the shrunken recount (observed 2026-08-04:
+    8/2 Codex 69M→28M, 8/3 114M→15M). mtimes survive the move, so the
+    mtime-window filters below behave the same for archived files.
+    """
+    roots = [codex_sessions_dir]
+    archived = os.path.join(os.path.dirname(codex_sessions_dir.rstrip('/')),
+                            'archived_sessions')
+    if os.path.isdir(archived):
+        roots.append(archived)
+    return [r for r in roots if os.path.isdir(r)]
+
+
 def today_codex_files(codex_sessions_dir):
     """Codex session JSONL files modified since local midnight. Codex stores
-    sessions at ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl. Returns [] if
-    the directory doesn't exist — Codex is opt-in, not every user has it."""
-    if not os.path.isdir(codex_sessions_dir):
-        return []
+    sessions at ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl (plus the flat
+    archive — see _codex_roots). Returns [] if no directory exists — Codex is
+    opt-in, not every user has it."""
     midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff = midnight.timestamp()
     out = []
-    for path in glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True):
-        try:
-            if os.path.getmtime(path) >= cutoff:
-                out.append(path)
-        except OSError:
-            continue
+    for root in _codex_roots(codex_sessions_dir):
+        for path in glob.glob(os.path.join(root, '**', 'rollout-*.jsonl'), recursive=True):
+            try:
+                if os.path.getmtime(path) >= cutoff:
+                    out.append(path)
+            except OSError:
+                continue
     return out
 
 
 def all_codex_files(codex_sessions_dir):
-    """All Codex session JSONL files (full backfill set)."""
-    if not os.path.isdir(codex_sessions_dir):
-        return []
-    return glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True)
+    """All Codex session JSONL files (full backfill set), live + archived."""
+    out = []
+    for root in _codex_roots(codex_sessions_dir):
+        out.extend(glob.glob(os.path.join(root, '**', 'rollout-*.jsonl'), recursive=True))
+    return out
 
 
 def recent_jsonl_files(projects_dir, now_ts=None, hours=48):
@@ -542,20 +561,20 @@ def recent_jsonl_files(projects_dir, now_ts=None, hours=48):
 
 
 def recent_codex_files(codex_sessions_dir, now_ts=None, hours=48):
-    """Codex session JSONL files modified within the last `hours`. Same
-    boundary rationale as recent_jsonl_files. [] if Codex isn't installed."""
-    if not os.path.isdir(codex_sessions_dir):
-        return []
+    """Codex session JSONL files modified within the last `hours`, live +
+    archived. Same boundary rationale as recent_jsonl_files. [] if Codex
+    isn't installed."""
     if now_ts is None:
         now_ts = time.time()
     cutoff = now_ts - hours * 3600
     out = []
-    for path in glob.glob(os.path.join(codex_sessions_dir, '**', 'rollout-*.jsonl'), recursive=True):
-        try:
-            if os.path.getmtime(path) >= cutoff:
-                out.append(path)
-        except OSError:
-            continue
+    for root in _codex_roots(codex_sessions_dir):
+        for path in glob.glob(os.path.join(root, '**', 'rollout-*.jsonl'), recursive=True):
+            try:
+                if os.path.getmtime(path) >= cutoff:
+                    out.append(path)
+            except OSError:
+                continue
     return out
 
 

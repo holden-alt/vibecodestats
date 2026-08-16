@@ -19,6 +19,20 @@ const SESSION_COOKIE = 'cc_session';
 const STATE_COOKIE = 'cc_oauth_state';
 const SESSION_SECONDS = 30 * 24 * 60 * 60;
 
+export function oauthReturnPath(state: string | null): string {
+  if (!state) return '/me';
+  const separator = state.indexOf('.');
+  if (separator < 0) return '/me';
+  try {
+    const value = decodeURIComponent(state.slice(separator + 1));
+    return value.startsWith('/') && !value.startsWith('//') && value.length <= 256
+      ? value
+      : '/me';
+  } catch {
+    return '/me';
+  }
+}
+
 function randomHex(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
     .map((value) => value.toString(16).padStart(2, '0'))
@@ -95,12 +109,13 @@ export class GithubAuth {
 
   async signInWithOAuth(args: {
     provider: 'github';
-    options: { scopes: string; redirectTo: string };
+    options: { scopes: string; redirectTo: string; returnTo?: string };
   }): Promise<{ data: { url: string | null }; error: AuthError | null }> {
     try {
       if (args.provider !== 'github') throw new Error('only GitHub OAuth is supported');
       if (!this.githubClientId) throw new Error('GitHub OAuth client is not configured');
-      const state = randomHex(24);
+      const returnTo = oauthReturnPath(`state.${encodeURIComponent(args.options.returnTo ?? '/me')}`);
+      const state = `${randomHex(24)}.${encodeURIComponent(returnTo)}`;
       this.cookies.set(STATE_COOKIE, state, cookieOptions(10 * 60));
       const url = new URL('https://github.com/login/oauth/authorize');
       url.searchParams.set('client_id', this.githubClientId);

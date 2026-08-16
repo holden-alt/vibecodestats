@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/db/server';
+import { oauthReturnPath } from '@/lib/auth/github';
 import { recordSignupEvent } from '@/lib/notify/signup';
 
 
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
   const state = url.searchParams.get('state');
   const oauthError = url.searchParams.get('error');
   const oauthErrorDescription = url.searchParams.get('error_description');
-  const next = url.searchParams.get('next') ?? '/me';
+  const next = oauthReturnPath(state);
   const retryHref = `/auth/signin?next=${encodeURIComponent(next)}`;
 
   const userAgent = request.headers.get('user-agent');

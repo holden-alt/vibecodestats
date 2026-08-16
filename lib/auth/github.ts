@@ -24,13 +24,24 @@ export function oauthReturnPath(state: string | null): string {
   const separator = state.indexOf('.');
   if (separator < 0) return '/me';
   try {
-    const value = decodeURIComponent(state.slice(separator + 1));
+    const encoded = state.slice(separator + 1).replace(/-/g, '+').replace(/_/g, '/');
+    const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const value = new TextDecoder().decode(
+      Uint8Array.from(binary, (character) => character.charCodeAt(0)),
+    );
     return value.startsWith('/') && !value.startsWith('//') && value.length <= 256
       ? value
       : '/me';
   } catch {
     return '/me';
   }
+}
+
+function encodeOAuthReturnPath(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function randomHex(bytes: number): string {
@@ -114,8 +125,11 @@ export class GithubAuth {
     try {
       if (args.provider !== 'github') throw new Error('only GitHub OAuth is supported');
       if (!this.githubClientId) throw new Error('GitHub OAuth client is not configured');
-      const returnTo = oauthReturnPath(`state.${encodeURIComponent(args.options.returnTo ?? '/me')}`);
-      const state = `${randomHex(24)}.${encodeURIComponent(returnTo)}`;
+      const requestedReturnTo = args.options.returnTo ?? '/me';
+      const returnTo = requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//') && requestedReturnTo.length <= 256
+        ? requestedReturnTo
+        : '/me';
+      const state = `${randomHex(24)}.${encodeOAuthReturnPath(returnTo)}`;
       this.cookies.set(STATE_COOKIE, state, cookieOptions(10 * 60));
       const url = new URL('https://github.com/login/oauth/authorize');
       url.searchParams.set('client_id', this.githubClientId);

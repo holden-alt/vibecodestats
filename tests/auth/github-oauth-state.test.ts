@@ -3,16 +3,20 @@ import { oauthReturnPath } from '@/lib/auth/github';
 
 describe('oauthReturnPath', () => {
   it('recovers a safe local return path from verified OAuth state', () => {
-    expect(oauthReturnPath(`nonce.${encodeURIComponent('/onboarding?step=profile')}`))
+    const encoded = btoa('/onboarding?step=profile')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(oauthReturnPath(`nonce.${encoded}`))
       .toBe('/onboarding?step=profile');
   });
 
   it.each([
     null,
     'nonce',
-    'nonce.https%3A%2F%2Fevil.example',
-    'nonce.%2F%2Fevil.example',
-    'nonce.%E0%A4%A',
+    `nonce.${btoa('https://evil.example')}`,
+    `nonce.${btoa('//evil.example')}`,
+    'nonce.***',
   ])('falls back to /me for invalid state %s', (state) => {
     expect(oauthReturnPath(state)).toBe('/me');
   });

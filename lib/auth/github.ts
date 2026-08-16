@@ -138,9 +138,9 @@ export class GithubAuth {
     try {
       const expectedState = this.cookies.get(STATE_COOKIE)?.value;
       this.cookies.set(STATE_COOKIE, '', cookieOptions(0));
-      if (!expectedState || !state || expectedState !== state) {
-        throw new Error('OAuth state mismatch; please start sign-in again');
-      }
+      if (!expectedState) throw new Error('OAuth state cookie missing; please start sign-in again');
+      if (!state) throw new Error('OAuth state missing; please start sign-in again');
+      if (expectedState !== state) throw new Error('OAuth state mismatch; please start sign-in again');
 
       const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',

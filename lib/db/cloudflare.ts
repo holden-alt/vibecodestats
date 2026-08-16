@@ -41,8 +41,7 @@ export type AppBindings = {
   DB: D1Database;
   OG_IMAGES: R2Bucket;
   GITHUB_CLIENT_ID: string;
-  GITHUB_CLIENT_SECRET: string;
-  GITHUB_OAUTH_CLIENT_SECRET?: string;
+  GITHUB_OAUTH_CLIENT_SECRET: string;
   CC_INTERNAL_TOKEN: string;
 };
 

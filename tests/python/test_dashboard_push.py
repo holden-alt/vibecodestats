@@ -512,12 +512,6 @@ class TestHourlyBucketing(unittest.TestCase):
 
 
 class TestSignAndPayload(unittest.TestCase):
-    def test_sign_body_matches_known_hmac(self):
-        # HMAC-SHA256 of 'hello' with key 'k' — precomputed.
-        import hmac as _hmac, hashlib as _hashlib
-        expected = _hmac.new(b'k', b'hello', _hashlib.sha256).hexdigest()
-        self.assertEqual(dashboard_push.sign_body('hello', 'k'), expected)
-
     def test_build_payload_shape(self):
         day = {
             'tokens_total': 415,

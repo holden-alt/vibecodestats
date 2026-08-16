@@ -5,24 +5,18 @@ dashboard_push.py — push today's Claude Code stats to the cc-dashboard ingest 
 Stdlib only. Parses ~/.claude/projects/*/*.jsonl for the target date, computes a
 per-machine daily stats payload, and POSTs to /api/ingest.
 
-Supports two auth modes:
-  1. Bearer token (preferred): CC_DASHBOARD_TOKEN
-  2. HMAC signature (legacy): CC_DASHBOARD_HMAC_SECRET + CC_DASHBOARD_HANDLE
+Uses the per-user bearer token issued by cc-dashboard.
 
 Default mode parses only files modified today (fast — runs after every CC turn
 via the Stop hook). --backfill parses everything for a one-time history load.
 
 Env vars required:
   CC_DASHBOARD_URL                   e.g. https://cc-dashboard-qab.pages.dev
-  CC_DASHBOARD_TOKEN                 (preferred) per-user Bearer token
-    OR
-  CC_DASHBOARD_HMAC_SECRET           (legacy) same value as deploy's INGEST_HMAC_SECRET
-  CC_DASHBOARD_HANDLE                (legacy) the GitHub handle whose profile this machine feeds
+  CC_DASHBOARD_TOKEN                 per-user Bearer token
+  CC_DASHBOARD_HANDLE                the GitHub handle whose profile this machine feeds
 """
 
 import glob
-import hashlib
-import hmac
 import json
 import os
 import socket
@@ -413,11 +407,6 @@ def count_ships(claude_dir, target_date, author_email):
     return {'commits': commits, 'repos': repos_with_commits}
 
 
-def sign_body(body, secret):
-    """HMAC-SHA256 hex digest — must match lib/ingest/hmac.ts signPayload()."""
-    return hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
-
-
 def build_payload(day, ships, github_handle, machine, target_date):
     """Assemble the IngestPayload dict the /api/ingest route expects."""
     return {
@@ -434,8 +423,8 @@ def build_payload(day, ships, github_handle, machine, target_date):
     }
 
 
-def post_payload(url, payload, token=None, secret=None):
-    """POST the payload with Bearer token (preferred) or HMAC signature (fallback).
+def post_payload(url, payload, token):
+    """POST the payload using its per-user bearer token.
 
     Returns (status_code, response_text).
     """
@@ -446,12 +435,7 @@ def post_payload(url, payload, token=None, secret=None):
         'User-Agent': 'cc-dashboard-push/1.0',
     }
 
-    # Prefer Bearer token; fall back to HMAC signature.
-    if token:
-        headers['Authorization'] = f'Bearer {token}'
-    elif secret:
-        signature = sign_body(body, secret)
-        headers['X-CC-Signature'] = signature
+    headers['Authorization'] = f'Bearer {token}'
 
     req = urllib.request.Request(
         url.rstrip('/') + '/api/ingest',
@@ -697,19 +681,12 @@ def main():
 
     url = os.environ.get('CC_DASHBOARD_URL')
     token = os.environ.get('CC_DASHBOARD_TOKEN')
-    secret = os.environ.get('CC_DASHBOARD_HMAC_SECRET')
     handle = os.environ.get('CC_DASHBOARD_HANDLE')
 
-    # Validate: require URL and either (token) or (secret + handle).
-    if not url:
-        print('dashboard-push: missing CC_DASHBOARD_URL and either '
-              'CC_DASHBOARD_TOKEN or both CC_DASHBOARD_HMAC_SECRET + '
-              'CC_DASHBOARD_HANDLE — skipping', file=sys.stderr)
-        return 0
-    if not token and not (secret and handle):
-        print('dashboard-push: missing CC_DASHBOARD_URL and either '
-              'CC_DASHBOARD_TOKEN or both CC_DASHBOARD_HMAC_SECRET + '
-              'CC_DASHBOARD_HANDLE — skipping', file=sys.stderr)
+    if not url or not token or not handle:
+        print('dashboard-push: missing CC_DASHBOARD_URL, '
+              'CC_DASHBOARD_TOKEN, or CC_DASHBOARD_HANDLE — skipping',
+              file=sys.stderr)
         return 0
 
     if not backfill and is_debounced(LAST_PUSH_FILE, DEBOUNCE_SECONDS):
@@ -766,7 +743,7 @@ def main():
                 continue
             ships = count_ships(claude_dir, target_date, author_email)
             payload = build_payload(day, ships, handle, machine, target_date)
-            status, text = post_payload(url, payload, token=token, secret=secret)
+            status, text = post_payload(url, payload, token=token)
             sources = []
             if claude_day['tokens_total'] > 0:
                 sources.append(f'cc={claude_day["tokens_total"]:,}')
@@ -786,7 +763,7 @@ def main():
                                                   now_ts, HOME):
         ships = count_ships(claude_dir, target_date, author_email)
         payload = build_payload(day, ships, handle, machine, target_date)
-        status, text = post_payload(url, payload, token=token, secret=secret)
+        status, text = post_payload(url, payload, token=token)
         if target_date == today_date:
             today_status, today_text, today_payload = status, text, payload
         if status != 200:

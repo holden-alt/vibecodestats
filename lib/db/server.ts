@@ -18,7 +18,7 @@ export async function createClient(): Promise<AppClient> {
     bindings.DB,
     cookieStore,
     bindings.GITHUB_CLIENT_ID,
-    bindings.GITHUB_CLIENT_SECRET,
+    bindings.GITHUB_OAUTH_CLIENT_SECRET ?? bindings.GITHUB_CLIENT_SECRET,
   );
   return new AppClient(bindings.DB, auth);
 }

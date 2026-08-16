@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Chakra_Petch, Sora, JetBrains_Mono } from 'next/font/google';
 import { todayLocal } from '@/lib/date';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { getProfileData, getLiveRanking } from '@/lib/stats/profile-data';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { formatCompact } from '@/lib/format';
@@ -48,9 +48,9 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
   // cached → it must fetch the card fresh (X holds images ~7 days per URL).
   const sp = (await searchParams) ?? {};
   const shareToken = typeof sp.v === 'string' ? sp.v : undefined;
-  const supabase = await createClient();
+  const database = await createClient();
 
-  const { data: user } = await supabase
+  const { data: user } = await database
     .from('users')
     .select('id, github_handle, display_name')
     .eq('github_handle', handle)
@@ -62,7 +62,7 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
 
   // Today-only metadata — cards advertise today's number, not lifetime.
   const today = todayLocal();
-  const { data: todayStats } = await supabase
+  const { data: todayStats } = await database
     .from('daily_stats')
     .select('tokens_total')
     .eq('user_id', user.id)
@@ -79,11 +79,11 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
     ? `${name} pushed ${tokens} AI tokens today. Live on the vibecodestats.dev leaderboard. Track your own Claude Code + Codex usage too.`
     : `${name} on vibecodestats.dev. Track your Claude Code + Codex daily token usage.`;
 
-  // og:image is the pre-rendered STATIC PNG in Supabase Storage — a plain CDN
+  // og:image is the pre-rendered STATIC PNG in D1 Storage — a plain CDN
   // asset X reliably fetches. X is finicky with dynamic OG routes (Next #57349)
   // and Cloudflare bot-protection can challenge Twitterbot on our worker, so a
   // dynamic route makes the image fetch fail and X falls back to its old card.
-  // Static on Supabase's CDN sidesteps both.
+  // Static on D1's CDN sidesteps both.
   //
   // The token makes the URL UNIQUE per share (threaded from the share button)
   // so X re-fetches instead of reusing a cached copy — the missing piece before
@@ -131,23 +131,23 @@ export async function generateMetadata({ params, searchParams }: ProfilePageProp
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
   const { handle } = await params;
-  const supabase = await createClient();
+  const database = await createClient();
 
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const { data: { user: authUser } } = await database.auth.getUser();
 
-  const data = await getProfileData(supabase, handle, authUser?.id ?? null);
+  const data = await getProfileData(database, handle, authUser?.id ?? null);
   if (!data) {
     notFound();
   }
   const viewerIsOwner = !!authUser && data.user.auth_id === authUser.id;
   const hasEverPushed = data.dailyStats.length > 0;
 
-  const leaderboardData = await getLeaderboardData(supabase, data.user.id);
+  const leaderboardData = await getLeaderboardData(database, data.user.id);
 
   // Server-compute "today" so SSR and client hydration agree.
   const today = todayLocal();
 
-  const liveRanking = await getLiveRanking(supabase, data.user.id, today);
+  const liveRanking = await getLiveRanking(database, data.user.id, today);
 
   // ProfilePage / Person structured data so search + AI crawlers understand the
   // page is a person's profile. `<` is escaped so a GitHub-derived name/handle

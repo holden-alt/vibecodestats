@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { todayLocal } from '@/lib/date';
 import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 import { Leaderboard } from '@/components/leaderboard/Leaderboard';
@@ -9,9 +9,9 @@ import { Leaderboard } from '@/components/leaderboard/Leaderboard';
 const V1_VIEWER_HANDLE = 'holden-alt';
 
 export default async function LeaderboardPage() {
-  const supabase = await createClient();
+  const database = await createClient();
 
-  const { data: viewer } = await supabase
+  const { data: viewer } = await database
     .from('users')
     .select('id')
     .eq('github_handle', V1_VIEWER_HANDLE)
@@ -19,7 +19,7 @@ export default async function LeaderboardPage() {
   // '' fallback is safe in v1 because holden-alt always exists; v2 will redirect to login instead.
   const viewerId = viewer?.id ?? '';
 
-  const data = await getLeaderboardData(supabase, viewerId);
+  const data = await getLeaderboardData(database, viewerId);
   const today = todayLocal();
 
   return (

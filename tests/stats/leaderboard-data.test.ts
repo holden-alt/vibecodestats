@@ -4,7 +4,7 @@ import { getLeaderboardData } from '@/lib/stats/leaderboard-data';
 // The mock returns table-specific data. getLeaderboardData issues six reads now:
 // users, daily_stats, group_members (viewer's groups), groups (group details),
 // group_members (all members of those groups), friendships.
-function mockSupabase(tables: {
+function mockDatabase(tables: {
   users: unknown[];
   daily_stats: unknown[];
   viewer_groups: { group_id: string }[];        // first group_members read (eq user_id)
@@ -47,7 +47,7 @@ function mockSupabase(tables: {
 
 describe('getLeaderboardData', () => {
   it('returns users, stats grouped by user, and the viewer relationships', async () => {
-    const supabase = mockSupabase({
+    const database = mockDatabase({
       users: [
         { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },
         { id: 'u2', github_handle: 'mira-builds', display_name: 'Mira' },
@@ -68,7 +68,7 @@ describe('getLeaderboardData', () => {
       ],
       friendships: [{ user_id: 'u1', friend_id: 'u2' }],
     });
-    const result = await getLeaderboardData(supabase as never, 'u1');
+    const result = await getLeaderboardData(database as never, 'u1');
     expect(result.users).toHaveLength(2);
     expect(result.statsByUser['u1']).toHaveLength(1);
     expect(result.statsByUser['u2']?.[0]?.tokens_total).toBe(200);
@@ -86,7 +86,7 @@ describe('getLeaderboardData', () => {
   });
 
   it('defaults relationship arrays to empty when the viewer has no groups or friends', async () => {
-    const supabase = mockSupabase({
+    const database = mockDatabase({
       users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
       daily_stats: [],
       viewer_groups: [],
@@ -94,7 +94,7 @@ describe('getLeaderboardData', () => {
       group_members: [],
       friendships: [],
     });
-    const result = await getLeaderboardData(supabase as never, 'u1');
+    const result = await getLeaderboardData(database as never, 'u1');
     expect(result.groupMemberUserIds).toEqual([]);
     expect(result.friendUserIds).toEqual([]);
     expect(result.viewerGroups).toEqual([]);
@@ -102,7 +102,7 @@ describe('getLeaderboardData', () => {
   });
 
   it('returns multiple viewerGroups when the viewer is in more than one', async () => {
-    const supabase = mockSupabase({
+    const database = mockDatabase({
       users: [
         { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },
         { id: 'u2', github_handle: 'mira-builds', display_name: 'Mira' },
@@ -122,7 +122,7 @@ describe('getLeaderboardData', () => {
       ],
       friendships: [],
     });
-    const result = await getLeaderboardData(supabase as never, 'u1');
+    const result = await getLeaderboardData(database as never, 'u1');
     expect(result.viewerGroups.map((g) => g.slug).sort()).toEqual(['default', 'opus-club']);
     const squad = result.viewerGroups.find((g) => g.slug === 'default')!;
     expect(squad.memberUserIds.sort()).toEqual(['u1', 'u2']);

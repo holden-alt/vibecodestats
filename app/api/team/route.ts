@@ -1,31 +1,22 @@
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import { createClient, createServiceClient } from '@/lib/db/server';
 import { canSwitchTeam, SWITCH_COOLDOWN_DAYS } from '@/lib/stats/team-switch';
 
 
 type Team = 'claude_code' | 'codex';
 
-function serviceClient() {
-  return createServiceClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 export async function POST(request: Request) {
   // 1. Authenticate via SSR client.
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
 
   if (!user) {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   // 2. Resolve the caller's public users row by auth_id (server-resolved — never trust a body id).
-  const { data: publicUser } = await supabase
+  const { data: publicUser } = await database
     .from('users')
     .select('id, github_handle, team, team_switched_at')
     .eq('auth_id', user.id)
@@ -66,7 +57,7 @@ export async function POST(request: Request) {
   }
 
   // 6. Perform the switch via service role — keyed on server-resolved id only.
-  const svc = serviceClient();
+  const svc = await createServiceClient();
   const { error: updateErr } = await svc
     .from('users')
     .update({ team: team as Team, team_switched_at: now.toISOString() })

@@ -1,21 +1,21 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { CopyButton } from './CopyButton';
 import { RegenerateButton } from './RegenerateButton';
 import { PrivacyToggle } from './PrivacyToggle';
 
 
 export default async function SetupPage() {
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user: authUser },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
 
   if (!authUser) {
     redirect('/auth/signin?next=/setup');
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await database
     .from('users')
     .select('github_handle, ingest_token, private_project_names')
     .eq('auth_id', authUser.id)

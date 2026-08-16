@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import type { DatabaseClient } from '@/lib/db/client';
 import { computeTier, type Tier } from '@/lib/stats/tier';
 import { todayLocal } from '@/lib/date';
 
@@ -67,11 +66,11 @@ function computeUserStats(rows: DailyRow[]): {
 const STATS_LIMIT = 4000;
 
 export async function getCardData(
-  supabase: SupabaseClient<Database>,
+  database: DatabaseClient,
   handle: string,
 ): Promise<CardData | null> {
   // 1. Resolve the user by github_handle.
-  const { data: user } = await supabase
+  const { data: user } = await database
     .from('users')
     .select('id, github_handle, display_name, team')
     .eq('github_handle', handle)
@@ -80,7 +79,7 @@ export async function getCardData(
   if (!user) return null;
 
   // 2. Fetch this user's own daily_stats rows (all columns we need).
-  const { data: userStats } = await supabase
+  const { data: userStats } = await database
     .from('daily_stats')
     .select('date, tokens_total, sessions')
     .eq('user_id', user.id)
@@ -93,7 +92,7 @@ export async function getCardData(
   // 3. Fetch the cohort: every user's all-time token sum, for ranking.
   //    We pull (user_id, tokens_total) across the whole table and sum in JS.
   //    See the STATS_LIMIT caveat in the module-level comment above.
-  const { data: allRows } = await supabase
+  const { data: allRows } = await database
     .from('daily_stats')
     .select('user_id, tokens_total')
     .order('date', { ascending: false })
@@ -123,7 +122,7 @@ export async function getCardData(
   const effectiveToday = myRows.some((r) => r.date === today) ? today : latestUserDate;
   const todayTokens = myRows.find((r) => r.date === effectiveToday)?.tokens_total ?? 0;
 
-  const { data: todayRows } = await supabase
+  const { data: todayRows } = await database
     .from('daily_stats')
     .select('user_id, tokens_total')
     .eq('date', effectiveToday);

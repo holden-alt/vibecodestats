@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 
 
 export async function POST() {
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
 
   if (!user) {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
@@ -16,7 +16,7 @@ export async function POST() {
     crypto.randomUUID().replace(/-/g, '') +
     crypto.randomUUID().replace(/-/g, '');
 
-  const { error } = await supabase
+  const { error } = await database
     .from('users')
     .update({ ingest_token: newToken })
     .eq('auth_id', user.id);

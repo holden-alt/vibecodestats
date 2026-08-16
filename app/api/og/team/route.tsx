@@ -1,7 +1,6 @@
 import { ImageResponse } from 'next/og';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/db/server';
 import { campScoreboard } from '@/lib/stats/team';
-import type { Database } from '@/lib/types/database';
 import { orbitron900, rajdhani700 } from '@/lib/og/fonts';
 
 
@@ -31,19 +30,16 @@ const size = { width: 1200, height: 630 };
 export async function GET(): Promise<Response> {
   try {
     // 1. Fetch all tokens_by_model entries across daily_stats
-    const supabase = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    const database = await createServiceClient();
 
-    const { data: rows } = await supabase
+    const { data: rows } = await database
       .from('daily_stats')
       .select('tokens_by_model')
       .limit(STATS_LIMIT);
 
     // 2. Feed the tokens_by_model maps into campScoreboard
     const maps = (rows ?? []).map(
-      (r) => (r.tokens_by_model as Record<string, number> | null),
+      (row: { tokens_by_model?: unknown }) => (row.tokens_by_model as Record<string, number> | null),
     );
     const { claude, codex, claudePct, codexPct, leader } = campScoreboard(maps);
 

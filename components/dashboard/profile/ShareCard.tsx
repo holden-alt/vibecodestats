@@ -39,7 +39,6 @@ export function ShareCard({ handle, overallTier, todayTier, allTimeTokens, today
   // card), and changes the instant the card content does (so X re-scrapes and
   // shows the new card). Not a per-click bust — that froze junk URLs.
   const shareUrl = `${profileUrl}?v=${ogCardToken({ allTimeTokens, todayTokens, tier: overallTier, rank })}`;
-  const teamColor = team === 'codex' ? 'var(--team-cx)' : 'var(--team-cc)';
   const teamLabel = team === 'codex' ? 'TEAM CODEX' : team === 'claude_code' ? 'TEAM CLAUDE CODE' : null;
 
   function shareOnX() {

@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { getCardData } from '@/lib/og/card-data';
 import { formatCompact } from '@/lib/format';
 import { orbitron900, rajdhani700 } from '@/lib/og/fonts';
@@ -58,8 +58,8 @@ export default async function OG({ params }: { params: Promise<{ handle: string 
   const { handle } = await params;
 
   try {
-    const supabase = await createClient();
-    const card = await getCardData(supabase, handle);
+    const database = await createClient();
+    const card = await getCardData(database, handle);
 
     if (!card) {
       return fallback(handle);

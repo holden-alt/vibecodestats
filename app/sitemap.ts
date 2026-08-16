@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/db/server';
 import { compareTools } from '@/lib/seo/compare-data';
 import { guideSlugs } from '@/lib/seo/guides-data';
 import { glossarySlugs } from '@/lib/seo/glossary-data';
@@ -8,7 +8,7 @@ import { helpSlugs } from '@/lib/seo/help-data';
 
 const SITE = 'https://www.vibecodestats.dev';
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -19,18 +19,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE}/methodology`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
   ];
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-  const { data: realUsers } = await sb
+  const database = await createServiceClient();
+  const { data: realUsers } = await database
     .from('users')
     .select('github_handle')
     .not('auth_id', 'is', null);
   const profileRoutes: MetadataRoute.Sitemap = (realUsers ?? [])
-    .filter((u) => !!u.github_handle)
-    .map((u) => ({
-      url: `${SITE}/${u.github_handle}`,
+    .filter((user: { github_handle?: string | null }) => !!user.github_handle)
+    .map((user: { github_handle: string }) => ({
+      url: `${SITE}/${user.github_handle}`,
       lastModified: now,
       changeFrequency: 'daily' as const,
       priority: 0.6,

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ogImageUrl } from '@/lib/og/regenerate';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCompareTool } from '@/lib/seo/compare-data';
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `Claude Code vs ${t.name}: Honest Comparison (${t.lastReviewed})`;
   const description = t.summary;
   const url = `${SITE}/compare/${t.slug}`;
-  const ogImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
+  const ogImage = ogImageUrl('_root');
 
   return {
     title,

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe.skip('profile chrome (requires live Supabase + seeded holden row)', () => {
+test.describe.skip('profile chrome (requires live D1 + seeded holden row)', () => {
   test('profile page renders chrome', async ({ page }) => {
     await page.goto('/holden');
     await expect(page.getByText('$ holden')).toBeVisible();

@@ -11,7 +11,7 @@ import { getCardData } from '@/lib/og/card-data';
 //   3rd: .select('user_id, tokens_total').eq('date', effectiveToday)           → today's field
 // We dispatch by tracking how many times from('daily_stats') has been called.
 
-function mockSupabase(
+function mockDatabase(
   userRow: unknown,
   userDailyStats: { date?: string; tokens_total: number; sessions: number }[],
   cohortRows: { user_id: string; tokens_total: number }[],
@@ -117,14 +117,14 @@ const COHORT_ROWS = [
 
 describe('getCardData', () => {
   it('returns null for an unknown handle', async () => {
-    const supabase = mockSupabase(null, [], []);
-    const result = await getCardData(supabase as never, 'ghost');
+    const database = mockDatabase(null, [], []);
+    const result = await getCardData(database as never, 'ghost');
     expect(result).toBeNull();
   });
 
   it('returns S tier + rank 1 for the top-tokens user', async () => {
-    const supabase = mockSupabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const database = mockDatabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
+    const result = await getCardData(database as never, 'top-coder');
     expect(result).not.toBeNull();
     expect(result!.tier).toBe('S');
     expect(result!.rank).toBe(1);
@@ -132,8 +132,8 @@ describe('getCardData', () => {
   });
 
   it('computes allTimeTokens, peakDay, sessions, activeDays correctly', async () => {
-    const supabase = mockSupabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const database = mockDatabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
+    const result = await getCardData(database as never, 'top-coder');
     expect(result!.allTimeTokens).toBe(10_000_000);   // 5M + 3M + 2M
     expect(result!.peakDay).toBe(5_000_000);           // max single-day
     expect(result!.sessions).toBe(24);                  // 10 + 8 + 6
@@ -141,16 +141,16 @@ describe('getCardData', () => {
   });
 
   it('passes handle, displayName, and team through untouched', async () => {
-    const supabase = mockSupabase(USER_MID, [{ tokens_total: 1_000_000, sessions: 5 }], COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'mid-coder');
+    const database = mockDatabase(USER_MID, [{ tokens_total: 1_000_000, sessions: 5 }], COHORT_ROWS);
+    const result = await getCardData(database as never, 'mid-coder');
     expect(result!.handle).toBe('mid-coder');
     expect(result!.displayName).toBeNull();
     expect(result!.team).toBe('codex');
   });
 
   it('marks a zero-token user as isHandcoder true', async () => {
-    const supabase = mockSupabase(USER_ZERO, [{ tokens_total: 0, sessions: 0 }], COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'no-tokens');
+    const database = mockDatabase(USER_ZERO, [{ tokens_total: 0, sessions: 0 }], COHORT_ROWS);
+    const result = await getCardData(database as never, 'no-tokens');
     expect(result).not.toBeNull();
     expect(result!.isHandcoder).toBe(true);
     expect(result!.allTimeTokens).toBe(0);
@@ -158,8 +158,8 @@ describe('getCardData', () => {
   });
 
   it('zero-token user: isHandcoder true even with empty daily_stats', async () => {
-    const supabase = mockSupabase(USER_ZERO, [], COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'no-tokens');
+    const database = mockDatabase(USER_ZERO, [], COHORT_ROWS);
+    const result = await getCardData(database as never, 'no-tokens');
     expect(result!.isHandcoder).toBe(true);
     expect(result!.allTimeTokens).toBe(0);
     expect(result!.peakDay).toBe(0);
@@ -169,14 +169,14 @@ describe('getCardData', () => {
 
   it('cohortSize counts only users with tokens > 0', async () => {
     // cohort: u1=10M, u2=1M, u3=0 → active cohort = 2
-    const supabase = mockSupabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const database = mockDatabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
+    const result = await getCardData(database as never, 'top-coder');
     expect(result!.cohortSize).toBe(2);
   });
 
   it('topPercentLabel is at least 1', async () => {
-    const supabase = mockSupabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const database = mockDatabase(USER_TOP, TOP_USER_STATS, COHORT_ROWS);
+    const result = await getCardData(database as never, 'top-coder');
     expect(result!.topPercentLabel).toBeGreaterThanOrEqual(1);
   });
 
@@ -186,11 +186,11 @@ describe('getCardData', () => {
       { tokens_total: 0, sessions: 0 },          // zero-token day
       { tokens_total: 500_000, sessions: 2 },
     ];
-    const supabase = mockSupabase(USER_TOP, stats, [
+    const database = mockDatabase(USER_TOP, stats, [
       { user_id: 'u1', tokens_total: 1_000_000 },
       { user_id: 'u1', tokens_total: 500_000 },
     ]);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const result = await getCardData(database as never, 'top-coder');
     expect(result!.activeDays).toBe(2);         // only the two non-zero rows
     expect(result!.allTimeTokens).toBe(1_500_000); // zero row excluded from sum correctly
   });
@@ -207,8 +207,8 @@ describe('getCardData', () => {
       { user_id: 'u1', tokens_total: 5_000_000 }, // the viewer
       { user_id: 'u2', tokens_total: 2_000_000 },
     ];
-    const supabase = mockSupabase(USER_TOP, dated, COHORT_ROWS, todayField);
-    const result = await getCardData(supabase as never, 'top-coder');
+    const database = mockDatabase(USER_TOP, dated, COHORT_ROWS, todayField);
+    const result = await getCardData(database as never, 'top-coder');
     expect(result!.todayTokens).toBe(5_000_000);
     expect(result!.todayTier).toBe('S');
     expect(result!.todayPercentLabel).toBe(50); // rank 1 of 2 → ceil(1/2*100)

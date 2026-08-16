@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { recordSignupEvent } from '@/lib/notify/signup';
 import { detectInAppBrowser } from '@/lib/auth/in-app-browser';
 
@@ -40,8 +40,8 @@ export async function GET(request: Request) {
     metadata: { next },
   });
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  const database = await createClient();
+  const { data, error } = await database.auth.signInWithOAuth({
     provider: 'github',
     options: {
       scopes: 'read:user user:email',

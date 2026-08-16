@@ -1,10 +1,11 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
+import { ogImageUrl } from '@/lib/og/regenerate';
 
-// The site-level OG image is a STATIC PNG in Supabase Storage. The image
+// The site-level OG image is a static PNG in R2. The image
 // renders the same live-aggregate-stats layout as per-profile cards
 // (developers / active today / tokens today / top rank), but is generated
 // out-of-band by scripts/generate-site-og.mjs and re-uploaded periodically
@@ -12,7 +13,7 @@ import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
 // bundle past its 25 MiB limit. Storage path is stable; we just overwrite
 // the bytes when we want to refresh the stats.
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
-const SITE_OG_IMAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co'}/storage/v1/object/public/og/_root.png`;
+const SITE_OG_IMAGE = ogImageUrl('_root');
 
 const siteOgImage = {
   url: SITE_OG_IMAGE,
@@ -48,8 +49,8 @@ export const metadata: Metadata = {
 };
 
 async function AuthWidget() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const database = await createClient();
+  const { data: { user } } = await database.auth.getUser();
 
   const wrapStyle: React.CSSProperties = {
     position: 'fixed',
@@ -107,11 +108,12 @@ async function AuthWidget() {
     );
   }
 
-  const handle =
-    user.user_metadata?.user_name ||
-    user.user_metadata?.preferred_username ||
-    user.email ||
-    'you';
+  const handle = String(
+    user.user_metadata?.user_name ??
+      user.user_metadata?.preferred_username ??
+      user.email ??
+      'you',
+  );
 
   return (
     <div

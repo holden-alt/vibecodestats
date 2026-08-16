@@ -29,8 +29,10 @@ That installs the push script at `~/.config/cc-dashboard/dashboard_push.py`, dro
 
 ## Stack
 
-- Next.js 15 on Cloudflare Pages (edge runtime)
-- Supabase Postgres (with realtime publication on daily_stats)
+- Next.js 15/OpenNext on Cloudflare Workers
+- Cloudflare D1 for application data and sessions
+- Cloudflare R2 for generated social-card images
+- Direct GitHub OAuth; no hosted auth/database provider
 - Recharts + @uiw/react-heat-map
 - Tailwind 4
 

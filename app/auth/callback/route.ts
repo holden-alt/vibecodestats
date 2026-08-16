@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { recordSignupEvent } from '@/lib/notify/signup';
 
 
@@ -64,6 +64,7 @@ function errorPage(opts: {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
   const oauthError = url.searchParams.get('error');
   const oauthErrorDescription = url.searchParams.get('error_description');
   const next = url.searchParams.get('next') ?? '/me';
@@ -109,9 +110,9 @@ export async function GET(request: Request) {
   }
 
   // Case 3: Exchange the code for a session.
-  const supabase = await createClient();
+  const database = await createClient();
   const { data: sessionData, error: exchangeError } =
-    await supabase.auth.exchangeCodeForSession(code);
+    await database.auth.exchangeCodeForSession(code, state);
 
   if (exchangeError) {
     await recordSignupEvent({
@@ -145,7 +146,7 @@ export async function GET(request: Request) {
   let isNewUser: boolean | null = null;
 
   if (authUserId) {
-    const { data: publicUser } = await supabase
+    const { data: publicUser } = await database
       .from('users')
       .select('id, github_handle, created_at')
       .eq('auth_id', authUserId)

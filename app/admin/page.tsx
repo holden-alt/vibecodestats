@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-import { createClient as createSsrClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/db/server';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { SignupsFunnel } from '@/components/admin/SignupsFunnel';
 import type { SignupEvent } from '@/components/admin/SignupsFunnel';
-import type { Database } from '@/lib/types/database';
 import { ogImageUrl } from '@/lib/og/regenerate';
 
 
@@ -15,7 +13,7 @@ const OWNER_HANDLES = (process.env.OWNER_HANDLES ?? 'holden-alt,realholdengr')
 
 export default async function AdminPage() {
   // Auth gate: same pattern as /admin/signups.
-  const ssr = await createSsrClient();
+  const ssr = await createClient();
   const {
     data: { user: authUser },
   } = await ssr.auth.getUser();
@@ -49,11 +47,7 @@ export default async function AdminPage() {
     );
   }
 
-  // Service-role client for RLS-free reads.
-  const svc = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const svc = await createServiceClient();
 
   // Fetch all users for per-handle OG cards.
   const { data: usersData } = await svc
@@ -61,9 +55,9 @@ export default async function AdminPage() {
     .select('github_handle')
     .order('github_handle', { ascending: true });
 
-  const userHandles = (usersData ?? [])
-    .map((u) => u.github_handle)
-    .filter((h): h is string => !!h);
+  const userHandles: string[] = ((usersData ?? []) as Array<{ github_handle?: string | null }>)
+    .map((user) => user.github_handle)
+    .filter((handle: string | null | undefined): handle is string => !!handle);
 
   // Fetch signup events for the funnel section.
   const { data: events } = await svc

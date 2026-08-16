@@ -1,5 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import { createServiceClient } from '@/lib/db/server';
 
 /**
  * Funnel event kinds for signup_events.event_type. Keep this enum-narrow —
@@ -25,22 +24,11 @@ export type LogSignupEvent = {
   metadata?: Record<string, unknown>;
 };
 
-/**
- * Service-role Supabase client for write-side telemetry. Auth routes call this
- * fire-and-forget — never blocks the redirect path.
- */
-function serviceClient() {
-  return createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 /** Insert a funnel event. Soft-fails: any error is swallowed so the auth path keeps working. */
 export async function logSignupEvent(e: LogSignupEvent): Promise<void> {
   try {
-    const supabase = serviceClient();
-    await supabase.from('signup_events').insert({
+    const database = await createServiceClient();
+    await database.from('signup_events').insert({
       event_type: e.eventType,
       auth_user_id: e.authUserId ?? null,
       user_id: e.userId ?? null,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
 
 const POLL_MS = 30_000;
@@ -11,8 +11,6 @@ export function useLiveRank(
   initial: LiveRanking,
 ): LiveRanking {
   const [data, setData] = useState<LiveRanking>(initial);
-  const lastPushRef = useRef(0);
-
   useEffect(() => {
     let cancelled = false;
     const fetchNow = async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getHeadToHeadData } from '@/lib/stats/head-to-head-data';
 
-function mockSupabase(tables: { users: unknown[]; daily_stats: unknown[] }) {
+function mockDatabase(tables: { users: unknown[]; daily_stats: unknown[] }) {
   return {
     from: vi.fn((table: string) => {
       if (table === 'users') {
@@ -21,7 +21,7 @@ function mockSupabase(tables: { users: unknown[]; daily_stats: unknown[] }) {
 
 describe('getHeadToHeadData', () => {
   it('returns both users and their daily_stats grouped by user', async () => {
-    const supabase = mockSupabase({
+    const database = mockDatabase({
       users: [
         { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },
         { id: 'u2', github_handle: 'mira-builds', display_name: 'Mira' },
@@ -35,7 +35,7 @@ describe('getHeadToHeadData', () => {
           ships: { commits: 8 }, hourly_tokens: {}, source_synced_at: null },
       ],
     });
-    const result = await getHeadToHeadData(supabase as never, 'holden-alt', 'mira-builds');
+    const result = await getHeadToHeadData(database as never, 'holden-alt', 'mira-builds');
     expect(result).not.toBeNull();
     expect(result!.userA.github_handle).toBe('holden-alt');
     expect(result!.userB.github_handle).toBe('mira-builds');
@@ -45,24 +45,24 @@ describe('getHeadToHeadData', () => {
   });
 
   it('returns null when either handle does not exist', async () => {
-    const supabase = mockSupabase({
+    const database = mockDatabase({
       users: [{ id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' }],
       daily_stats: [],
     });
-    const result = await getHeadToHeadData(supabase as never, 'holden-alt', 'no-such-user');
+    const result = await getHeadToHeadData(database as never, 'holden-alt', 'no-such-user');
     expect(result).toBeNull();
   });
 
   it('preserves handle order regardless of database row order', async () => {
-    // Supabase returns u2 first, but the caller asked for holden-alt as A.
-    const supabase = mockSupabase({
+    // D1 returns u2 first, but the caller asked for holden-alt as A.
+    const database = mockDatabase({
       users: [
         { id: 'u2', github_handle: 'mira-builds', display_name: 'Mira' },
         { id: 'u1', github_handle: 'holden-alt', display_name: 'Holden' },
       ],
       daily_stats: [],
     });
-    const result = await getHeadToHeadData(supabase as never, 'holden-alt', 'mira-builds');
+    const result = await getHeadToHeadData(database as never, 'holden-alt', 'mira-builds');
     expect(result!.userA.github_handle).toBe('holden-alt');
     expect(result!.userB.github_handle).toBe('mira-builds');
   });

@@ -31,7 +31,7 @@ describe('OnboardingPage', () => {
   it('redirects to /auth/signin when not authenticated', async () => {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
-    vi.doMock('@/lib/supabase/server', () => ({
+    vi.doMock('@/lib/db/server', () => ({
       createClient: vi.fn(async () => mockSsrClient(null, null)),
     }));
     const { default: OnboardingPage } = await import('../../app/onboarding/page');
@@ -41,7 +41,7 @@ describe('OnboardingPage', () => {
   it('redirects to profile when team is already set', async () => {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
-    vi.doMock('@/lib/supabase/server', () => ({
+    vi.doMock('@/lib/db/server', () => ({
       createClient: vi.fn(async () =>
         mockSsrClient(
           { id: 'auth-1', email: 'user@github.com' },
@@ -56,7 +56,7 @@ describe('OnboardingPage', () => {
   it('renders both team options and opt-in checkbox (default unchecked) for a new user', async () => {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
-    vi.doMock('@/lib/supabase/server', () => ({
+    vi.doMock('@/lib/db/server', () => ({
       createClient: vi.fn(async () =>
         mockSsrClient(
           { id: 'auth-2', email: 'newuser@example.com' },

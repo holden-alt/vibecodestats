@@ -2,7 +2,7 @@ name: Refresh site OG image
 
 # Runs scripts/generate-site-og.mjs every 4 hours. Renders the
 # live-aggregate-stats card with Playwright/Chromium and uploads it to
-# Supabase Storage as og/_root.png. Every share of vibecodestats.dev
+# Cloudflare R2 through the app's scoped endpoint. Every share of vibecodestats.dev
 # unfurls with whatever's currently there, so this keeps the numbers
 # fresh without an inline edge route (the inline route version pushed
 # CF Pages past its 25 MiB bundle limit).
@@ -34,16 +34,13 @@ jobs:
       # specifying it again here conflicts with action-setup v4.
       - uses: pnpm/action-setup@v4
 
-      # Node 22+ — Supabase JS v2 requires native WebSocket (added in Node 22).
-      # Node 20 throws "Node.js 20 detected without native WebSocket support."
+      # Match the application's supported Node line.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'pnpm'
 
-      - name: Install deps (Playwright + Supabase only)
-        # We don't need the full app deps — just the two libs the script imports.
-        # Frozen lockfile to keep this reproducible.
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for Playwright
@@ -51,6 +48,6 @@ jobs:
 
       - name: Render + upload site OG
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CC_DASHBOARD_URL: https://www.vibecodestats.dev
+          CC_INTERNAL_TOKEN: ${{ secrets.CC_INTERNAL_TOKEN }}
         run: node scripts/generate-site-og.mjs

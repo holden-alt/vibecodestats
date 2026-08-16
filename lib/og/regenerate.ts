@@ -1,34 +1,29 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import { getBindings } from '@/lib/db/cloudflare';
 
 /**
- * Public Storage URL for a user's pre-rendered OG share-card.
- * Always stable. Files are stored as og/{handle}.png in a public bucket.
+ * Public URL for a user's pre-rendered OG share-card. Files are stored in a
+ * private R2 bucket and served through the app on a stable URL.
  *
- * Storage CDN serves these as plain static PNGs — no edge runtime, no Satori,
- * no Supabase queries in the X-bot fetch path. This is what the page's
- * og:image / twitter:image meta tags should point to.
+ * This is what the page's og:image / twitter:image meta tags should point to.
  */
 export function ogImageUrl(handle: string): string {
-  const base =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://srexmxntzjdhbuicqvso.supabase.co';
-  return `${base}/storage/v1/object/public/og/${handle}.png`;
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev').replace(/\/$/, '');
+  return `${siteUrl}/api/og/static/${encodeURIComponent(handle)}.png`;
 }
 
 /**
- * Re-render a user's OG share-card PNG and upload to Supabase Storage,
+ * Re-render a user's OG share-card PNG and upload it to R2,
  * overwriting whatever was there before.
  *
  * Implementation: fetch the existing edge-rendered route to get the PNG bytes,
  * then upload them as a static asset. The route stays as the canonical
- * generator; Storage is just a static-asset cache that X bots love.
+ * generator; R2 is just a static-asset cache that X bots love.
  *
  * Designed to fail soft: returns { ok: false } on any error so the caller
  * (typically /api/ingest) can fire-and-forget without breaking the main flow.
  */
 export async function regenerateOgImage(
   handle: string,
-  supabase: SupabaseClient<Database>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   // Retry transient failures (edge cold-start, network blips, storage hiccups)
   // so a push reliably lands a fresh PNG. The stored PNG is the single source
@@ -37,7 +32,7 @@ export async function regenerateOgImage(
   const ATTEMPTS = 3;
   let lastError = 'unknown';
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    const result = await regenerateOgImageOnce(handle, supabase);
+    const result = await regenerateOgImageOnce(handle);
     if (result.ok) return result;
     lastError = result.error;
     if (attempt < ATTEMPTS) {
@@ -49,7 +44,6 @@ export async function regenerateOgImage(
 
 async function regenerateOgImageOnce(
   handle: string,
-  supabase: SupabaseClient<Database>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
@@ -72,16 +66,16 @@ async function regenerateOgImageOnce(
     return { ok: false, error: `image too small: ${bytes.byteLength} bytes` };
   }
 
-  const { error } = await supabase.storage
-    .from('og')
-    .upload(`${handle}.png`, bytes, {
-      contentType: 'image/png',
-      upsert: true,
-      cacheControl: '3600',
+  try {
+    const { OG_IMAGES } = await getBindings();
+    await OG_IMAGES.put(`${handle}.png`, bytes, {
+      httpMetadata: { contentType: 'image/png', cacheControl: 'public, max-age=3600' },
     });
-
-  if (error) {
-    return { ok: false, error: `storage upload failed: ${error.message}` };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `R2 upload failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 
   return { ok: true };

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DatabaseClient } from '@/lib/db/client';
 import type { Database } from '@/lib/types/database';
 import { computeLiveDailyRanking, type LiveRanking } from './leaderboard-live';
 import { fuzzProjects } from './privacy';
@@ -28,11 +28,11 @@ export type ProfileData = {
 const HISTORY_DAYS = 366;
 
 export async function getProfileData(
-  supabase: SupabaseClient<Database>,
+  database: DatabaseClient,
   handle: string,
   viewerAuthId?: string | null,
 ): Promise<ProfileData | null> {
-  const { data: user } = await supabase
+  const { data: user } = await database
     .from('users')
     .select('id, auth_id, github_handle, display_name, avatar_url, primary_persona, secondary_personas, private_project_names, team')
     .eq('github_handle', handle)
@@ -40,14 +40,14 @@ export async function getProfileData(
 
   if (!user) return null;
 
-  const { data: rawDailyStats } = await supabase
+  const { data: rawDailyStats } = await database
     .from('daily_stats')
     .select('*')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .limit(HISTORY_DAYS);
 
-  const { data: rawMachineStats } = await supabase
+  const { data: rawMachineStats } = await database
     .from('machine_daily_stats')
     .select('*')
     .eq('user_id', user.id)
@@ -72,11 +72,11 @@ export async function getProfileData(
 }
 
 export async function getLiveRanking(
-  supabase: SupabaseClient<Database>,
+  database: DatabaseClient,
   viewerId: string,
   date: string,
 ): Promise<LiveRanking> {
-  const { data } = await supabase
+  const { data } = await database
     .from('daily_stats')
     .select('user_id, tokens_total, users:user_id (github_handle)')
     .eq('date', date);

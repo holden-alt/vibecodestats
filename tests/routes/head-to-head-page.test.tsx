@@ -17,7 +17,7 @@ const notFoundMock = vi.fn(() => {
 });
 vi.mock('next/navigation', () => ({ notFound: notFoundMock }));
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/db/server', () => ({
   createClient: vi.fn(async () => ({})),
 }));
 

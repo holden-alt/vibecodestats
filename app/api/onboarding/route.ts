@@ -1,24 +1,15 @@
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import { createClient, createServiceClient } from '@/lib/db/server';
 import { sendWelcomeEmail, notifyOwnerOfTeamPick } from '@/lib/notify/welcome';
 
 
 type Team = 'claude_code' | 'codex';
 
-function serviceClient() {
-  return createServiceClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 export async function POST(request: Request) {
   // 1. Authenticate the calling user via SSR client.
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
 
   if (!user) {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
@@ -26,7 +17,7 @@ export async function POST(request: Request) {
 
   // 2. Resolve their public users row — we need the UUID, not auth_id, for
   //    service-role writes that must target exactly their own row.
-  const { data: publicUser } = await supabase
+  const { data: publicUser } = await database
     .from('users')
     .select('id, github_handle, team')
     .eq('auth_id', user.id)
@@ -61,7 +52,7 @@ export async function POST(request: Request) {
   const emailOptIn = body?.email_opt_in === true;
 
   // 4. Service-role writes — all awaited (no fire-and-forget on CF edge).
-  const svc = serviceClient();
+  const svc = await createServiceClient();
 
   // Write team to users (only this user's own row, keyed by their resolved id).
   const { error: teamErr } = await svc

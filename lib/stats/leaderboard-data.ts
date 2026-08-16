@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import type { DatabaseClient } from '@/lib/db/client';
 import type { DailyStat } from '@/lib/stats/profile-data';
 import type { Group, LeaderboardData } from '@/lib/stats/leaderboard';
 import { computeAllTimeTotals, filterByWindow, type StatsWindow } from '@/lib/stats/aggregations';
@@ -8,36 +7,36 @@ import { todayLocal } from '@/lib/date';
 const STATS_LIMIT = 4000; // ~6 users x ~hundreds of days of headroom for v1
 
 export async function getLeaderboardData(
-  supabase: SupabaseClient<Database>,
+  database: DatabaseClient,
   viewerId: string,
 ): Promise<LeaderboardData> {
-  const { data: users } = await supabase
+  const { data: users } = await database
     .from('users')
     .select('id, github_handle, display_name');
 
-  const { data: stats } = await supabase
+  const { data: stats } = await database
     .from('daily_stats')
     .select('*')
     .order('date', { ascending: false })
     .limit(STATS_LIMIT);
 
   // Viewer's groups (just the ids, used to drive the next two reads).
-  const { data: viewerGroupRows } = await supabase
+  const { data: viewerGroupRows } = await database
     .from('group_members')
     .select('group_id')
     .eq('user_id', viewerId);
-  const groupIds = (viewerGroupRows ?? []).map((g) => g.group_id);
+  const groupIds = (viewerGroupRows ?? []).map((group: { group_id: string }) => group.group_id);
 
   // Group details for those groups, and every member of those groups.
   let groupDetails: Omit<Group, 'memberUserIds'>[] = [];
   let allMembers: { group_id: string; user_id: string }[] = [];
   if (groupIds.length > 0) {
-    const { data: groupsData } = await supabase
+    const { data: groupsData } = await database
       .from('groups')
       .select('id, slug, name, color, description')
       .in('id', groupIds);
     groupDetails = groupsData ?? [];
-    const { data: members } = await supabase
+    const { data: members } = await database
       .from('group_members')
       .select('group_id, user_id')
       .in('group_id', groupIds);
@@ -63,11 +62,11 @@ export async function getLeaderboardData(
   // Union of all members across the viewer's groups (existing groupMemberUserIds shape).
   const groupMemberUserIds = [...new Set(allMembers.map((m) => m.user_id))];
 
-  const { data: friendships } = await supabase
+  const { data: friendships } = await database
     .from('friendships')
     .select('friend_id')
     .eq('user_id', viewerId);
-  const friendUserIds = (friendships ?? []).map((f) => f.friend_id);
+  const friendUserIds = (friendships ?? []).map((friend: { friend_id: string }) => friend.friend_id);
 
   const statsByUser: Record<string, DailyStat[]> = {};
   for (const row of (stats ?? []) as DailyStat[]) {

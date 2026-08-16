@@ -1,8 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/db/server';
 import { validateIngestPayload } from '@/lib/ingest/payload';
 import { regenerateOgImage } from '@/lib/og/regenerate';
 import { logIngestEvent } from '@/lib/ingest/events';
-import type { Database } from '@/lib/types/database';
 
 
 function mergeNumberRecords(
@@ -38,15 +37,12 @@ export async function POST(request: Request): Promise<Response> {
 
   const rawBody = await request.text();
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const database = await createServiceClient();
 
   // --- Token auth (only supported path) ---
   const token = authHeader.slice('Bearer '.length).trim();
 
-  const { data: tokenUser, error: tokenError } = await supabase
+  const { data: tokenUser, error: tokenError } = await database
     .from('users')
     .select('id, github_handle')
     .eq('ingest_token', token)
@@ -93,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
   const payload = validation.value;
 
   // 1. Replace this machine's sub-total for the day (repeated pushes just overwrite).
-  const { error: machineUpsertError } = await supabase.from('machine_daily_stats').upsert(
+  const { error: machineUpsertError } = await database.from('machine_daily_stats').upsert(
     {
       user_id: authenticatedUserId,
       date: payload.date,
@@ -125,7 +121,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // 2. Read every machine's sub-total for the day.
-  const { data: machineRows, error: rollupSelectError } = await supabase
+  const { data: machineRows, error: rollupSelectError } = await database
     .from('machine_daily_stats')
     .select(
       'machine, tokens_total, tokens_by_model, sessions, deep_work_minutes, projects_touched, ships, hourly_tokens',
@@ -178,7 +174,7 @@ export async function POST(request: Request): Promise<Response> {
     source_synced_at: new Date().toISOString(),
   };
 
-  const { error: upsertError } = await supabase
+  const { error: upsertError } = await database
     .from('daily_stats')
     .upsert(rollup, { onConflict: 'user_id,date' });
   if (upsertError) {
@@ -208,7 +204,7 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   if (authenticatedHandle) {
-    void regenerateOgImage(authenticatedHandle, supabase).catch(() => {});
+    void regenerateOgImage(authenticatedHandle).catch(() => {});
   }
 
   return Response.json({ ok: true }, { status: 200 });

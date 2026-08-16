@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { submitUrls, type IndexingResult } from '@/lib/seo/google-indexing';
 import { compareTools } from '@/lib/seo/compare-data';
 
@@ -26,14 +26,14 @@ const OWNER_HANDLES = (process.env.OWNER_HANDLES ?? 'holden-alt,realholdengr')
  */
 export async function POST(request: Request): Promise<Response> {
   // Auth gate
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user: authUser },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
   if (!authUser) {
     return Response.json({ error: 'not signed in' }, { status: 401 });
   }
-  const { data: me } = await supabase
+  const { data: me } = await database
     .from('users')
     .select('github_handle')
     .eq('auth_id', authUser.id)

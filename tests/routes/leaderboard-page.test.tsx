@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { todayLocal } from '@/lib/date';
 
-// Mock the server supabase client + the data fetch so the page renders synchronously.
+// Mock the server database client + the data fetch so the page renders synchronously.
 // Use the app's LOCAL "today" (matching the page) so the seeded stats land inside
 // the default tokens+week window — the page keys "today" to the user's timezone, not UTC.
 const TODAY = todayLocal();
@@ -25,7 +25,7 @@ const leaderboardData = {
   allTimeByUser: { u1: 100, u2: 500 },
 };
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/db/server', () => ({
   createClient: vi.fn(async () => ({
     from: vi.fn(() => ({
       select: () => ({ eq: () => ({ maybeSingle: vi.fn(async () => ({ data: { id: 'u1' }, error: null })) }) }),

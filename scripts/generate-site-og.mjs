@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
  * Render the site-level OG card (vibecodestats.dev / /leaderboard / etc.)
- * and upload as the static _root.png in Supabase Storage.
+ * and upload as the static _root.png in Cloudflare R2 through the app's
+ * authenticated internal endpoint.
  *
  * Usage: node scripts/generate-site-og.mjs
  *
  * Env required:
- *   NEXT_PUBLIC_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   CC_DASHBOARD_URL (defaults to https://www.vibecodestats.dev)
+ *   CC_INTERNAL_TOKEN
  *
  * Run periodically (cron, GitHub Action, manual) — every share of the
  * site/* surface pulls whatever PNG is currently at og/_root.png.
@@ -18,39 +19,25 @@
  * This script runs OUT-OF-BAND so the bundle stays slim.
  */
 import { chromium } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SITE_URL = (process.env.CC_DASHBOARD_URL ?? 'https://www.vibecodestats.dev').replace(/\/$/, '');
+const INTERNAL_TOKEN = process.env.CC_INTERNAL_TOKEN;
 
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('FATAL: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+if (!INTERNAL_TOKEN) {
+  console.error('FATAL: set CC_INTERNAL_TOKEN');
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 const today = new Date().toISOString().slice(0, 10);
 
-// Pull the three aggregate stats we want on the card.
-const [usersRes, todayRes, peakRes] = await Promise.all([
-  supabase.from('users').select('id', { count: 'exact', head: true }),
-  supabase.from('daily_stats').select('user_id, tokens_total').eq('date', today),
-  supabase
-    .from('daily_stats')
-    .select('user_id, tokens_total, users:user_id (github_handle)')
-    .eq('date', today)
-    .order('tokens_total', { ascending: false })
-    .limit(1)
-    .maybeSingle(),
-]);
-
-const totalUsers = usersRes.count ?? 0;
-const todayRows = todayRes.data ?? [];
-const tokensToday = todayRows.reduce((s, r) => s + Number(r.tokens_total ?? 0), 0);
-const activeToday = todayRows.filter((r) => Number(r.tokens_total ?? 0) > 0).length;
-const peak = peakRes.data;
-const peakTokens = peak?.tokens_total ?? 0;
-const peakHandle = peak?.users?.github_handle ?? null;
+const statsResponse = await fetch(`${SITE_URL}/api/internal/site-og?date=${today}`, {
+  headers: { Authorization: `Bearer ${INTERNAL_TOKEN}` },
+});
+if (!statsResponse.ok) {
+  console.error(`stats fetch failed: HTTP ${statsResponse.status}`);
+  process.exit(1);
+}
+const { totalUsers, activeToday, tokensToday, peakTokens, peakHandle } = await statsResponse.json();
 
 function compact(n) {
   if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
@@ -108,13 +95,17 @@ await browser.close();
 
 console.log(`rendered PNG: ${png.length} bytes`);
 
-const { error } = await supabase.storage
-  .from('og')
-  .upload('_root.png', png, { contentType: 'image/png', upsert: true, cacheControl: '300' });
-
-if (error) {
-  console.error('upload failed:', error.message);
+const uploadResponse = await fetch(`${SITE_URL}/api/internal/site-og`, {
+  method: 'PUT',
+  headers: {
+    Authorization: `Bearer ${INTERNAL_TOKEN}`,
+    'Content-Type': 'image/png',
+  },
+  body: png,
+});
+if (!uploadResponse.ok) {
+  console.error(`upload failed: HTTP ${uploadResponse.status}`);
   process.exit(1);
 }
 
-console.log(`uploaded to ${SUPABASE_URL}/storage/v1/object/public/og/_root.png`);
+console.log(`uploaded to ${SITE_URL}/api/og/static/_root.png`);

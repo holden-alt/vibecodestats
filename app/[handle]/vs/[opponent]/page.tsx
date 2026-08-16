@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { todayLocal } from '@/lib/date';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { getHeadToHeadData } from '@/lib/stats/head-to-head-data';
 import { HeadToHead } from '@/components/head-to-head/HeadToHead';
 
@@ -17,8 +17,8 @@ export default async function HeadToHeadPage({ params }: HeadToHeadPageProps) {
     notFound();
   }
 
-  const supabase = await createClient();
-  const data = await getHeadToHeadData(supabase, handle, opponent);
+  const database = await createClient();
+  const data = await getHeadToHeadData(database, handle, opponent);
   if (!data) {
     notFound();
   }

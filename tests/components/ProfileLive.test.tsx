@@ -1,24 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ProfileLive } from '@/components/ProfileLive';
 import type { ProfileData } from '@/lib/stats/profile-data';
 import type { LiveRanking } from '@/lib/stats/leaderboard-live';
 import type { LeaderboardData } from '@/lib/stats/leaderboard';
-
-// Mock supabase so the realtime useEffect doesn't blow up in jsdom
-const channelMock = {
-  on: vi.fn((_evt: string, _filter: unknown, cb: (p: unknown) => void) => {
-    void cb;
-    return channelMock;
-  }),
-  subscribe: vi.fn(() => channelMock),
-};
-vi.mock('@/lib/supabase/browser', () => ({
-  createClient: vi.fn(() => ({
-    channel: vi.fn(() => channelMock),
-    removeChannel: vi.fn(),
-  })),
-}));
 
 const initialData: ProfileData = {
   user: {
@@ -39,7 +24,7 @@ const initialData: ProfileData = {
     projects_touched: { 'cc-dashboard': 320000, 'holden': 167231 },
     ships: { commits: 3, repos: 2 }, hourly_tokens: { '14': 100000 },
     source_synced_at: null,
-  }] as any,
+  }] as unknown as ProfileData['dailyStats'],
   machineStats: [],
 };
 

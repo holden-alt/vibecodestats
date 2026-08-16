@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/db/server';
 
 /**
  * Install/ingest telemetry. One row per /api/ingest attempt so we can see who
@@ -24,18 +24,15 @@ export type LogIngestEvent = {
 
 /**
  * Insert an ingest funnel event. Soft-fails: any error is swallowed so the
- * ingest path keeps working. Uses an UNtyped service-role client on purpose —
+ * ingest path keeps working. Uses a server-only D1 client on purpose —
  * ingest_events isn't in the generated Database type and this is write-only
  * telemetry. MUST be awaited from the route: on Cloudflare's edge runtime a
  * fire-and-forget insert is cancelled when the response returns.
  */
 export async function logIngestEvent(e: LogIngestEvent): Promise<void> {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-    await supabase.from('ingest_events').insert({
+    const database = await createServiceClient();
+    await database.from('ingest_events').insert({
       outcome: e.outcome,
       user_id: e.userId ?? null,
       github_handle: e.githubHandle ?? null,

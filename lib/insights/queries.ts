@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/types/database';
+import type { DatabaseClient } from '@/lib/db/client';
 import { windowStart } from './compute';
 import type { HistoryDayRow, HourlyRow, ModelDailyRow, ProjectModelDailyRow } from './types';
 
@@ -35,32 +34,32 @@ export type InsightsBundle = {
  * that fed them was retired 7/29 and the station is usage-only now.
  */
 export async function getInsightsBundle(
-  supabase: SupabaseClient<Database>,
+  database: DatabaseClient,
   today: string,
 ): Promise<InsightsBundle> {
   const [modelRes, projectRes, hourlyRes, historyRes] = await Promise.all([
-    supabase
+    database
       .from('llm_model_daily')
       .select('*')
       .gte('date', windowStart(today, MODEL_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
-    supabase
+    database
       .from('llm_project_model_daily')
       .select('*')
       .gte('date', windowStart(today, PROJECT_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
-    supabase
+    database
       .from('llm_hourly')
       .select('*')
       .gte('date', windowStart(today, HOURLY_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
-    supabase
+    database
       .from('daily_stats')
       .select('date, tokens_total, sessions')
       .lte('date', today)

@@ -6,14 +6,11 @@
 //   More stats (inline-expandable deep dive). Legibility system: dark-glass
 //   cards, foil reserved for accents/headlines/tier letter, solid mono numbers.
 //
-// Live: subscribes to daily_stats realtime so the profile updates as the owner
-// (or anyone) pushes today — the same subscription the v1 profile had, grafted
-// onto the new layout.
+// Live: polls the lightweight profile endpoint so the page updates as the owner
+// (or anyone) pushes today.
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/browser';
 import { IdentityBar } from '@/components/dashboard/profile/IdentityBar';
 import { GlobalLeaderboard } from '@/components/dashboard/profile/GlobalLeaderboard';
 import { TierDistribution } from '@/components/dashboard/profile/TierDistribution';
@@ -52,30 +49,25 @@ export function ProfileLive({
   const [dailyStats, setDailyStats] = useState<DailyStat[]>(initialData.dailyStats);
   const { user } = initialData;
 
-  // Realtime: keep the profile live as daily_stats rows change for this user.
+  // Keep the profile live without a long-lived socket. The existing rank hook
+  // uses the same 30-second cadence, which is fast enough for the dashboard and
+  // substantially cheaper at the edge than an always-on realtime service.
   useEffect(() => {
-    const supabase = createClient();
-    const baseChannel: RealtimeChannel = supabase.channel(`daily_stats:${user.id}`);
-    const channel = (
-      baseChannel.on as unknown as (
-        event: 'postgres_changes',
-        filter: { event: string; schema: string; table: string; filter: string },
-        callback: (payload: { new?: DailyStat }) => void,
-      ) => RealtimeChannel
-    )(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'daily_stats', filter: `user_id=eq.${user.id}` },
-      (payload: { new?: DailyStat }) => {
-        const row = payload.new;
-        if (!row) return;
-        setDailyStats((prev) => {
-          const without = prev.filter((r) => r.date !== row.date);
-          return [row, ...without].sort((a, b) => (a.date < b.date ? 1 : -1));
-        });
-      },
-    ).subscribe();
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/profile/live?user=${encodeURIComponent(user.id)}`);
+        if (!response.ok) return;
+        const rows = (await response.json()) as DailyStat[];
+        if (!cancelled) setDailyStats(rows);
+      } catch {
+        // A missed poll is harmless; the next interval retries.
+      }
+    };
+    const interval = window.setInterval(refresh, 30_000);
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(interval);
     };
   }, [user.id]);
 

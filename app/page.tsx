@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { todayLocal } from '@/lib/date';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { getInsightsBundle } from '@/lib/insights/queries';
 import {
   buildEfficiency,
@@ -38,9 +38,9 @@ const WEBSITE_JSONLD = {
 };
 
 export default async function HomePage() {
-  const supabase = await createClient();
+  const database = await createClient();
   const today = todayLocal();
-  const bundle = await getInsightsBundle(supabase, today);
+  const bundle = await getInsightsBundle(database, today);
 
   // ── Server-side compute (RSC) — everything derived once, here. ──────────────
   const todaySummary = buildTodaySummary(bundle.modelDaily, [], today);

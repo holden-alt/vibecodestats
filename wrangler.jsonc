@@ -8,5 +8,18 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cc-dashboard-prod",
+      "database_id": "3685982c-c582-4c23-9348-0a2309a48e5e"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "OG_IMAGES",
+      "bucket_name": "cc-dashboard-og"
+    }
+  ]
 }

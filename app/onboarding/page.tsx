@@ -1,19 +1,19 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { OnboardingForm } from './OnboardingForm';
 
 
 export default async function OnboardingPage() {
-  const supabase = await createClient();
+  const database = await createClient();
   const {
     data: { user: authUser },
-  } = await supabase.auth.getUser();
+  } = await database.auth.getUser();
 
   if (!authUser) {
     redirect('/auth/signin?next=/onboarding');
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await database
     .from('users')
     .select('github_handle, team')
     .eq('auth_id', authUser.id)

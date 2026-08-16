@@ -34,7 +34,7 @@ const notFoundMock = vi.fn(() => {
 });
 vi.mock('next/navigation', () => ({ notFound: notFoundMock }));
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/db/server', () => ({
   createClient: vi.fn(async () => ({
     from: vi.fn((table: string) => {
       if (table === 'users') {
@@ -55,7 +55,7 @@ vi.mock('@/lib/stats/leaderboard-data', () => ({
 describe('/groups/[slug] route', () => {
   it('renders the group header and the leaderboard scoped to the group', async () => {
     // For this test, swap in a mock that returns the matching group.
-    const { createClient } = await import('@/lib/supabase/server');
+    const { createClient } = await import('@/lib/db/server');
     (createClient as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({
       from: vi.fn((table: string) => {
         if (table === 'users') {

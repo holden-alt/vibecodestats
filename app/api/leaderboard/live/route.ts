@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/db/server';
 import { todayLocal } from '@/lib/date';
 import { computeLiveDailyRanking } from '@/lib/stats/leaderboard-live';
 
@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   const viewerId = url.searchParams.get('viewer') ?? '';
   const date = url.searchParams.get('date') ?? todayLocal();
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const database = await createClient();
+  const { data, error } = await database
     .from('daily_stats')
     .select('user_id, tokens_total, users:user_id (github_handle)')
     .eq('date', date);

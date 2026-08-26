@@ -223,6 +223,12 @@ export type RecordsData = {
   odometer: OdometerPoint[];
 };
 
+/** One row of the day-rankings list — an active day and its token total. */
+export type RankedDay = {
+  date: string;
+  tokens: number;
+};
+
 // ── Efficiency trends (non-approx llm_model_daily rows only) ─────────────────
 
 /** Per-day per-source efficiency sample. Null metric = not derivable that day. */

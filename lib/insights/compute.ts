@@ -17,6 +17,7 @@ import {
   type ProblemRow,
   type ProjectModelDailyRow,
   type ProjectRow,
+  type RankedDay,
   type SessionListItem,
   type SessionOutcomeRow,
   type SystemHealthRow,
@@ -285,6 +286,15 @@ export function buildRecords(history: HistoryDayRow[], today: string): RecordsDa
     nextMilestone,
     odometer,
   };
+}
+
+/** Every active day ranked by tokens, biggest first. Ties break to the earlier
+ *  date so rank #1 is always the same day buildRecords reports as bestDay. */
+export function buildDayRankings(history: HistoryDayRow[]): RankedDay[] {
+  return history
+    .filter((r) => n(r.tokens_total) > 0)
+    .map((r) => ({ date: r.date, tokens: n(r.tokens_total) }))
+    .sort((a, b) => b.tokens - a.tokens || (a.date < b.date ? -1 : 1));
 }
 
 // ── Efficiency trends (how the tokens behave) ────────────────────────────────

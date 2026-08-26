@@ -274,7 +274,7 @@ describe('buildCallouts', () => {
 });
 
 // ── Records + efficiency (added 2026-08-04 with the usage-station build) ──────
-import { buildEfficiency, buildRecords } from '@/lib/insights/compute';
+import { buildDayRankings, buildEfficiency, buildRecords } from '@/lib/insights/compute';
 import type { HistoryDayRow } from '@/lib/insights/types';
 
 const hist = (date: string, tokens: number): HistoryDayRow => ({ date, tokens_total: tokens, sessions: null });
@@ -314,6 +314,29 @@ describe('buildRecords', () => {
     expect(r.odometer.map((p) => p.cumulative)).toEqual([
       200_000_000, 1_400_000_000, 2_000_000_000, 2_100_000_000, 2_150_000_000,
     ]);
+  });
+});
+
+describe('buildDayRankings', () => {
+  it('ranks active days by tokens descending and drops zero days', () => {
+    const ranked = buildDayRankings([
+      hist('2026-07-18', 200_000_000),
+      hist('2026-07-19', 1_200_000_000),
+      hist('2026-07-20', 0), // inactive — excluded
+      hist('2026-07-21', 600_000_000),
+    ]);
+    expect(ranked).toEqual([
+      { date: '2026-07-19', tokens: 1_200_000_000 },
+      { date: '2026-07-21', tokens: 600_000_000 },
+      { date: '2026-07-18', tokens: 200_000_000 },
+    ]);
+  });
+
+  it('breaks ties toward the earlier date, so rank #1 matches bestDay', () => {
+    const rows = [hist('2026-07-18', 500), hist('2026-07-19', 500), hist('2026-07-20', 100)];
+    const ranked = buildDayRankings(rows);
+    expect(ranked.map((d) => d.date)).toEqual(['2026-07-18', '2026-07-19', '2026-07-20']);
+    expect(ranked[0]).toEqual(buildRecords(rows, TODAY).bestDay);
   });
 });
 

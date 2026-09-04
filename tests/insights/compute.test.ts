@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addDays,
+  bucketTrend,
   buildCallouts,
   buildHeatmapMatrix,
   buildHourlyAgg,
@@ -8,12 +9,17 @@ import {
   buildPlansSessions,
   buildProblems,
   buildProjectRows,
+  buildShips,
   buildSystemsBoard,
   buildTodaySummary,
   buildTrend,
+  canonicalProject,
+  CODEX_SCRATCH,
+  daysBetween,
   dowMonFirst,
   humanizeSignature,
   inWindow,
+  pickSeries,
   prettyModel,
   totalTokens,
   windowStart,
@@ -23,6 +29,7 @@ import type {
   ModelDailyRow,
   ProblemEventRow,
   ProjectModelDailyRow,
+  RepoShipsRow,
   SessionOutcomeRow,
   SystemHealthRow,
 } from '@/lib/insights/types';
@@ -245,9 +252,65 @@ describe('buildProjectRows', () => {
 
 // ── Trend + hourly (unchanged) ────────────────────────────────────────────────
 describe('trend + hourly', () => {
-  it('buildTrend ranks models by tokens', () => {
-    const { models } = buildTrend(MODEL_DAILY);
-    expect(models[0]!.model).toBe('claude-opus-4-8'); // 15000
+  it('buildTrend groups by vendor (anthropic first), then by tokens, with fixed colors', () => {
+    const { models, points } = buildTrend(MODEL_DAILY);
+    expect(models.map((m) => m.model)).toEqual(['claude-opus-4-8', 'claude-fable-5', 'gpt-5.6-sol']);
+    expect(models.map((m) => m.vendor)).toEqual(['anthropic', 'anthropic', 'openai']);
+    expect(models[0]!.color).toBe('#9c5a1e');
+    expect(models[2]!.color).toBe('#4f8ff7');
+    // per-day cells carry every measure
+    const today = points.find((p) => p.date === TODAY)!;
+    expect(today.models['claude-opus-4-8']).toEqual({ tokens: 10000, output: 800, turns: 0, minutes: 120 });
+    expect(today.models['gpt-5.6-sol']!.output).toBe(1500); // output + reasoning
+  });
+  it('pickSeries keeps every vendor visible and returns stack order', () => {
+    const m = (model: string, vendor: 'anthropic' | 'openai' | 'xai', total: number) =>
+      ({ model, source: vendor, vendor, total, color: '#000' });
+    const models = [
+      m('a1', 'anthropic', 100), m('a2', 'anthropic', 90), m('o1', 'openai', 80),
+      m('a3', 'anthropic', 70), m('x1', 'xai', 5), m('x2', 'xai', 2), m('o2', 'openai', 1),
+    ];
+    const { top, fold } = pickSeries(models, 3);
+    // top-3 by tokens are a1, a2, o1; xAI's biggest is pulled in so the grey band exists
+    expect(top.map((t) => t.model)).toEqual(['a1', 'a2', 'o1', 'x1']);
+    expect([...fold].sort()).toEqual(['a3', 'o2', 'x2']);
+  });
+  it('bucketTrend anchors weekly buckets at the END of the window (last bucket is a full week)', () => {
+    const { points } = buildTrend(MODEL_DAILY);
+    const rows = bucketTrend(points, {
+      today: TODAY, days: 91, weekly: true, measure: 'tokens', share: false,
+      series: ['claude-opus-4-8', 'gpt-5.6-sol'], fold: new Set(['claude-fable-5']),
+    });
+    // data starts at YESTERDAY, so one bucket, labeled by its end date = today
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.date).toBe(TODAY);
+    expect(rows[0]!['claude-opus-4-8']).toBe(15000);
+    expect(rows[0]!.__other).toBe(3000);
+    expect(rows[0]!.__totalAbs).toBe(15000 + 3500 + 3000);
+  });
+  it('bucketTrend daily rows are calendar-complete and share mode sums to 100', () => {
+    const { points } = buildTrend(MODEL_DAILY);
+    const rows = bucketTrend(points, {
+      today: TODAY, days: 7, weekly: false, measure: 'minutes', share: true,
+      series: ['claude-opus-4-8', 'claude-fable-5', 'gpt-5.6-sol'], fold: new Set(),
+    });
+    expect(rows).toHaveLength(2); // clamped to the earliest data day
+    expect(rows.map((r) => r.date)).toEqual([YESTERDAY, TODAY]);
+    const t = rows[1]!;
+    const sum = (t['claude-opus-4-8'] as number) + (t['claude-fable-5'] as number) + (t['gpt-5.6-sol'] as number);
+    expect(sum).toBeCloseTo(100);
+    expect(t.__totalAbs).toBe(210);
+  });
+  it('bucketTrend labels buckets so that the offset from today is a multiple of 7', () => {
+    const pts = [
+      { date: '2026-06-01', models: { m: { tokens: 1, output: 0, turns: 0, minutes: 0 } } },
+      { date: TODAY, models: { m: { tokens: 1, output: 0, turns: 0, minutes: 0 } } },
+    ];
+    const rows = bucketTrend(pts, { today: TODAY, days: 91, weekly: true, measure: 'tokens', share: false, series: ['m'], fold: new Set() });
+    for (const r of rows) expect(daysBetween(r.date as string, TODAY) % 7).toBe(0);
+    expect(rows[rows.length - 1]!.date).toBe(TODAY);
+    // 06-01 → 07-23 is 52 days: buckets 0..7 (the window clamps to the first data day)
+    expect(rows.length).toBe(8);
   });
   it('hourly heatmap sums by dow×hour', () => {
     const agg = buildHourlyAgg(HOURLY);
@@ -314,6 +377,93 @@ describe('buildRecords', () => {
     expect(r.odometer.map((p) => p.cumulative)).toEqual([
       200_000_000, 1_400_000_000, 2_000_000_000, 2_100_000_000, 2_150_000_000,
     ]);
+  });
+  it('records the day each round milestone was crossed', () => {
+    expect(r.milestones).toEqual([
+      { value: 1e9, date: '2026-07-19' },
+      { value: 2e9, date: '2026-07-20' },
+    ]);
+    expect(r.firstDate).toBe('2026-07-18');
+  });
+  it('paces over complete days and projects the next milestone', () => {
+    // 7 days ending yesterday: 07-16..07-22 → 200M + 1.2B + 600M + 100M = 2.1B / 7
+    expect(r.pace.d7).toBeCloseTo(2_100_000_000 / 7);
+    expect(r.pace.d30).toBeCloseTo(2_100_000_000 / 30);
+    expect(r.pace.lifetime).toBeCloseTo(2_150_000_000 / 6); // 6 calendar days incl. today
+    // remaining 2.85B at 70M/day → 41 days
+    expect(r.etaNext).toBe(addDays(TODAY, Math.ceil(2_850_000_000 / (2_100_000_000 / 30))));
+  });
+  it('sums lifetime sessions, deep work and commits from the day store', () => {
+    const rich = buildRecords(
+      [
+        { date: '2026-07-22', tokens_total: 10, sessions: 3, deep_work_minutes: 90, ships: { commits: 4, repos: 2 } },
+        { date: '2026-07-23', tokens_total: 10, sessions: 2, deep_work_minutes: 30, ships: { commits: 1, repos: 1 } },
+      ],
+      TODAY,
+    );
+    expect(rich.lifetimeSessions).toBe(5);
+    expect(rich.lifetimeDeepWorkMinutes).toBe(120);
+    expect(rich.lifetimeCommits).toBe(5);
+    expect(rich.odometer[0]!.commits).toBe(4);
+    expect(rich.etaNext).toBeNull(); // 10 tokens/day would take centuries — no projection
+    expect(r.lifetimeCommits).toBeNull(); // fixture rows carry no ships
+  });
+});
+
+describe('buildShips', () => {
+  const ship = (date: string, repo: string, commits: number): RepoShipsRow => ({
+    date, repo, commits, insertions: 0, deletions: 0, files_changed: 0,
+  });
+  const rows = [
+    ship('2026-07-10', 'a/one', 5), // outside 7d, inside 30d
+    ship(YESTERDAY, 'a/one', 3),
+    ship(YESTERDAY, 'b/two', 1),
+    ship(TODAY, 'a/one', 2),
+  ];
+  it('buckets daily and ranks repos', () => {
+    const d = buildShips(rows, TODAY, 7, false);
+    expect(d.commits).toBe(6);
+    expect(d.repoCount).toBe(2);
+    expect(d.perDay).toBe(3); // 6 commits over 2 active days
+    expect(d.weekly).toHaveLength(7);
+    expect(d.weekly[d.weekly.length - 1]).toEqual({ date: TODAY, commits: 2, repos: 1 });
+    expect(d.repos[0]).toEqual({ repo: 'a/one', commits: 5, days: 2, last: TODAY });
+  });
+  it('buckets weekly with end-anchored labels', () => {
+    const d = buildShips(rows, TODAY, 91, true);
+    expect(d.commits).toBe(11);
+    expect(d.weekly).toHaveLength(13);
+    expect(d.weekly[d.weekly.length - 1]!.date).toBe(TODAY);
+    expect(d.weekly[d.weekly.length - 1]!.commits).toBe(6);
+    const wk = d.weekly.find((w) => w.commits === 5)!;
+    expect(daysBetween(wk.date, TODAY) % 7).toBe(0);
+  });
+});
+
+describe('canonicalProject', () => {
+  it('folds worktrees onto their base project when known', () => {
+    const known = ['richardsonappliedai/richardsonapplied-brain', 'brain'];
+    expect(canonicalProject('.codex/worktrees/b7e3/richardsonapplied-brain', known)).toBe('richardsonappliedai/richardsonapplied-brain');
+    expect(canonicalProject('.codex/worktrees/f76d/brain', known)).toBe('brain');
+    expect(canonicalProject('.claude/worktrees/x1/unknown-repo', known)).toBe('unknown-repo');
+  });
+  it('buckets codex scratch folders and leaves real projects alone', () => {
+    expect(canonicalProject('Documents/Codex/2026-08-25/referenced-chatgpt-conversation')).toBe(CODEX_SCRATCH);
+    expect(canonicalProject('holden-alt/cc-dashboard')).toBe('holden-alt/cc-dashboard');
+  });
+  it('buildProjectRows merges worktree tokens into the base project', () => {
+    const rows = buildProjectRows(
+      [
+        pm({ date: TODAY, project: 'org/repo', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 100, turns: 1 }),
+        pm({ date: TODAY, project: '.codex/worktrees/abcd/repo', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 50, turns: 1 }),
+      ],
+      [],
+      TODAY,
+      7,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.project).toBe('org/repo');
+    expect(rows[0]!.tokens).toBe(150);
   });
 });
 

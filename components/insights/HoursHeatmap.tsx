@@ -7,7 +7,14 @@ import { fmtTokens } from '@/lib/insights/format';
 import { PanelShell } from './PanelShell';
 import { Pills } from './Pills';
 
-const HEAT = ['var(--color-heat-0)', 'var(--color-heat-1)', 'var(--color-heat-2)', 'var(--color-heat-3)', 'var(--color-heat-4)'];
+const HEAT = [
+  'var(--color-heat-0)',
+  'var(--color-heat-1)',
+  'var(--color-heat-2)',
+  'var(--color-heat-3)',
+  'var(--color-heat-4)',
+  'var(--color-heat-5)',
+];
 const CELL = 20;
 const GAP = 2;
 const LABEL_W = 34;
@@ -16,10 +23,11 @@ const WINDOW_DAYS = 30;
 function level(tokens: number, max: number): number {
   if (tokens <= 0 || max <= 0) return 0;
   const r = tokens / max;
-  if (r <= 0.25) return 1;
-  if (r <= 0.5) return 2;
-  if (r <= 0.75) return 3;
-  return 4;
+  if (r <= 0.2) return 1;
+  if (r <= 0.4) return 2;
+  if (r <= 0.6) return 3;
+  if (r <= 0.8) return 4;
+  return 5;
 }
 
 function hourLabel(h: number): string {
@@ -59,14 +67,14 @@ export function HoursHeatmap({
   const gridWidth = LABEL_W + 24 * (CELL + GAP);
 
   return (
-    <PanelShell title="Productive hours" hint="tokens by hour × weekday (30d)" right={controls}>
+    <PanelShell title="Productive hours" hint="tokens by hour × weekday · 30d" right={controls}>
       {total === 0 ? (
         <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--color-dim)', fontSize: '0.72rem' }}>
           No hourly activity in the last 30 days.
         </div>
       ) : (
         <>
-          <div style={{ minHeight: 18, marginBottom: 6, fontSize: '0.62rem', color: 'var(--color-dim)', fontVariantNumeric: 'tabular-nums' }}>
+          <div className="num" style={{ minHeight: 18, marginBottom: 6, fontSize: '0.64rem', color: 'var(--color-dim)' }}>
             {hovered ? (
               <span>
                 <span style={{ color: 'var(--color-text)' }}>
@@ -88,6 +96,7 @@ export function HoursHeatmap({
                     style={{
                       width: CELL + GAP,
                       fontSize: '0.5rem',
+                      fontFamily: 'var(--font-mono)',
                       color: 'var(--color-dim)',
                       textAlign: 'left',
                       visibility: h % 3 === 0 ? 'visible' : 'hidden',
@@ -99,7 +108,7 @@ export function HoursHeatmap({
               </div>
               {DOW_LABELS.map((dl, dow) => (
                 <div key={dl} style={{ display: 'flex', alignItems: 'center', marginBottom: GAP }}>
-                  <div style={{ width: LABEL_W, fontSize: '0.55rem', color: 'var(--color-dim)', paddingRight: 6 }}>
+                  <div className="num" style={{ width: LABEL_W, fontSize: '0.55rem', color: 'var(--color-dim)', paddingRight: 6 }}>
                     {dl}
                   </div>
                   {(matrix[dow] ?? []).map((tokens, hour) => (
@@ -113,7 +122,7 @@ export function HoursHeatmap({
                         marginRight: GAP,
                         borderRadius: 2,
                         background: HEAT[level(tokens, max)] ?? HEAT[0],
-                        outline: hovered && hovered.dow === dow && hovered.hour === hour ? '1px solid var(--color-orange)' : 'none',
+                        outline: hovered && hovered.dow === dow && hovered.hour === hour ? '1px solid var(--color-text)' : 'none',
                         cursor: 'default',
                       }}
                     />
@@ -122,10 +131,10 @@ export function HoursHeatmap({
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: '0.55rem', color: 'var(--color-dim)' }}>
+          <div className="term-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: '0.52rem', letterSpacing: '0.06em' }}>
             <span>less</span>
             {HEAT.map((c, i) => (
-              <span key={i} aria-hidden style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
+              <span key={i} aria-hidden style={{ width: 11, height: 11, borderRadius: 2, background: c }} />
             ))}
             <span>more</span>
           </div>

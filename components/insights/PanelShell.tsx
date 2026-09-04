@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 
 // Plain presentational shell — no hooks, no 'use client'. Usable from both server
-// and client components. A bordered terminal panel with an uppercase mono
-// eyebrow header and an optional right-aligned controls slot.
+// and client components. A hairline panel with a Plex Sans title, a mono hint,
+// and an optional right-aligned controls slot.
 export function PanelShell({
   title,
   hint,
@@ -31,11 +31,13 @@ export function PanelShell({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-          <h2 className="term-eyebrow" style={{ margin: 0, fontWeight: 500 }}>
+          <h2 className="panel-title" style={{ margin: 0 }}>
             {title}
           </h2>
           {hint && (
-            <span style={{ fontSize: '0.58rem', color: 'var(--color-dim)', opacity: 0.7 }}>{hint}</span>
+            <span className="term-eyebrow" style={{ textTransform: 'none', letterSpacing: '0.02em', opacity: 0.8 }}>
+              {hint}
+            </span>
           )}
         </div>
         {right}

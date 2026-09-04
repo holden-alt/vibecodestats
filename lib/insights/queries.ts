@@ -1,11 +1,13 @@
 import type { DatabaseClient } from '@/lib/db/client';
 import { windowStart } from './compute';
-import type { HistoryDayRow, HourlyRow, ModelDailyRow, ProjectModelDailyRow } from './types';
+import type { HistoryDayRow, HourlyRow, ModelDailyRow, ProjectModelDailyRow, RepoShipsRow } from './types';
 
 // How far back each table is pulled. The page computes every window (7/30/90d)
-// client- and server-side from these bounded fetches.
-const MODEL_DAYS = 90;
-const PROJECT_DAYS = 90;
+// client- and server-side from these bounded fetches. The weekly (90d) views
+// use 13 full weeks, so the model/project/ships pulls reach back 91 days.
+const MODEL_DAYS = 91;
+const PROJECT_DAYS = 91;
+const SHIPS_DAYS = 91;
 const HOURLY_DAYS = 30;
 
 // PostgREST caps result sets; request generously (30d hourly ≈ 24×N×models rows).
@@ -16,6 +18,8 @@ export type InsightsBundle = {
   modelDaily: ModelDailyRow[];
   projectModel: ProjectModelDailyRow[];
   hourly: HourlyRow[];
+  /** Per-repo commit counts (git ships) over the trend window. */
+  ships: RepoShipsRow[];
   /** FULL-history day totals from daily_stats (~1 row/day since 2026-04-20).
    *  This store outlives transcript cleanup, so records/odometer read it
    *  instead of anything recomputed from raw session files. */
@@ -37,7 +41,7 @@ export async function getInsightsBundle(
   database: DatabaseClient,
   today: string,
 ): Promise<InsightsBundle> {
-  const [modelRes, projectRes, hourlyRes, historyRes] = await Promise.all([
+  const [modelRes, projectRes, hourlyRes, shipsRes, historyRes] = await Promise.all([
     database
       .from('llm_model_daily')
       .select('*')
@@ -60,8 +64,15 @@ export async function getInsightsBundle(
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
     database
+      .from('repo_ships_daily')
+      .select('*')
+      .gte('date', windowStart(today, SHIPS_DAYS))
+      .lte('date', today)
+      .order('date', { ascending: true })
+      .limit(ROW_LIMIT),
+    database
       .from('daily_stats')
-      .select('date, tokens_total, sessions')
+      .select('date, tokens_total, sessions, deep_work_minutes, ships')
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
@@ -70,9 +81,10 @@ export async function getInsightsBundle(
   const modelDaily = (modelRes.data ?? []) as ModelDailyRow[];
   const projectModel = (projectRes.data ?? []) as ProjectModelDailyRow[];
   const hourly = (hourlyRes.data ?? []) as HourlyRow[];
+  const ships = (shipsRes.data ?? []) as RepoShipsRow[];
   const history = (historyRes.data ?? []) as HistoryDayRow[];
 
   const hasData = modelDaily.length > 0 || projectModel.length > 0 || hourly.length > 0;
 
-  return { today, modelDaily, projectModel, hourly, history, hasData };
+  return { today, modelDaily, projectModel, hourly, ships, history, hasData };
 }

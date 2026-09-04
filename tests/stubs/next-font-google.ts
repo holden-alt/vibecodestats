@@ -13,7 +13,11 @@ function fontLoader() {
   };
 }
 
-// v2 type (current).
+// RAI brand type (app/layout.tsx).
+export const IBM_Plex_Sans = fontLoader;
+export const IBM_Plex_Mono = fontLoader;
+
+// v2 type (demoted profile surface).
 export const Chakra_Petch = fontLoader;
 export const Sora = fontLoader;
 export const JetBrains_Mono = fontLoader;

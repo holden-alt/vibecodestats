@@ -80,6 +80,7 @@ export function EfficiencyPanel({ points }: { points: EfficiencyPoint[] }) {
         {sources.map((s) => (
           <span
             key={s}
+            className="num"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.62rem', color: 'var(--color-dim)' }}
           >
             <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: SOURCE_COLOR[s] ?? 'var(--color-dim)' }} />
@@ -125,25 +126,25 @@ function MetricChart({
         <div style={{ height: 160, marginLeft: -8 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
+              <CartesianGrid stroke="var(--color-border)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickLine={false}
                 axisLine={{ stroke: 'var(--color-border)' }}
-                tick={{ fontSize: 10, fill: 'var(--color-dim)' }}
+                tick={{ fontSize: 10, fill: 'var(--color-dim)', fontFamily: 'var(--font-mono)' }}
                 tickFormatter={(d: string) => d.slice(5)}
                 minTickGap={30}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 10, fill: 'var(--color-dim)' }}
+                tick={{ fontSize: 10, fill: 'var(--color-dim)', fontFamily: 'var(--font-mono)' }}
                 tickFormatter={yFmt}
                 width={44}
                 {...(yDomain ? { domain: yDomain } : {})}
               />
               <Tooltip
-                cursor={{ stroke: 'var(--color-orange)', strokeOpacity: 0.4, strokeWidth: 1 }}
+                cursor={{ stroke: 'var(--color-dim)', strokeOpacity: 0.5, strokeWidth: 1 }}
                 content={<MetricTooltip fmt={tipFmt} />}
               />
               {sources.map((s) => (
@@ -153,7 +154,7 @@ function MetricChart({
                   dataKey={s}
                   name={SOURCE_LABEL[s] ?? s}
                   stroke={SOURCE_COLOR[s] ?? 'var(--color-dim)'}
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 2.5, strokeWidth: 0 }}
                   connectNulls={false}
@@ -185,15 +186,14 @@ function MetricTooltip({
   if (!items.length) return null;
   return (
     <div
+      className="num"
       style={{
         background: 'var(--color-bg)',
         border: '1px solid var(--color-border)',
         borderRadius: 3,
         padding: '7px 9px',
-        fontFamily: 'var(--font-mono)',
         fontSize: '0.64rem',
         color: 'var(--color-text)',
-        fontVariantNumeric: 'tabular-nums',
         minWidth: 130,
       }}
     >

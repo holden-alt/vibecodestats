@@ -36,6 +36,18 @@ That installs the push script at `~/.config/cc-dashboard/dashboard_push.py`, dro
 - Recharts + @uiw/react-heat-map
 - Tailwind 4
 
+## Brand
+
+The station (`/`) wears the Richardson Applied AI visual system: Ink Navy
+ground, Warm Paper text, one Safety Amber accent per panel, IBM Plex Sans +
+IBM Plex Mono. Tokens live in `app/globals.css`; logo, icon, and Open Graph
+assets under `public/brand/` are hash-verified copies of the canonical kit
+(receipt in `public/brand/BRAND-SOURCE.json`). Re-verify against the kit
+manifest before changing any of them.
+
+Chart series are keyed by vendor, not by brand: Anthropic models are warm,
+OpenAI models are cool, xAI is grey (`lib/insights/colors.ts`).
+
 ## Privacy
 
 - Profiles are public by default. The whole point is sharing your stats.

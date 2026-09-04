@@ -1,19 +1,31 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { createClient } from '@/lib/db/server';
 import { SignInWithGithubButton } from '@/components/SignInWithGithubButton';
-import { ogImageUrl } from '@/lib/og/regenerate';
 
-// The site-level OG image is a static PNG in R2. The image
-// renders the same live-aggregate-stats layout as per-profile cards
-// (developers / active today / tokens today / top rank), but is generated
-// out-of-band by scripts/generate-site-og.mjs and re-uploaded periodically
-// rather than per-request. Tried an inline edge route: pushed CF Pages
-// bundle past its 25 MiB limit. Storage path is stable; we just overwrite
-// the bytes when we want to refresh the stats.
+// Brand typography (Richardson Applied AI BRAND-SPEC.md): IBM Plex Sans for
+// headings/body, IBM Plex Mono for numerals, labels, and machine text. The
+// kit's woff2 files are wordmark subsets, so the full families load from
+// Google Fonts at build time; globals.css exposes them as --font-sans/--font-mono.
+const plexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-plex-sans',
+  display: 'swap',
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
+  display: 'swap',
+});
+
+// Site-level Open Graph card: the approved RAI 1200×630 export, mirrored from
+// the canonical brand package (hash receipt in public/brand/BRAND-SOURCE.json).
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
-const SITE_OG_IMAGE = ogImageUrl('_root');
+const SITE_OG_IMAGE = `${SITE_URL}/brand/og-image.png`;
 
 const siteOgImage = {
   url: SITE_OG_IMAGE,
@@ -21,12 +33,12 @@ const siteOgImage = {
   type: 'image/png',
   width: 1200,
   height: 630,
-  alt: 'vibecodestats.dev: the tokenmaxxing leaderboard',
+  alt: 'Richardson Applied AI',
 };
 
-const SITE_TITLE = 'vibecodestats.dev: the tokenmaxxing leaderboard';
+const SITE_TITLE = 'Usage station · Richardson Applied AI';
 const SITE_DESCRIPTION =
-  'Free public leaderboard for Claude Code + Codex token usage. Your all-time tokens put you in a tier (S/A/B/C/D/HANDCODER). Pick Team Claude Code or Team Codex. Find out where you rank. No email required.';
+  'Richardson Applied AI usage station: how much, when, which models, which projects, and what shipped — across Claude Code, Codex, Grok, and Kimi.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -37,7 +49,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     type: 'website',
     url: SITE_URL,
-    siteName: 'vibecodestats.dev',
+    siteName: 'Richardson Applied AI',
     images: [siteOgImage],
   },
   twitter: {
@@ -56,54 +68,47 @@ async function AuthWidget() {
     position: 'fixed',
     top: 0,
     right: 0,
-    padding: '0.5rem 0.9rem',
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: '0.8rem',
+    padding: '0.45rem 0.9rem',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.72rem',
     zIndex: 50,
     display: 'flex',
     alignItems: 'center',
     gap: '0.6rem',
-    borderBottomLeftRadius: '6px',
+    borderBottomLeftRadius: 4,
+    background: 'var(--color-bg-2)',
+    color: 'var(--color-dim)',
+    border: '1px solid var(--color-border)',
+    borderTop: 'none',
+    borderRight: 'none',
   };
   const dot = (color: string): React.CSSProperties => ({
     display: 'inline-block',
-    width: '8px',
-    height: '8px',
+    width: 7,
+    height: 7,
     borderRadius: '50%',
     background: color,
   });
   const linkStyle: React.CSSProperties = {
-    color: 'inherit',
-    textDecoration: 'underline',
+    color: 'var(--color-text)',
+    textDecoration: 'none',
   };
   const buttonStyle: React.CSSProperties = {
     background: 'none',
     border: 'none',
     padding: 0,
-    color: 'inherit',
+    color: 'var(--color-text)',
     fontFamily: 'inherit',
     fontSize: 'inherit',
     cursor: 'pointer',
-    textDecoration: 'underline',
   };
 
   if (!user) {
     return (
-      <div
-        className="cc-auth-widget"
-        style={{
-          ...wrapStyle,
-          background: '#2a1818',
-          color: '#ff9a9a',
-          border: '1px solid #553030',
-        }}
-        data-auth="anon"
-      >
-        <span style={dot('#ff5a5a')} />
+      <div className="cc-auth-widget" style={wrapStyle} data-auth="anon">
+        <span style={dot('var(--color-dim-2)')} />
         <span>not signed in</span>
-        <SignInWithGithubButton>
-          [ sign in ]
-        </SignInWithGithubButton>
+        <SignInWithGithubButton>[ sign in ]</SignInWithGithubButton>
       </div>
     );
   }
@@ -116,19 +121,18 @@ async function AuthWidget() {
   );
 
   return (
-    <div
-      className="cc-auth-widget"
-      style={{
-        ...wrapStyle,
-        background: '#142214',
-        color: '#9ee59e',
-        border: '1px solid #2f5a2f',
-      }}
-      data-auth="signed-in"
-      data-handle={handle}
-    >
-      <span style={dot('#5ade5a')} />
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '50vw' }}>
+    <div className="cc-auth-widget" style={wrapStyle} data-auth="signed-in" data-handle={handle}>
+      <span style={dot('var(--color-green)')} />
+      <span
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          maxWidth: '50vw',
+          color: 'var(--color-text)',
+        }}
+      >
         @{handle}
       </span>
       <Link href="/me" prefetch={false} style={linkStyle}>[ profile ]</Link>
@@ -141,12 +145,12 @@ async function AuthWidget() {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body>
         <AuthWidget />
         {/* Spacer for the fixed-position AuthWidget so content doesn't render
             under it on desktop. Height covers AuthWidget at typical font size. */}
-        <div aria-hidden="true" style={{ height: '2.75rem' }} />
+        <div aria-hidden="true" style={{ height: '2.5rem' }} />
         {children}
       </body>
     </html>

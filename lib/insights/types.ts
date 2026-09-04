@@ -1,4 +1,5 @@
 import type { Database } from '@/lib/types/database';
+import { OTHER_COLOR as VENDOR_OTHER, VENDOR_COLOR, type Vendor } from './colors';
 
 // ── Raw row aliases (generated DB types) ────────────────────────────────────
 // `approx` was added to the live table 2026-07-23 (restored-history rows carry
@@ -11,6 +12,7 @@ export type HourlyRow = Database['public']['Tables']['llm_hourly']['Row'];
 export type SessionOutcomeRow = Database['public']['Tables']['session_outcomes']['Row'];
 export type ProblemEventRow = Database['public']['Tables']['problem_events']['Row'];
 export type SystemHealthRow = Database['public']['Tables']['system_health_daily']['Row'];
+export type RepoShipsRow = Database['public']['Tables']['repo_ships_daily']['Row'];
 
 // ── Outcome vocabulary ───────────────────────────────────────────────────────
 export type OutcomeKind = 'interactive' | 'automation';
@@ -47,39 +49,44 @@ export const SOURCE_LABEL: Record<string, string> = {
   kimi: 'kimi',
 };
 
-// Each source gets one terminal-palette accent. Anything unknown → dim.
+// Each source takes its VENDOR anchor: Anthropic warm orange, OpenAI cool blue,
+// xAI white/grey, Moonshot violet. See ./colors.ts for the model-level shades.
 export const SOURCE_COLOR: Record<string, string> = {
-  'claude-code': 'var(--color-orange)',
-  codex: 'var(--color-cyan)',
-  grok: 'var(--color-green)',
-  kimi: 'var(--color-magenta)',
+  'claude-code': VENDOR_COLOR.anthropic,
+  codex: VENDOR_COLOR.openai,
+  grok: VENDOR_COLOR.xai,
+  kimi: VENDOR_COLOR.moonshot,
 };
 
-// Model stacking palette (ordered; wraps for >7 models, last = dim "other").
-export const MODEL_PALETTE = [
-  'var(--color-orange)',
-  'var(--color-cyan)',
-  'var(--color-green)',
-  'var(--color-magenta)',
-  'var(--color-yellow)',
-  'var(--color-blue)',
-  'var(--color-red)',
-] as const;
+export const OTHER_COLOR = VENDOR_OTHER;
 
-export const OTHER_COLOR = 'var(--color-dim)';
+// ── Measures ────────────────────────────────────────────────────────────────
+// Raw tokens are ~95% cache reads, so they track context length × turns more
+// than work done. The mix chart can therefore be read in four measures.
+export type Measure = 'tokens' | 'output' | 'turns' | 'minutes';
+export const MEASURES: { id: Measure; label: string; hint: string }[] = [
+  { id: 'tokens', label: 'tokens', hint: 'all token classes (input, output, cache read/create, reasoning)' },
+  { id: 'output', label: 'output', hint: 'generated tokens only (output + reasoning)' },
+  { id: 'turns', label: 'turns', hint: 'assistant turns' },
+  { id: 'minutes', label: 'time', hint: 'active minutes' },
+];
 
 // ── Derived / serializable shapes passed to client components ────────────────
 
-/** One point in the stacked model-mix trend. `models` maps model → total tokens that day. */
+/** Per-model measures for one day. */
+export type TrendCell = { tokens: number; output: number; turns: number; minutes: number };
+
+/** One point in the stacked model-mix trend. `models` maps model → that day's measures. */
 export type TrendPoint = {
   date: string;
-  models: Record<string, number>;
+  models: Record<string, TrendCell>;
 };
 
 /** Metadata about a model line in the trend (for color + source filtering + ordering). */
 export type ModelMeta = {
   model: string;
   source: string;
+  vendor: Vendor;
   color: string;
   total: number;
 };
@@ -129,6 +136,8 @@ export type TodaySummary = {
   totalTokens: number;
   totalActiveMinutes: number;
   cost: number | null;
+  /** git commits landed today (null when ships are not tracked). */
+  commits: number | null;
   // interactive today (task sessions):
   interactiveCompleted: number;
   interactiveBlocked: number;
@@ -200,13 +209,24 @@ export type HistoryDayRow = {
   date: string;
   tokens_total: number;
   sessions: number | null;
+  deep_work_minutes?: number | null;
+  ships?: { commits?: number; repos?: number } | null;
 };
 
-/** One point on the cumulative odometer line. */
+/** A cumulative milestone that has been crossed, and the day it happened. */
+export type Milestone = { value: number; date: string };
+
+/** Tokens per day over a trailing span (complete days only). */
+export type Pace = { d7: number; d30: number; lifetime: number };
+
+/** One day of full history: cumulative tokens plus that day's counters. */
 export type OdometerPoint = {
   date: string;
   cumulative: number;
   day: number;
+  sessions?: number;
+  deepWorkMinutes?: number;
+  commits?: number | null;
 };
 
 /** Records board payload — lifetime bests derived from full history. */
@@ -221,6 +241,24 @@ export type RecordsData = {
   bestWeek: { start: string; tokens: number } | null; // best rolling 7-day span
   nextMilestone: number; // next round cumulative target (e.g. 50B)
   odometer: OdometerPoint[];
+  firstDate: string | null;
+  lifetimeSessions: number;
+  lifetimeDeepWorkMinutes: number;
+  lifetimeCommits: number | null; // null when no ship data at all
+  milestones: Milestone[]; // crossed, ascending
+  pace: Pace;
+  etaNext: string | null; // date the next milestone lands at the 30d pace
+};
+
+// ── Ships (git commits) ──────────────────────────────────────────────────────
+export type ShipsWeek = { date: string; commits: number; repos: number };
+export type ShipsRepo = { repo: string; commits: number; days: number; last: string };
+export type ShipsData = {
+  weekly: ShipsWeek[]; // end-labeled buckets, ascending
+  repos: ShipsRepo[]; // top repos in the window, desc
+  commits: number;
+  repoCount: number;
+  perDay: number; // commits per active day
 };
 
 /** One row of the day-rankings list — an active day and its token total. */

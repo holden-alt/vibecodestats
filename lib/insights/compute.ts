@@ -1,12 +1,15 @@
+import { modelColor, VENDOR_ORDER, vendorOf } from './colors';
 import {
-  MODEL_PALETTE,
-  OTHER_COLOR,
   TASK_OUTCOMES,
   type EfficiencyPoint,
   type EffectivenessRow,
   type HistoryDayRow,
+  type Measure,
+  type Milestone,
   type OdometerPoint,
   type RecordsData,
+  type RepoShipsRow,
+  type ShipsData,
   type HourlyAgg,
   type HourlyRow,
   type ModelDailyRow,
@@ -23,6 +26,7 @@ import {
   type SystemHealthRow,
   type SystemRow,
   type TodaySummary,
+  type TrendCell,
   type TrendPoint,
 } from './types';
 
@@ -111,6 +115,7 @@ export function buildTodaySummary(
   modelDaily: ModelDailyRow[],
   outcomes: SessionOutcomeRow[],
   today: string,
+  ships: RepoShipsRow[] = [],
 ): TodaySummary {
   const todayRows = modelDaily.filter((r) => r.date === today);
   const bySourceMap = new Map<string, { tokens: number; activeMinutes: number }>();
@@ -150,12 +155,19 @@ export function buildTodaySummary(
     }
   }
 
+  let commits: number | null = null;
+  if (ships.length) {
+    commits = 0;
+    for (const r of ships) if (r.date === today) commits += n(r.commits);
+  }
+
   return {
     date: today,
     bySource,
     totalTokens: bySource.reduce((acc, s) => acc + s.tokens, 0),
     totalActiveMinutes: bySource.reduce((acc, s) => acc + s.activeMinutes, 0),
     cost: hasCost ? cost : null,
+    commits,
     interactiveCompleted,
     interactiveBlocked,
     interactivePartial,
@@ -165,12 +177,14 @@ export function buildTodaySummary(
   };
 }
 
-// ── Model-mix trend (stacked by model) ───────────────────────────────────────
+// ── Model-mix trend (stacked by model, grouped by vendor) ───────────────────
+const EMPTY_CELL = (): TrendCell => ({ tokens: 0, output: 0, turns: 0, minutes: 0 });
+
 export function buildTrend(modelDaily: ModelDailyRow[]): {
   points: TrendPoint[];
   models: ModelMeta[];
 } {
-  const byDate = new Map<string, Record<string, number>>();
+  const byDate = new Map<string, Record<string, TrendCell>>();
   // model → total tokens, and model → (source → tokens) so we can pick the
   // dominant source for a model name that appears under more than one source.
   const modelTotals = new Map<string, number>();
@@ -179,7 +193,12 @@ export function buildTrend(modelDaily: ModelDailyRow[]): {
   for (const r of modelDaily) {
     const tok = totalTokens(r);
     const day = byDate.get(r.date) ?? {};
-    day[r.model] = (day[r.model] ?? 0) + tok;
+    const cell = day[r.model] ?? EMPTY_CELL();
+    cell.tokens += tok;
+    cell.output += n(r.output_tokens) + n(r.reasoning_tokens);
+    cell.turns += n(r.turns);
+    cell.minutes += n(r.active_minutes);
+    day[r.model] = cell;
     byDate.set(r.date, day);
 
     modelTotals.set(r.model, (modelTotals.get(r.model) ?? 0) + tok);
@@ -202,16 +221,114 @@ export function buildTrend(modelDaily: ModelDailyRow[]): {
     return best;
   };
 
+  // Vendor bands first (Anthropic at the bottom of the stack), biggest model
+  // first within a band. Colors are fixed per model — never per rank.
   const models: ModelMeta[] = [...modelTotals.entries()]
-    .map(([model, total]) => ({ model, source: dominantSource(model), total }))
-    .sort((a, b) => b.total - a.total)
-    .map((m, i) => ({ ...m, color: MODEL_PALETTE[i % MODEL_PALETTE.length] ?? OTHER_COLOR }));
+    .map(([model, total]) => {
+      const source = dominantSource(model);
+      const vendor = vendorOf(model, source);
+      return { model, source, vendor, total, color: modelColor(model, source) };
+    })
+    .sort(byVendorThenTotal);
 
   const points: TrendPoint[] = [...byDate.entries()]
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
     .map(([date, models]) => ({ date, models }));
 
   return { points, models };
+}
+
+export function byVendorThenTotal(a: ModelMeta, b: ModelMeta): number {
+  const va = VENDOR_ORDER.indexOf(a.vendor);
+  const vb = VENDOR_ORDER.indexOf(b.vendor);
+  return va - vb || b.total - a.total;
+}
+
+/**
+ * Which models get their own layer. The top `max` by tokens, plus the biggest
+ * model of any vendor that would otherwise vanish into "other" — so a small
+ * xAI or Moonshot share still shows as its own (grey / violet) band instead
+ * of being invisible. Result is in stack order (vendor bands, biggest first).
+ */
+export function pickSeries(models: ModelMeta[], max: number): { top: ModelMeta[]; fold: Set<string> } {
+  const byTotal = [...models].sort((a, b) => b.total - a.total);
+  const chosen = byTotal.slice(0, max);
+  const seen = new Set(chosen.map((m) => m.vendor));
+  for (const m of byTotal.slice(max)) {
+    if (m.total <= 0 || seen.has(m.vendor)) continue;
+    chosen.push(m);
+    seen.add(m.vendor);
+  }
+  const top = chosen.sort(byVendorThenTotal);
+  const topSet = new Set(top.map((m) => m.model));
+  const fold = new Set(models.filter((m) => !topSet.has(m.model)).map((m) => m.model));
+  return { top, fold };
+}
+
+/** Whole days from `a` to `b` (b - a). */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000);
+}
+
+export type BucketRow = Record<string, number | string>;
+
+/**
+ * Calendar-complete, zero-filled rows for the stacked chart. Buckets are
+ * anchored at the END of the window so the last bucket is always a full week
+ * (start-anchored buckets left a 1–6 day stub at the right edge that read as a
+ * collapse). Rows are labeled by their end date, so the rightmost point is
+ * always today. Share mode normalizes each row to percentages; the raw total
+ * stays on __totalAbs for the tooltip footer.
+ */
+export function bucketTrend(
+  points: TrendPoint[],
+  opts: {
+    today: string;
+    days: number;
+    weekly: boolean;
+    measure: Measure;
+    share: boolean;
+    series: string[]; // models kept as their own layer
+    fold: Set<string>; // models folded into __other
+  },
+): BucketRow[] {
+  const { today, days, weekly, measure, share, series, fold } = opts;
+  const earliest = points[0]?.date; // points are sorted ascending upstream
+  let start = windowStart(today, days);
+  if (earliest && earliest > start) start = earliest;
+
+  const keys = [...series, ...(fold.size ? ['__other'] : [])];
+  const keep = new Set(series);
+  const byDate = new Map(points.map((p) => [p.date, p.models]));
+
+  const rows = new Map<string, BucketRow>();
+  let d = start;
+  while (d <= today) {
+    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(d, today) / 7)) : d;
+    let row = rows.get(label);
+    if (!row) {
+      row = { date: label };
+      for (const k of keys) row[k] = 0;
+      rows.set(label, row);
+    }
+    const dayModels = byDate.get(d) ?? {};
+    for (const [model, cell] of Object.entries(dayModels)) {
+      const k = keep.has(model) ? model : fold.has(model) ? '__other' : null;
+      if (!k) continue;
+      row[k] = ((row[k] as number) ?? 0) + cell[measure];
+    }
+    d = addDays(d, 1);
+  }
+
+  const out = [...rows.values()].sort((a, b) => ((a.date as string) < (b.date as string) ? -1 : 1));
+  for (const row of out) {
+    const total = keys.reduce((acc, k) => acc + ((row[k] as number) || 0), 0);
+    row.__totalAbs = total;
+    if (share && total > 0) {
+      for (const k of keys) row[k] = (((row[k] as number) || 0) / total) * 100;
+    }
+  }
+  return out;
 }
 
 // ── Records / odometer (full-history daily_stats) ────────────────────────────
@@ -223,10 +340,34 @@ export function buildRecords(history: HistoryDayRow[], today: string): RecordsDa
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
   let cumulative = 0;
+  let sessions = 0;
+  let deepWork = 0;
+  let commits = 0;
+  let hasShips = false;
+  const milestones: Milestone[] = [];
+  let nextIdx = 0;
   const odometer: OdometerPoint[] = rows.map((r) => {
     const day = n(r.tokens_total);
     cumulative += day;
-    return { date: r.date, cumulative, day };
+    sessions += n(r.sessions);
+    deepWork += n(r.deep_work_minutes);
+    const c = r.ships && typeof r.ships === 'object' ? r.ships.commits : undefined;
+    if (c != null) {
+      hasShips = true;
+      commits += n(c);
+    }
+    while (nextIdx < MILESTONES_B.length && cumulative >= MILESTONES_B[nextIdx]! * 1e9) {
+      milestones.push({ value: MILESTONES_B[nextIdx]! * 1e9, date: r.date });
+      nextIdx++;
+    }
+    return {
+      date: r.date,
+      cumulative,
+      day,
+      sessions: n(r.sessions),
+      deepWorkMinutes: n(r.deep_work_minutes),
+      commits: c == null ? null : n(c),
+    };
   });
 
   const bestDay = rows.reduce<{ date: string; tokens: number } | null>((best, r) => {
@@ -274,6 +415,21 @@ export function buildRecords(history: HistoryDayRow[], today: string): RecordsDa
   const nextMilestone =
     (MILESTONES_B.find((m) => m * 1e9 > cumulative) ?? MILESTONES_B[MILESTONES_B.length - 1]!) * 1e9;
 
+  // Pace over COMPLETE days (the trailing 7 / 30 ending yesterday); today is
+  // still being written. Lifetime pace is per calendar day since the first row.
+  const trailing = (days: number): number => {
+    let sum = 0;
+    for (let i = 1; i <= days; i++) sum += byDate.get(addDays(today, -i)) ?? 0;
+    return sum / days;
+  };
+  const firstDate = rows[0]?.date ?? null;
+  const calendarDays = firstDate ? Math.max(1, daysBetween(firstDate, today) + 1) : 1;
+  const pace = { d7: trailing(7), d30: trailing(30), lifetime: cumulative / calendarDays };
+  // No projection when the pace is effectively zero (a Date can't hold it and
+  // the number would be meaningless anyway): cap at ~10 years out.
+  const daysToNext = pace.d30 > 0 ? Math.ceil((nextMilestone - cumulative) / pace.d30) : Infinity;
+  const etaNext = cumulative < nextMilestone && daysToNext <= 3650 ? addDays(today, daysToNext) : null;
+
   return {
     lifetimeTokens: cumulative,
     daysTracked: rows.length,
@@ -285,6 +441,61 @@ export function buildRecords(history: HistoryDayRow[], today: string): RecordsDa
     bestWeek,
     nextMilestone,
     odometer,
+    firstDate,
+    lifetimeSessions: sessions,
+    lifetimeDeepWorkMinutes: deepWork,
+    lifetimeCommits: hasShips ? commits : null,
+    milestones,
+    pace,
+    etaNext,
+  };
+}
+
+// ── Ships (git commits from repo_ships_daily) ────────────────────────────────
+export function buildShips(rows: RepoShipsRow[], today: string, days: number, weekly: boolean): ShipsData {
+  const inWin = rows.filter((r) => inWindow(r.date, today, days) && n(r.commits) > 0);
+
+  // Weekly buckets are end-anchored like the trend (last bucket = full week).
+  const buckets = new Map<string, { commits: number; repos: Set<string> }>();
+  let d = windowStart(today, days);
+  while (d <= today) {
+    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(d, today) / 7)) : d;
+    if (!buckets.has(label)) buckets.set(label, { commits: 0, repos: new Set() });
+    d = addDays(d, 1);
+  }
+  for (const r of inWin) {
+    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(r.date, today) / 7)) : r.date;
+    const b = buckets.get(label);
+    if (!b) continue;
+    b.commits += n(r.commits);
+    b.repos.add(r.repo);
+  }
+  const weeklyRows = [...buckets.entries()]
+    .map(([date, b]) => ({ date, commits: b.commits, repos: b.repos.size }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const byRepo = new Map<string, { commits: number; days: Set<string>; last: string }>();
+  const activeDays = new Set<string>();
+  let commits = 0;
+  for (const r of inWin) {
+    const a = byRepo.get(r.repo) ?? { commits: 0, days: new Set<string>(), last: r.date };
+    a.commits += n(r.commits);
+    a.days.add(r.date);
+    if (r.date > a.last) a.last = r.date;
+    byRepo.set(r.repo, a);
+    activeDays.add(r.date);
+    commits += n(r.commits);
+  }
+  const repos = [...byRepo.entries()]
+    .map(([repo, a]) => ({ repo, commits: a.commits, days: a.days.size, last: a.last }))
+    .sort((a, b) => b.commits - a.commits || (a.last < b.last ? 1 : -1));
+
+  return {
+    weekly: weeklyRows,
+    repos,
+    commits,
+    repoCount: byRepo.size,
+    perDay: activeDays.size ? commits / activeDays.size : 0,
   };
 }
 
@@ -446,6 +657,33 @@ export function buildHeatmapMatrix(
 }
 
 // ── Project breakdown (token-only + interactive outcome tint) ─────────────────
+const WORKTREE_RE = /^\.(?:codex|claude)\/worktrees\/[^/]+\//;
+const CODEX_SCRATCH_RE = /^Documents\/Codex\/\d{4}-\d{2}-\d{2}\//;
+export const CODEX_SCRATCH = 'codex · scratch';
+
+/**
+ * Display-side project folding: a Codex/Claude worktree checkout is the same
+ * project as its base repo, and Codex's per-conversation scratch folders are
+ * one bucket. `known` is the set of non-worktree names in the window, so a
+ * worktree suffix like "richardsonapplied-brain/clients/h-and-l" can snap onto
+ * "richardsonappliedai/richardsonapplied-brain/clients/h-and-l".
+ */
+export function canonicalProject(project: string, known?: Iterable<string>): string {
+  if (CODEX_SCRATCH_RE.test(project)) return CODEX_SCRATCH;
+  if (!WORKTREE_RE.test(project)) return project;
+  const stripped = project.replace(WORKTREE_RE, '');
+  if (known) {
+    let best: string | null = null;
+    for (const k of known) {
+      if (k === stripped || k.endsWith('/' + stripped)) {
+        if (!best || k.length < best.length) best = k;
+      }
+    }
+    if (best) return best;
+  }
+  return stripped;
+}
+
 export function buildProjectRows(
   projectModel: ProjectModelDailyRow[],
   outcomes: SessionOutcomeRow[],
@@ -454,16 +692,22 @@ export function buildProjectRows(
 ): ProjectRow[] {
   type Acc = { tokens: number; turns: number; models: Map<string, { source: string; tokens: number }> };
   const byProject = new Map<string, Acc>();
+  const known = new Set<string>();
   for (const pm of projectModel) {
     if (!inWindow(pm.date, today, days)) continue;
-    const acc = byProject.get(pm.project) ?? { tokens: 0, turns: 0, models: new Map() };
+    if (!WORKTREE_RE.test(pm.project) && !CODEX_SCRATCH_RE.test(pm.project)) known.add(pm.project);
+  }
+  for (const pm of projectModel) {
+    if (!inWindow(pm.date, today, days)) continue;
+    const project = canonicalProject(pm.project, known);
+    const acc = byProject.get(project) ?? { tokens: 0, turns: 0, models: new Map() };
     const tok = n(pm.tokens_total);
     acc.tokens += tok;
     acc.turns += n(pm.turns);
     const m = acc.models.get(pm.model) ?? { source: pm.source, tokens: 0 };
     m.tokens += tok;
     acc.models.set(pm.model, m);
-    byProject.set(pm.project, acc);
+    byProject.set(project, acc);
   }
 
   // Interactive outcome tint per project.

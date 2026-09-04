@@ -10,7 +10,9 @@ import { PanelShell } from './PanelShell';
 // distance between the record day and an ordinary one is visible at a glance.
 // Rows arrive ranked from buildDayRankings (same full-history store as the
 // records board), so rank #1 always matches the "best day" record. Collapsed
-// to the top rows by default.
+// to the top rows by default; the header carries today's rank so the same
+// question the Usage Pace widget answers ("how does today rank") is answered
+// here without scrolling.
 
 type Props = {
   /** Pre-ranked by buildDayRankings: tokens desc, > 0 only. */
@@ -35,14 +37,24 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
 
   const max = days[0]!.tokens || 1;
   const visible = showAll ? days : days.slice(0, collapsedCount);
+  const todayIdx = days.findIndex((d) => d.date === today);
+  const todayRank = todayIdx >= 0 ? todayIdx + 1 : null;
+  const todayPct = todayRank != null ? Math.max(1, Math.ceil((todayRank / days.length) * 100)) : null;
 
   return (
     <PanelShell
       title="Day rankings"
       hint="every day · ranked by tokens"
       right={
-        <span style={{ fontSize: '0.62rem', color: 'var(--color-dim)', fontVariantNumeric: 'tabular-nums' }}>
-          {fmtInt(days.length)} days tracked
+        <span className="num" style={{ fontSize: '0.62rem', color: 'var(--color-dim)' }}>
+          {todayRank != null ? (
+            <>
+              today <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>#{fmtInt(todayRank)}</span> of{' '}
+              {fmtInt(days.length)} · top {todayPct}%
+            </>
+          ) : (
+            <>{fmtInt(days.length)} days tracked · today not in yet</>
+          )}
         </span>
       }
     >
@@ -57,12 +69,12 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
           return (
             <div
               key={row.date}
+              className="num"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
                 fontSize: '0.66rem',
-                fontVariantNumeric: 'tabular-nums',
               }}
               title={`#${rank} · ${weekdayOf(row.date)} ${row.date}${isToday ? ' (today)' : ''} · ${fmtInt(row.tokens)} tokens`}
             >
@@ -70,7 +82,7 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
                 style={{
                   minWidth: '3.5ch',
                   textAlign: 'right',
-                  color: isBest ? 'var(--color-yellow)' : 'var(--color-dim)',
+                  color: isBest || isToday ? 'var(--color-text)' : 'var(--color-dim)',
                   fontWeight: isBest ? 700 : 400,
                   flexShrink: 0,
                 }}
@@ -79,14 +91,13 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
               </span>
               <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <span style={{ color: 'var(--color-dim)' }}>{weekdayOf(row.date)}</span>{' '}
-                <span style={{ color: isToday ? 'var(--color-green)' : 'var(--color-text)' }}>
-                  {row.date}
-                </span>
+                <span style={{ color: 'var(--color-text)', fontWeight: isToday ? 600 : 400 }}>{row.date}</span>
+                {isToday && <span style={{ color: 'var(--color-dim)' }}> · today</span>}
               </span>
               <div
                 style={{
                   flex: 1,
-                  background: 'var(--color-heat-0)',
+                  background: 'var(--color-bg-2)',
                   height: 8,
                   borderRadius: 1,
                   overflow: 'hidden',
@@ -99,7 +110,8 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
                     width: '100%',
                     transform: `scaleX(${frac})`,
                     transformOrigin: 'left',
-                    background: isToday ? 'var(--color-green)' : 'var(--color-orange)',
+                    background: isToday ? 'var(--color-text)' : 'var(--color-accent)',
+                    opacity: isToday || isBest ? 1 : 0.7,
                     height: '100%',
                     transition: 'transform 800ms ease-out',
                   }}
@@ -109,7 +121,7 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
                 style={{
                   minWidth: 56,
                   textAlign: 'right',
-                  color: isBest ? 'var(--color-yellow)' : 'var(--color-text)',
+                  color: 'var(--color-text)',
                   fontWeight: isBest ? 700 : 500,
                   flexShrink: 0,
                 }}
@@ -134,10 +146,10 @@ export function DayRankingsPanel({ days, today, collapsedCount = 20 }: Props) {
               padding: '5px 12px',
               cursor: 'pointer',
               fontFamily: 'var(--font-mono)',
-              fontSize: '0.62rem',
-              letterSpacing: '0.08em',
+              fontSize: '0.6rem',
+              letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              color: 'var(--color-orange)',
+              color: 'var(--color-text)',
             }}
           >
             {showAll ? `show top ${collapsedCount}` : `show all ${fmtInt(days.length)} days`}

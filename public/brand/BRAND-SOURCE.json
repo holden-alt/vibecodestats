@@ -1,0 +1,75 @@
+{
+  "canonicalPackage": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI",
+  "manifest": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/manifest.json",
+  "identity": "option-01 RAI v4",
+  "approvedAt": "2026-07-11",
+  "packagedAt": "2026-08-08",
+  "copiedAt": "2026-09-03",
+  "tokens": {
+    "colors": {
+      "inkNavy": "#0E1B2C",
+      "navyLift": "#16283F",
+      "warmPaper": "#F6F5F1",
+      "safetyAmber": "#FFB020",
+      "steel": "#55606E",
+      "mist": "#9AA5B1",
+      "rule": "#C9CDD3"
+    },
+    "typography": {
+      "sans": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    }
+  },
+  "files": [
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/logos/wordmark-inline-on-dark.svg",
+      "runtime": "public/brand/wordmark-inline-on-dark.svg",
+      "sha256": "abf5eac3d8d2f6aa9df24f8578050e9cfa7e83fee1032e696323fde33261ffa0",
+      "bytes": 19978,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/logos/rai-mark-on-dark.svg",
+      "runtime": "public/brand/rai-mark-on-dark.svg",
+      "sha256": "1b52ec3b6b4cc144bbe6ccef0f7422ee071d2093e003e7c0ddc7c49c29203315",
+      "bytes": 521,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/social/og-image.png",
+      "runtime": "public/brand/og-image.png",
+      "sha256": "b24320454ab4fc5e1566872d6c8de89daaae74af3da9ca0fe583fd5f39644d0d",
+      "bytes": 30738,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/icons/rai-profile-transparent.png",
+      "runtime": "public/brand/rai-profile-transparent.png",
+      "sha256": "e65956ed6ea8547a0d7f7c3293a72871548ee7de7e4cf8dbd30748a0c2f776cc",
+      "bytes": 15086,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/icons/rai-profile-white.png",
+      "runtime": "public/brand/rai-profile-white.png",
+      "sha256": "4864f309f02763a9856e39893c1de8fda508475a35108cee26108287f310c76b",
+      "bytes": 13152,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/icons/rai-profile-transparent.png",
+      "runtime": "app/icon.png",
+      "sha256": "e65956ed6ea8547a0d7f7c3293a72871548ee7de7e4cf8dbd30748a0c2f776cc",
+      "bytes": 15086,
+      "manifestMatch": true
+    },
+    {
+      "source": "/Users/holdenrichardson/Claude/Brand-Kits/RichardsonAppliedAI/current/icons/rai-profile-white.png",
+      "runtime": "app/apple-icon.png",
+      "sha256": "4864f309f02763a9856e39893c1de8fda508475a35108cee26108287f310c76b",
+      "bytes": 13152,
+      "manifestMatch": true
+    }
+  ],
+  "notes": "Runtime mirrors of the approved option-01 RAI package. Verify with sha256 against the canonical manifest before replacing. Fonts load from Google Fonts (IBM Plex Sans / IBM Plex Mono) via next/font; the kit woff2 files are wordmark subsets, not full families."
+}

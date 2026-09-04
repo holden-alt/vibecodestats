@@ -9,7 +9,7 @@ export function Pills<T extends string>({
   onChange,
   ariaLabel,
 }: {
-  options: readonly { id: T; label: string; color?: string }[];
+  options: readonly { id: T; label: string; color?: string; hint?: string }[];
   value: T;
   onChange: (id: T) => void;
   ariaLabel?: string;
@@ -22,7 +22,7 @@ export function Pills<T extends string>({
     >
       {options.map((o) => {
         const active = o.id === value;
-        const accent = o.color ?? 'var(--color-orange)';
+        const accent = o.color ?? 'var(--color-text)';
         return (
           <button
             key={o.id}
@@ -31,6 +31,7 @@ export function Pills<T extends string>({
             aria-checked={active}
             data-active={active}
             onClick={() => onChange(o.id)}
+            title={o.hint}
             style={pill(active, accent)}
           >
             {o.label}

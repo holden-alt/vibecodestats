@@ -51,7 +51,6 @@ export function RecordsBoard({ records, today }: { records: RecordsData; today: 
         <Tile label="1B+ days" value={fmtInt(r.billionDays)} />
         <Tile label="deep work" value={`${fmtInt(deepHours)}h`} />
         <Tile label="sessions" value={fmtInt(r.lifetimeSessions)} />
-        <Tile label="commits" value={r.lifetimeCommits == null ? '—' : fmtInt(r.lifetimeCommits)} />
         <Tile
           label={`streak · longest ${r.longestStreak ? fmtInt(r.longestStreak.days) : 0}`}
           value={`${fmtInt(r.currentStreak)}d`}
@@ -173,7 +172,6 @@ function HistoryGrid({ days, today, bestDay }: { days: OdometerPoint[]; today: s
               <span style={{ color: 'var(--color-text)' }}>{fmtTokens(p.day)}</span> tokens
               {p.sessions != null && ` · ${fmtInt(p.sessions)} sessions`}
               {p.deepWorkMinutes != null && p.deepWorkMinutes > 0 && ` · ${fmtDuration(p.deepWorkMinutes)} deep work`}
-              {p.commits != null && ` · ${fmtInt(p.commits)} commits`}
               {' · lifetime '}
               {fmtTokens(p.cumulative)}
             </span>

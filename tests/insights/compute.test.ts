@@ -1,35 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
   addDays,
-  bucketTrend,
   buildCallouts,
-  buildHeatmapMatrix,
-  buildHourlyAgg,
   buildModelEffectiveness,
   buildPlansSessions,
   buildProblems,
-  buildProjectRows,
-  buildShips,
   buildSystemsBoard,
   buildTodaySummary,
-  buildTrend,
   canonicalProject,
   CODEX_SCRATCH,
-  daysBetween,
   dowMonFirst,
   humanizeSignature,
   inWindow,
-  pickSeries,
   prettyModel,
   totalTokens,
   windowStart,
 } from '@/lib/insights/compute';
 import type {
-  HourlyRow,
   ModelDailyRow,
   ProblemEventRow,
-  ProjectModelDailyRow,
-  RepoShipsRow,
   SessionOutcomeRow,
   SystemHealthRow,
 } from '@/lib/insights/types';
@@ -44,11 +33,6 @@ function md(p: Partial<ModelDailyRow> & Pick<ModelDailyRow, 'date' | 'source' | 
     turns: 0, tool_calls: 0, sessions: 0, active_minutes: 0, cost_usd: null, ...p,
   };
 }
-function pm(
-  p: Partial<ProjectModelDailyRow> & Pick<ProjectModelDailyRow, 'date' | 'project' | 'source' | 'model'>,
-): ProjectModelDailyRow {
-  return { tokens_total: 0, turns: 0, ...p };
-}
 function so(
   p: Partial<SessionOutcomeRow> &
     Pick<SessionOutcomeRow, 'session_id' | 'date' | 'kind' | 'outcome' | 'model' | 'project'>,
@@ -60,9 +44,6 @@ function pe(p: Partial<ProblemEventRow> & Pick<ProblemEventRow, 'signature' | 's
 }
 function sh(p: Partial<SystemHealthRow> & Pick<SystemHealthRow, 'date' | 'system'>): SystemHealthRow {
   return { checks: 0, ok: 0, amber: 0, red: 0, ...p };
-}
-function hr(p: Partial<HourlyRow> & Pick<HourlyRow, 'date' | 'hour' | 'source' | 'model'>): HourlyRow {
-  return { tokens: 0, ...p };
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -91,10 +72,6 @@ const OUTCOMES: SessionOutcomeRow[] = [
   so({ session_id: 'i8', date: '2026-07-12', kind: 'interactive', outcome: 'completed', model: 'claude-opus-4-8', project: 'p', friction: 0 }),
 ];
 
-const PROJECT_MODEL: ProjectModelDailyRow[] = [
-  pm({ date: TODAY, project: 'holden-alt/cc-dashboard', source: 'claude-code', model: 'claude-opus-4-8', tokens_total: 9000, turns: 9 }),
-  pm({ date: TODAY, project: 'unknown', source: 'claude-code', model: 'claude-fable-5', tokens_total: 3000, turns: 3 }),
-];
 
 const PROBLEMS: ProblemEventRow[] = [
   pe({ signature: 'api-socket-closed', session_id: 'i2', date: TODAY, description: 'socket closed mid session' }),
@@ -109,11 +86,6 @@ const HEALTH: SystemHealthRow[] = [
   sh({ date: '2026-07-22', system: 'HoldenGR videos', checks: 48, ok: 46, amber: 2, red: 0 }),
 ];
 
-const HOURLY: HourlyRow[] = [
-  hr({ date: TODAY, hour: 14, source: 'claude-code', model: 'claude-opus-4-8', tokens: 5000 }),
-  hr({ date: TODAY, hour: 14, source: 'codex', model: 'gpt-5.6-sol', tokens: 1000 }),
-  hr({ date: TODAY, hour: 15, source: 'claude-code', model: 'claude-opus-4-8', tokens: 3000 }),
-];
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 describe('primitives', () => {
@@ -238,89 +210,6 @@ describe('buildSystemsBoard', () => {
   });
 });
 
-// ── Projects (token-only + outcome tint) ──────────────────────────────────────
-describe('buildProjectRows', () => {
-  const rows = buildProjectRows(PROJECT_MODEL, OUTCOMES, TODAY, 30);
-  it('ranks by tokens and tints with interactive outcomes', () => {
-    expect(rows[0]!.project).toBe('holden-alt/cc-dashboard');
-    expect(rows[0]!.tokens).toBe(9000);
-    expect(rows[0]!.completed).toBe(1);
-    expect(rows[0]!.blocked).toBe(1);
-    expect(rows[0]!.models[0]!.model).toBe('claude-opus-4-8');
-  });
-});
-
-// ── Trend + hourly (unchanged) ────────────────────────────────────────────────
-describe('trend + hourly', () => {
-  it('buildTrend groups by vendor (anthropic first), then by tokens, with fixed colors', () => {
-    const { models, points } = buildTrend(MODEL_DAILY);
-    expect(models.map((m) => m.model)).toEqual(['claude-opus-4-8', 'claude-fable-5', 'gpt-5.6-sol']);
-    expect(models.map((m) => m.vendor)).toEqual(['anthropic', 'anthropic', 'openai']);
-    expect(models[0]!.color).toBe('#9c5a1e');
-    expect(models[2]!.color).toBe('#4f8ff7');
-    // per-day cells carry every measure
-    const today = points.find((p) => p.date === TODAY)!;
-    expect(today.models['claude-opus-4-8']).toEqual({ tokens: 10000, output: 800, turns: 0, minutes: 120 });
-    expect(today.models['gpt-5.6-sol']!.output).toBe(1500); // output + reasoning
-  });
-  it('pickSeries keeps every vendor visible and returns stack order', () => {
-    const m = (model: string, vendor: 'anthropic' | 'openai' | 'xai', total: number) =>
-      ({ model, source: vendor, vendor, total, color: '#000' });
-    const models = [
-      m('a1', 'anthropic', 100), m('a2', 'anthropic', 90), m('o1', 'openai', 80),
-      m('a3', 'anthropic', 70), m('x1', 'xai', 5), m('x2', 'xai', 2), m('o2', 'openai', 1),
-    ];
-    const { top, fold } = pickSeries(models, 3);
-    // top-3 by tokens are a1, a2, o1; xAI's biggest is pulled in so the grey band exists
-    expect(top.map((t) => t.model)).toEqual(['a1', 'a2', 'o1', 'x1']);
-    expect([...fold].sort()).toEqual(['a3', 'o2', 'x2']);
-  });
-  it('bucketTrend anchors weekly buckets at the END of the window (last bucket is a full week)', () => {
-    const { points } = buildTrend(MODEL_DAILY);
-    const rows = bucketTrend(points, {
-      today: TODAY, days: 91, weekly: true, measure: 'tokens', share: false,
-      series: ['claude-opus-4-8', 'gpt-5.6-sol'], fold: new Set(['claude-fable-5']),
-    });
-    // data starts at YESTERDAY, so one bucket, labeled by its end date = today
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.date).toBe(TODAY);
-    expect(rows[0]!['claude-opus-4-8']).toBe(15000);
-    expect(rows[0]!.__other).toBe(3000);
-    expect(rows[0]!.__totalAbs).toBe(15000 + 3500 + 3000);
-  });
-  it('bucketTrend daily rows are calendar-complete and share mode sums to 100', () => {
-    const { points } = buildTrend(MODEL_DAILY);
-    const rows = bucketTrend(points, {
-      today: TODAY, days: 7, weekly: false, measure: 'minutes', share: true,
-      series: ['claude-opus-4-8', 'claude-fable-5', 'gpt-5.6-sol'], fold: new Set(),
-    });
-    expect(rows).toHaveLength(2); // clamped to the earliest data day
-    expect(rows.map((r) => r.date)).toEqual([YESTERDAY, TODAY]);
-    const t = rows[1]!;
-    const sum = (t['claude-opus-4-8'] as number) + (t['claude-fable-5'] as number) + (t['gpt-5.6-sol'] as number);
-    expect(sum).toBeCloseTo(100);
-    expect(t.__totalAbs).toBe(210);
-  });
-  it('bucketTrend labels buckets so that the offset from today is a multiple of 7', () => {
-    const pts = [
-      { date: '2026-06-01', models: { m: { tokens: 1, output: 0, turns: 0, minutes: 0 } } },
-      { date: TODAY, models: { m: { tokens: 1, output: 0, turns: 0, minutes: 0 } } },
-    ];
-    const rows = bucketTrend(pts, { today: TODAY, days: 91, weekly: true, measure: 'tokens', share: false, series: ['m'], fold: new Set() });
-    for (const r of rows) expect(daysBetween(r.date as string, TODAY) % 7).toBe(0);
-    expect(rows[rows.length - 1]!.date).toBe(TODAY);
-    // 06-01 → 07-23 is 52 days: buckets 0..7 (the window clamps to the first data day)
-    expect(rows.length).toBe(8);
-  });
-  it('hourly heatmap sums by dow×hour', () => {
-    const agg = buildHourlyAgg(HOURLY);
-    const { matrix, total } = buildHeatmapMatrix(agg, TODAY, 7, null);
-    const dow = dowMonFirst(TODAY);
-    expect(total).toBe(9000);
-    expect(matrix[dow]![14]).toBe(6000);
-  });
-});
-
 // ── Callouts ──────────────────────────────────────────────────────────────────
 describe('buildCallouts', () => {
   const lines = buildCallouts(MODEL_DAILY, OUTCOMES, PROBLEMS, HEALTH, TODAY);
@@ -337,7 +226,7 @@ describe('buildCallouts', () => {
 });
 
 // ── Records + efficiency (added 2026-08-04 with the usage-station build) ──────
-import { buildDayRankings, buildEfficiency, buildRecords } from '@/lib/insights/compute';
+import { buildDayRankings, buildRecords } from '@/lib/insights/compute';
 import type { HistoryDayRow } from '@/lib/insights/types';
 
 const hist = (date: string, tokens: number): HistoryDayRow => ({ date, tokens_total: tokens, sessions: null });
@@ -410,36 +299,6 @@ describe('buildRecords', () => {
   });
 });
 
-describe('buildShips', () => {
-  const ship = (date: string, repo: string, commits: number): RepoShipsRow => ({
-    date, repo, commits, insertions: 0, deletions: 0, files_changed: 0,
-  });
-  const rows = [
-    ship('2026-07-10', 'a/one', 5), // outside 7d, inside 30d
-    ship(YESTERDAY, 'a/one', 3),
-    ship(YESTERDAY, 'b/two', 1),
-    ship(TODAY, 'a/one', 2),
-  ];
-  it('buckets daily and ranks repos', () => {
-    const d = buildShips(rows, TODAY, 7, false);
-    expect(d.commits).toBe(6);
-    expect(d.repoCount).toBe(2);
-    expect(d.perDay).toBe(3); // 6 commits over 2 active days
-    expect(d.weekly).toHaveLength(7);
-    expect(d.weekly[d.weekly.length - 1]).toEqual({ date: TODAY, commits: 2, repos: 1 });
-    expect(d.repos[0]).toEqual({ repo: 'a/one', commits: 5, days: 2, last: TODAY });
-  });
-  it('buckets weekly with end-anchored labels', () => {
-    const d = buildShips(rows, TODAY, 91, true);
-    expect(d.commits).toBe(11);
-    expect(d.weekly).toHaveLength(13);
-    expect(d.weekly[d.weekly.length - 1]!.date).toBe(TODAY);
-    expect(d.weekly[d.weekly.length - 1]!.commits).toBe(6);
-    const wk = d.weekly.find((w) => w.commits === 5)!;
-    expect(daysBetween(wk.date, TODAY) % 7).toBe(0);
-  });
-});
-
 describe('canonicalProject', () => {
   it('folds worktrees onto their base project when known', () => {
     const known = ['richardsonappliedai/richardsonapplied-brain', 'brain'];
@@ -450,20 +309,6 @@ describe('canonicalProject', () => {
   it('buckets codex scratch folders and leaves real projects alone', () => {
     expect(canonicalProject('Documents/Codex/2026-08-25/referenced-chatgpt-conversation')).toBe(CODEX_SCRATCH);
     expect(canonicalProject('holden-alt/cc-dashboard')).toBe('holden-alt/cc-dashboard');
-  });
-  it('buildProjectRows merges worktree tokens into the base project', () => {
-    const rows = buildProjectRows(
-      [
-        pm({ date: TODAY, project: 'org/repo', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 100, turns: 1 }),
-        pm({ date: TODAY, project: '.codex/worktrees/abcd/repo', source: 'codex', model: 'gpt-5.6-sol', tokens_total: 50, turns: 1 }),
-      ],
-      [],
-      TODAY,
-      7,
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.project).toBe('org/repo');
-    expect(rows[0]!.tokens).toBe(150);
   });
 });
 
@@ -487,37 +332,5 @@ describe('buildDayRankings', () => {
     const ranked = buildDayRankings(rows);
     expect(ranked.map((d) => d.date)).toEqual(['2026-07-18', '2026-07-19', '2026-07-20']);
     expect(ranked[0]).toEqual(buildRecords(rows, TODAY).bestDay);
-  });
-});
-
-describe('buildEfficiency', () => {
-  const rowsEff: ModelDailyRow[] = [
-    md({ date: YESTERDAY, source: 'claude-code', model: 'claude-fable-5',
-         input_tokens: 100, cache_read_tokens: 800, cache_create_tokens: 100,
-         output_tokens: 50, turns: 10, tool_calls: 30 }),
-    md({ date: YESTERDAY, source: 'claude-code', model: 'claude-haiku-4-5',
-         input_tokens: 100, cache_read_tokens: 0, cache_create_tokens: 0,
-         output_tokens: 950, turns: 10, tool_calls: 10 }),
-    // approx rows carry no class/turn detail and must be excluded
-    md({ date: YESTERDAY, source: 'claude-code', model: 'approx-history',
-         cache_read_tokens: 5_000_000, approx: true } as Partial<ModelDailyRow> & Pick<ModelDailyRow, 'date' | 'source' | 'model'>),
-  ];
-  const eff = buildEfficiency(rowsEff, TODAY, 7);
-
-  it('aggregates per date+source, excluding approx rows', () => {
-    expect(eff).toHaveLength(1);
-    const p = eff[0]!;
-    expect(p.source).toBe('claude-code');
-    // cache rate = 800 / (200 input + 800 read + 100 create)
-    expect(p.cacheRate).toBeCloseTo(800 / 1100);
-    // tokens/turn = all-classes total 2100 / 20 turns
-    expect(p.tokensPerTurn).toBeCloseTo(2100 / 20);
-    expect(p.toolCallsPerTurn).toBeCloseTo(40 / 20);
-  });
-  it('nulls metrics when turns are zero', () => {
-    const noTurns = buildEfficiency(
-      [md({ date: YESTERDAY, source: 'grok', model: 'g', input_tokens: 100 })], TODAY, 7);
-    expect(noTurns[0]!.tokensPerTurn).toBeNull();
-    expect(noTurns[0]!.cacheRate).toBeCloseTo(0);
   });
 });

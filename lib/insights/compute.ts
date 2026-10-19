@@ -1,33 +1,37 @@
-import { modelColor, VENDOR_ORDER, vendorOf } from './colors';
+import { modelColor, modelLabel, OTHER_COLOR, VENDOR_ORDER, vendorOf } from './colors';
 import {
   TASK_OUTCOMES,
-  type EfficiencyPoint,
+  type ActiveWeek,
+  type ClockWeek,
+  type Grain,
   type EffectivenessRow,
   type HistoryDayRow,
-  type Measure,
   type Milestone,
   type OdometerPoint,
   type RecordsData,
   type RepoShipsRow,
-  type ShipsData,
-  type HourlyAgg,
   type HourlyRow,
   type ModelDailyRow,
-  type ModelMeta,
+  type ModelRank,
+  type ModelSeries,
+  type ModelWeeks,
+  type ProjectLane,
+  type ProjectLanes,
   type OutcomeTrendPoint,
   type PlansData,
   type ProblemEventRow,
   type ProblemRow,
   type ProjectModelDailyRow,
-  type ProjectRow,
   type RankedDay,
+  type ShareWindow,
+  type Showdown,
   type SessionListItem,
   type SessionOutcomeRow,
   type SystemHealthRow,
   type SystemRow,
   type TodaySummary,
-  type TrendCell,
-  type TrendPoint,
+  type VendorDay,
+  type VendorPoint,
 } from './types';
 
 const TASK_SET = new Set<string>(TASK_OUTCOMES); // completed/partial/blocked/abandoned
@@ -178,92 +182,9 @@ export function buildTodaySummary(
 }
 
 // ── Model-mix trend (stacked by model, grouped by vendor) ───────────────────
-const EMPTY_CELL = (): TrendCell => ({ tokens: 0, output: 0, turns: 0, minutes: 0 });
 
-export function buildTrend(modelDaily: ModelDailyRow[]): {
-  points: TrendPoint[];
-  models: ModelMeta[];
-} {
-  const byDate = new Map<string, Record<string, TrendCell>>();
-  // model → total tokens, and model → (source → tokens) so we can pick the
-  // dominant source for a model name that appears under more than one source.
-  const modelTotals = new Map<string, number>();
-  const modelSources = new Map<string, Map<string, number>>();
 
-  for (const r of modelDaily) {
-    const tok = totalTokens(r);
-    const day = byDate.get(r.date) ?? {};
-    const cell = day[r.model] ?? EMPTY_CELL();
-    cell.tokens += tok;
-    cell.output += n(r.output_tokens) + n(r.reasoning_tokens);
-    cell.turns += n(r.turns);
-    cell.minutes += n(r.active_minutes);
-    day[r.model] = cell;
-    byDate.set(r.date, day);
 
-    modelTotals.set(r.model, (modelTotals.get(r.model) ?? 0) + tok);
-    const srcMap = modelSources.get(r.model) ?? new Map<string, number>();
-    srcMap.set(r.source, (srcMap.get(r.source) ?? 0) + tok);
-    modelSources.set(r.model, srcMap);
-  }
-
-  const dominantSource = (model: string): string => {
-    const srcMap = modelSources.get(model);
-    if (!srcMap) return '';
-    let best = '';
-    let bestTok = -1;
-    for (const [src, tok] of srcMap) {
-      if (tok > bestTok) {
-        bestTok = tok;
-        best = src;
-      }
-    }
-    return best;
-  };
-
-  // Vendor bands first (Anthropic at the bottom of the stack), biggest model
-  // first within a band. Colors are fixed per model — never per rank.
-  const models: ModelMeta[] = [...modelTotals.entries()]
-    .map(([model, total]) => {
-      const source = dominantSource(model);
-      const vendor = vendorOf(model, source);
-      return { model, source, vendor, total, color: modelColor(model, source) };
-    })
-    .sort(byVendorThenTotal);
-
-  const points: TrendPoint[] = [...byDate.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([date, models]) => ({ date, models }));
-
-  return { points, models };
-}
-
-export function byVendorThenTotal(a: ModelMeta, b: ModelMeta): number {
-  const va = VENDOR_ORDER.indexOf(a.vendor);
-  const vb = VENDOR_ORDER.indexOf(b.vendor);
-  return va - vb || b.total - a.total;
-}
-
-/**
- * Which models get their own layer. The top `max` by tokens, plus the biggest
- * model of any vendor that would otherwise vanish into "other" — so a small
- * xAI or Moonshot share still shows as its own (grey / violet) band instead
- * of being invisible. Result is in stack order (vendor bands, biggest first).
- */
-export function pickSeries(models: ModelMeta[], max: number): { top: ModelMeta[]; fold: Set<string> } {
-  const byTotal = [...models].sort((a, b) => b.total - a.total);
-  const chosen = byTotal.slice(0, max);
-  const seen = new Set(chosen.map((m) => m.vendor));
-  for (const m of byTotal.slice(max)) {
-    if (m.total <= 0 || seen.has(m.vendor)) continue;
-    chosen.push(m);
-    seen.add(m.vendor);
-  }
-  const top = chosen.sort(byVendorThenTotal);
-  const topSet = new Set(top.map((m) => m.model));
-  const fold = new Set(models.filter((m) => !topSet.has(m.model)).map((m) => m.model));
-  return { top, fold };
-}
 
 /** Whole days from `a` to `b` (b - a). */
 export function daysBetween(a: string, b: string): number {
@@ -272,64 +193,6 @@ export function daysBetween(a: string, b: string): number {
 
 export type BucketRow = Record<string, number | string>;
 
-/**
- * Calendar-complete, zero-filled rows for the stacked chart. Buckets are
- * anchored at the END of the window so the last bucket is always a full week
- * (start-anchored buckets left a 1–6 day stub at the right edge that read as a
- * collapse). Rows are labeled by their end date, so the rightmost point is
- * always today. Share mode normalizes each row to percentages; the raw total
- * stays on __totalAbs for the tooltip footer.
- */
-export function bucketTrend(
-  points: TrendPoint[],
-  opts: {
-    today: string;
-    days: number;
-    weekly: boolean;
-    measure: Measure;
-    share: boolean;
-    series: string[]; // models kept as their own layer
-    fold: Set<string>; // models folded into __other
-  },
-): BucketRow[] {
-  const { today, days, weekly, measure, share, series, fold } = opts;
-  const earliest = points[0]?.date; // points are sorted ascending upstream
-  let start = windowStart(today, days);
-  if (earliest && earliest > start) start = earliest;
-
-  const keys = [...series, ...(fold.size ? ['__other'] : [])];
-  const keep = new Set(series);
-  const byDate = new Map(points.map((p) => [p.date, p.models]));
-
-  const rows = new Map<string, BucketRow>();
-  let d = start;
-  while (d <= today) {
-    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(d, today) / 7)) : d;
-    let row = rows.get(label);
-    if (!row) {
-      row = { date: label };
-      for (const k of keys) row[k] = 0;
-      rows.set(label, row);
-    }
-    const dayModels = byDate.get(d) ?? {};
-    for (const [model, cell] of Object.entries(dayModels)) {
-      const k = keep.has(model) ? model : fold.has(model) ? '__other' : null;
-      if (!k) continue;
-      row[k] = ((row[k] as number) ?? 0) + cell[measure];
-    }
-    d = addDays(d, 1);
-  }
-
-  const out = [...rows.values()].sort((a, b) => ((a.date as string) < (b.date as string) ? -1 : 1));
-  for (const row of out) {
-    const total = keys.reduce((acc, k) => acc + ((row[k] as number) || 0), 0);
-    row.__totalAbs = total;
-    if (share && total > 0) {
-      for (const k of keys) row[k] = (((row[k] as number) || 0) / total) * 100;
-    }
-  }
-  return out;
-}
 
 // ── Records / odometer (full-history daily_stats) ────────────────────────────
 const MILESTONES_B = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -451,53 +314,6 @@ export function buildRecords(history: HistoryDayRow[], today: string): RecordsDa
   };
 }
 
-// ── Ships (git commits from repo_ships_daily) ────────────────────────────────
-export function buildShips(rows: RepoShipsRow[], today: string, days: number, weekly: boolean): ShipsData {
-  const inWin = rows.filter((r) => inWindow(r.date, today, days) && n(r.commits) > 0);
-
-  // Weekly buckets are end-anchored like the trend (last bucket = full week).
-  const buckets = new Map<string, { commits: number; repos: Set<string> }>();
-  let d = windowStart(today, days);
-  while (d <= today) {
-    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(d, today) / 7)) : d;
-    if (!buckets.has(label)) buckets.set(label, { commits: 0, repos: new Set() });
-    d = addDays(d, 1);
-  }
-  for (const r of inWin) {
-    const label = weekly ? addDays(today, -7 * Math.floor(daysBetween(r.date, today) / 7)) : r.date;
-    const b = buckets.get(label);
-    if (!b) continue;
-    b.commits += n(r.commits);
-    b.repos.add(r.repo);
-  }
-  const weeklyRows = [...buckets.entries()]
-    .map(([date, b]) => ({ date, commits: b.commits, repos: b.repos.size }))
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  const byRepo = new Map<string, { commits: number; days: Set<string>; last: string }>();
-  const activeDays = new Set<string>();
-  let commits = 0;
-  for (const r of inWin) {
-    const a = byRepo.get(r.repo) ?? { commits: 0, days: new Set<string>(), last: r.date };
-    a.commits += n(r.commits);
-    a.days.add(r.date);
-    if (r.date > a.last) a.last = r.date;
-    byRepo.set(r.repo, a);
-    activeDays.add(r.date);
-    commits += n(r.commits);
-  }
-  const repos = [...byRepo.entries()]
-    .map(([repo, a]) => ({ repo, commits: a.commits, days: a.days.size, last: a.last }))
-    .sort((a, b) => b.commits - a.commits || (a.last < b.last ? 1 : -1));
-
-  return {
-    weekly: weeklyRows,
-    repos,
-    commits,
-    repoCount: byRepo.size,
-    perDay: activeDays.size ? commits / activeDays.size : 0,
-  };
-}
 
 /** Every active day ranked by tokens, biggest first. Ties break to the earlier
  *  date so rank #1 is always the same day buildRecords reports as bestDay. */
@@ -508,43 +324,6 @@ export function buildDayRankings(history: HistoryDayRow[]): RankedDay[] {
     .sort((a, b) => b.tokens - a.tokens || (a.date < b.date ? -1 : 1));
 }
 
-// ── Efficiency trends (how the tokens behave) ────────────────────────────────
-// Derived only from REAL (non-approx) rows — restored history carries day totals
-// but no class/turn split, so these series simply start where the detail starts.
-export function buildEfficiency(
-  modelDaily: ModelDailyRow[],
-  today: string,
-  days: number,
-): EfficiencyPoint[] {
-  type Acc = { input: number; read: number; create: number; total: number; turns: number; tools: number };
-  const acc = new Map<string, Acc>(); // "date|source"
-  for (const r of modelDaily) {
-    if (r.approx) continue;
-    if (!inWindow(r.date, today, days)) continue;
-    const key = r.date + '|' + r.source;
-    const a = acc.get(key) ?? { input: 0, read: 0, create: 0, total: 0, turns: 0, tools: 0 };
-    a.input += n(r.input_tokens);
-    a.read += n(r.cache_read_tokens);
-    a.create += n(r.cache_create_tokens);
-    a.total += totalTokens(r);
-    a.turns += n(r.turns);
-    a.tools += n(r.tool_calls);
-    acc.set(key, a);
-  }
-  const out: EfficiencyPoint[] = [];
-  for (const [key, a] of acc) {
-    const [date, source] = key.split('|') as [string, string];
-    const inputAll = a.input + a.read + a.create;
-    out.push({
-      date,
-      source,
-      cacheRate: inputAll > 0 ? a.read / inputAll : null,
-      tokensPerTurn: a.turns > 0 ? a.total / a.turns : null,
-      toolCallsPerTurn: a.turns > 0 ? a.tools / a.turns : null,
-    });
-  }
-  return out.sort((x, y) => (x.date < y.date ? -1 : 1));
-}
 
 // ── Model effectiveness (interactive outcomes + usage anchor) ─────────────────
 // "Which models work for me": per model over a window, using INTERACTIVE task
@@ -618,46 +397,13 @@ export function buildModelEffectiveness(
   return rows.sort((x, y) => y.sessions - x.sessions || y.tokens - x.tokens);
 }
 
-// ── Hourly heatmap ────────────────────────────────────────────────────────────
-/** Collapse llm_hourly over models → one row per (date, hour, source). */
-export function buildHourlyAgg(hourly: HourlyRow[]): HourlyAgg[] {
-  const map = new Map<string, HourlyAgg>();
-  for (const r of hourly) {
-    const key = r.date + '|' + r.hour + '|' + r.source;
-    const cur = map.get(key) ?? { date: r.date, hour: n(r.hour), source: r.source, tokens: 0 };
-    cur.tokens += n(r.tokens);
-    map.set(key, cur);
-  }
-  return [...map.values()];
-}
 
-/** 7×24 (Mon-first dow × hour) token-intensity matrix over a window, optional source filter. */
-export function buildHeatmapMatrix(
-  agg: HourlyAgg[],
-  today: string,
-  days: number,
-  source?: string | null,
-): { matrix: number[][]; max: number; total: number } {
-  const matrix: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
-  let max = 0;
-  let total = 0;
-  for (const r of agg) {
-    if (!inWindow(r.date, today, days)) continue;
-    if (source && r.source !== source) continue;
-    const dow = dowMonFirst(r.date);
-    const h = Math.min(23, Math.max(0, r.hour));
-    const rowM = matrix[dow];
-    if (!rowM) continue;
-    const next = (rowM[h] ?? 0) + r.tokens;
-    rowM[h] = next;
-    total += r.tokens;
-    if (next > max) max = next;
-  }
-  return { matrix, max, total };
-}
 
 // ── Project breakdown (token-only + interactive outcome tint) ─────────────────
 const WORKTREE_RE = /^\.(?:codex|claude)\/worktrees\/[^/]+\//;
+// A worktree inside a project ('watch-desk/.claude/worktrees/agent-a74b…') is
+// that project's work, not a project of its own.
+const NESTED_WORKTREE_RE = /\/\.(?:codex|claude)\/worktrees\/[^/]+(?:\/.*)?$/;
 const CODEX_SCRATCH_RE = /^Documents\/Codex\/\d{4}-\d{2}-\d{2}\//;
 export const CODEX_SCRATCH = 'codex · scratch';
 
@@ -670,6 +416,8 @@ export const CODEX_SCRATCH = 'codex · scratch';
  */
 export function canonicalProject(project: string, known?: Iterable<string>): string {
   if (CODEX_SCRATCH_RE.test(project)) return CODEX_SCRATCH;
+  const nested = project.replace(NESTED_WORKTREE_RE, '');
+  if (nested !== project) return nested;
   if (!WORKTREE_RE.test(project)) return project;
   const stripped = project.replace(WORKTREE_RE, '');
   if (known) {
@@ -684,60 +432,6 @@ export function canonicalProject(project: string, known?: Iterable<string>): str
   return stripped;
 }
 
-export function buildProjectRows(
-  projectModel: ProjectModelDailyRow[],
-  outcomes: SessionOutcomeRow[],
-  today: string,
-  days: number,
-): ProjectRow[] {
-  type Acc = { tokens: number; turns: number; models: Map<string, { source: string; tokens: number }> };
-  const byProject = new Map<string, Acc>();
-  const known = new Set<string>();
-  for (const pm of projectModel) {
-    if (!inWindow(pm.date, today, days)) continue;
-    if (!WORKTREE_RE.test(pm.project) && !CODEX_SCRATCH_RE.test(pm.project)) known.add(pm.project);
-  }
-  for (const pm of projectModel) {
-    if (!inWindow(pm.date, today, days)) continue;
-    const project = canonicalProject(pm.project, known);
-    const acc = byProject.get(project) ?? { tokens: 0, turns: 0, models: new Map() };
-    const tok = n(pm.tokens_total);
-    acc.tokens += tok;
-    acc.turns += n(pm.turns);
-    const m = acc.models.get(pm.model) ?? { source: pm.source, tokens: 0 };
-    m.tokens += tok;
-    acc.models.set(pm.model, m);
-    byProject.set(project, acc);
-  }
-
-  // Interactive outcome tint per project.
-  const outByProject = new Map<string, { completed: number; blocked: number }>();
-  for (const o of outcomes) {
-    if (o.kind !== 'interactive') continue;
-    if (!inWindow(o.date, today, days)) continue;
-    const cur = outByProject.get(o.project) ?? { completed: 0, blocked: 0 };
-    if (o.outcome === 'completed') cur.completed++;
-    else if (o.outcome === 'blocked') cur.blocked++;
-    outByProject.set(o.project, cur);
-  }
-
-  const rows: ProjectRow[] = [...byProject.entries()].map(([project, acc]) => {
-    const out = outByProject.get(project) ?? { completed: 0, blocked: 0 };
-    const models = [...acc.models.entries()]
-      .map(([model, v]) => ({ model, source: v.source, tokens: v.tokens }))
-      .sort((a, b) => b.tokens - a.tokens);
-    return {
-      project,
-      tokens: acc.tokens,
-      turns: acc.turns,
-      completed: out.completed,
-      blocked: out.blocked,
-      models,
-    };
-  });
-
-  return rows.sort((a, b) => b.tokens - a.tokens);
-}
 
 // ── Plans & sessions (interactive outcomes) ───────────────────────────────────
 /** Interactive TASK completion rate over an inclusive [start, end] date range. */
@@ -1002,4 +696,418 @@ export function buildCallouts(
   }
 
   return out.slice(0, 5);
+}
+
+// ── Overview: Claude vs. Codex, all-time ──────────────────────────────────────
+// The station's headline question is "how much am I using each tool". These read
+// the FULL llm_model_daily history (restored early days included: they are
+// Claude-only day totals under 'approx-history') and split every token by vendor.
+
+/** Full history as calendar days split by tool, zero-filled from the first
+ *  recorded day through `today`. */
+export function buildVendorDays(rows: ModelDailyRow[], today: string): VendorDay[] {
+  const byDate = new Map<string, VendorDay>();
+  let first: string | null = null;
+  for (const r of rows) {
+    if (r.date > today) continue;
+    const t = totalTokens(r);
+    if (t <= 0) continue;
+    if (first === null || r.date < first) first = r.date;
+    const day = byDate.get(r.date) ?? { date: r.date, claude: 0, codex: 0, other: 0 };
+    const vendor = vendorOf(r.model, r.source);
+    if (vendor === 'anthropic') day.claude += t;
+    else if (vendor === 'openai') day.codex += t;
+    else day.other += t;
+    byDate.set(r.date, day);
+  }
+  if (first === null) return [];
+  const out: VendorDay[] = [];
+  for (let d = first; d <= today; d = addDays(d, 1)) {
+    out.push(byDate.get(d) ?? { date: d, claude: 0, codex: 0, other: 0 });
+  }
+  return out;
+}
+
+function shareOf(claude: number, codex: number): number | null {
+  const both = claude + codex;
+  return both > 0 ? codex / both : null;
+}
+
+/** Bucket start for a day: itself, its Monday, or the 1st of its month. */
+function bucketStart(date: string, grain: Grain): string {
+  if (grain === 'day') return date;
+  if (grain === 'week') return addDays(date, -dowMonFirst(date));
+  return date.slice(0, 8) + '01';
+}
+
+/** Sum VendorDays into days, Monday-start weeks, or calendar months. The last
+ *  bucket is flagged partial when its week/month has not finished yet. */
+export function bucketVendorDays(days: VendorDay[], grain: Grain): VendorPoint[] {
+  const out: VendorPoint[] = [];
+  for (const d of days) {
+    const start = bucketStart(d.date, grain);
+    let b = out[out.length - 1];
+    if (!b || b.start !== start) {
+      b = { start, end: d.date, claude: 0, codex: 0, other: 0, total: 0, codexShare: null, partial: false };
+      out.push(b);
+    }
+    b.end = d.date;
+    b.claude += d.claude;
+    b.codex += d.codex;
+    b.other += d.other;
+    b.total += d.claude + d.codex + d.other;
+  }
+  for (const b of out) b.codexShare = shareOf(b.claude, b.codex);
+  const last = out[out.length - 1];
+  if (last && grain !== 'day') {
+    const fullEnd =
+      grain === 'week'
+        ? addDays(last.start, 6)
+        : addDays(addDays(last.start, 32).slice(0, 8) + '01', -1); // last day of month
+    last.partial = last.end < fullEnd;
+  }
+  return out;
+}
+
+export const SHARE_WINDOW_DAYS: Record<Exclude<ShareWindow, 'all'>, number> = { '7d': 7, '30d': 30, '90d': 90 };
+
+/** Claude vs. Codex over a trailing window (or all time). */
+export function buildShowdown(days: VendorDay[], today: string, window: ShareWindow): Showdown {
+  let claude = 0;
+  let codex = 0;
+  for (const d of days) {
+    if (window !== 'all' && !inWindow(d.date, today, SHARE_WINDOW_DAYS[window])) continue;
+    claude += d.claude;
+    codex += d.codex;
+  }
+  const codexShare = shareOf(claude, codex);
+  let leader: Showdown['leader'] = null;
+  let ratio: number | null = null;
+  if (claude > 0 && codex > 0) {
+    const r = Math.max(claude, codex) / Math.min(claude, codex);
+    leader = r < 1.05 ? 'even' : claude > codex ? 'claude' : 'codex';
+    ratio = r;
+  } else if (claude > 0) leader = 'claude';
+  else if (codex > 0) leader = 'codex';
+  return { claude, codex, codexShare, leader, ratio };
+}
+
+/** Models ranked by tokens over a trailing window (null = all time). Restored
+ *  history keeps its honest unattributed label; the tail past `max` folds into
+ *  one grey "other models" bar so the ranking never needs a ninth hue. */
+export function buildModelRanking(
+  rows: ModelDailyRow[],
+  today: string,
+  days: number | null,
+  max = 8,
+): ModelRank[] {
+  const totals = new Map<string, { source: string; tokens: number }>();
+  let all = 0;
+  for (const r of rows) {
+    if (r.date > today) continue;
+    if (days !== null && !inWindow(r.date, today, days)) continue;
+    const t = totalTokens(r);
+    if (t <= 0) continue;
+    const cur = totals.get(r.model) ?? { source: r.source, tokens: 0 };
+    cur.tokens += t;
+    totals.set(r.model, cur);
+    all += t;
+  }
+  if (all === 0) return [];
+  const ranked = [...totals.entries()]
+    .map(([model, v]) => ({
+      model,
+      label: modelLabel(model, prettyModel),
+      vendor: vendorOf(model, v.source),
+      color: modelColor(model, v.source),
+      tokens: v.tokens,
+      share: v.tokens / all,
+    }))
+    .sort((a, b) => b.tokens - a.tokens || (a.model < b.model ? -1 : 1));
+  if (ranked.length <= max) return ranked;
+  const head = ranked.slice(0, max - 1);
+  const tail = ranked.slice(max - 1);
+  const tailTokens = tail.reduce((s, m) => s + m.tokens, 0);
+  return [
+    ...head,
+    {
+      model: 'other',
+      label: `${tail.length} other models`,
+      vendor: 'other',
+      color: OTHER_COLOR,
+      tokens: tailTokens,
+      share: tailTokens / all,
+    },
+  ];
+}
+
+// ── Detail: all-time views ────────────────────────────────────────────────────
+// Each answers "how has this changed since the first tracked day", so every one
+// buckets the full history into Monday-start weeks.
+
+/** Monday of the week containing `date`. */
+export function weekStart(date: string): string {
+  return addDays(date, -dowMonFirst(date));
+}
+
+/** Every Monday from the week of `first` through the week of `today`. */
+export function weeksThrough(first: string, today: string): string[] {
+  const out: string[] = [];
+  for (let w = weekStart(first); w <= today; w = addDays(w, 7)) out.push(w);
+  return out;
+}
+
+/** Weekly tokens for the biggest models (plus one 'other' series) and the full
+ *  all-time list. Stacks bottom-up by vendor, then in the order models arrived,
+ *  so the chart reads as a succession of model eras. */
+export function buildModelWeeks(rows: ModelDailyRow[], today: string, max = 9): ModelWeeks {
+  const meta = new Map<string, { source: string; total: number; first: string; last: string }>();
+  const byWeek = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (r.date > today) continue;
+    const t = totalTokens(r);
+    if (t <= 0) continue;
+    const m = meta.get(r.model) ?? { source: r.source, total: 0, first: r.date, last: r.date };
+    m.total += t;
+    if (r.date < m.first) m.first = r.date;
+    if (r.date > m.last) m.last = r.date;
+    meta.set(r.model, m);
+    const w = weekStart(r.date);
+    const cell = byWeek.get(w) ?? new Map<string, number>();
+    cell.set(r.model, (cell.get(r.model) ?? 0) + t);
+    byWeek.set(w, cell);
+  }
+  if (meta.size === 0) return { weeks: [], stack: [], list: [] };
+
+  const series = (model: string): ModelSeries => {
+    const m = meta.get(model)!;
+    return {
+      model,
+      label: modelLabel(model, prettyModel),
+      vendor: vendorOf(model, m.source),
+      color: modelColor(model, m.source),
+      total: m.total,
+      first: m.first,
+      last: m.last,
+    };
+  };
+  const list = [...meta.keys()].map(series).sort((a, b) => b.total - a.total || (a.model < b.model ? -1 : 1));
+  const shown = list.length > max ? list.slice(0, max) : list;
+  const shownSet = new Set(shown.map((m) => m.model));
+  const tail = list.filter((m) => !shownSet.has(m.model));
+  const vendorRank = (v: string) => VENDOR_ORDER.indexOf(v as never);
+  const stack = [...shown].sort(
+    (a, b) => vendorRank(a.vendor) - vendorRank(b.vendor) || (a.first < b.first ? -1 : a.first > b.first ? 1 : 0),
+  );
+  if (tail.length) {
+    stack.push({
+      model: 'other',
+      label: `${tail.length} other models`,
+      vendor: 'other',
+      color: OTHER_COLOR,
+      total: tail.reduce((sum, m) => sum + m.total, 0),
+      first: tail.reduce((d, m) => (m.first < d ? m.first : d), tail[0]!.first),
+      last: tail.reduce((d, m) => (m.last > d ? m.last : d), tail[0]!.last),
+    });
+  }
+
+  const firstDay = list.reduce((d, m) => (m.first < d ? m.first : d), list[0]!.first);
+  const weeks = weeksThrough(firstDay, today).map((start) => {
+    const cell = byWeek.get(start);
+    const values: Record<string, number> = {};
+    for (const m of stack) values[m.model] = 0;
+    if (cell) {
+      for (const [model, t] of cell) {
+        const key = shownSet.has(model) ? model : 'other';
+        values[key] = (values[key] ?? 0) + t;
+      }
+    }
+    return { start, partial: addDays(start, 6) > today, values };
+  });
+  return { weeks, stack, list };
+}
+
+/** The work-day axis starts here, so a 1 a.m. session sits under the evening
+ *  that led to it instead of wrapping back to the top of the chart. */
+export const WORKDAY_START_HOUR = 4;
+
+/** Clock hour (0–23) → position on the work-day axis (0–23). */
+export function workdayIndex(hour: number): number {
+  return (((hour - WORKDAY_START_HOUR) % 24) + 24) % 24;
+}
+
+/** Position on the work-day axis (fractional ok) → clock hour (0–24). */
+export function clockHourAt(index: number): number {
+  return (index + WORKDAY_START_HOUR) % 24;
+}
+
+/** Weekly tokens per hour of the day, per tool, all time. */
+export function buildWorkClock(hourly: HourlyRow[], today: string): ClockWeek[] {
+  let first: string | null = null;
+  for (const r of hourly) if (r.date <= today && r.tokens > 0 && (!first || r.date < first)) first = r.date;
+  if (!first) return [];
+  const weeks = weeksThrough(first, today).map((start) => ({
+    start,
+    claude: new Array<number>(24).fill(0),
+    codex: new Array<number>(24).fill(0),
+    other: new Array<number>(24).fill(0),
+  }));
+  const index = new Map(weeks.map((w, i) => [w.start, i]));
+  for (const r of hourly) {
+    if (r.date > today || r.tokens <= 0) continue;
+    const w = weeks[index.get(weekStart(r.date))!]!;
+    const vendor = vendorOf(r.model, r.source);
+    const lane = vendor === 'anthropic' ? w.claude : vendor === 'openai' ? w.codex : w.other;
+    lane[workdayIndex(r.hour)]! += r.tokens;
+  }
+  return weeks;
+}
+
+/** Token-weighted median position on the work-day axis — the point by which
+ *  half of the work was done. Null when nothing ran. */
+export function workdayMidpoint(cells: number[]): number | null {
+  const total = cells.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  const half = total / 2;
+  let cum = 0;
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i]!;
+    if (c > 0 && cum + c >= half) return i + (half - cum) / c;
+    cum += c;
+  }
+  return cells.length;
+}
+
+/** Your time per week: deep-work hours (from daily_stats), split by which
+ *  tools were running. The split comes from clock hours in llm_hourly — an hour
+ *  where both ran counts as "both" — applied to that week's deep work. Clock
+ *  hours alone overstate your time (any scheduled run lights an hour up), so
+ *  they set the split, not the height. */
+export function buildActiveHours(hourly: HourlyRow[], history: HistoryDayRow[], today: string): ActiveWeek[] {
+  const hours = new Map<string, { claude: boolean; codex: boolean; other: boolean }>();
+  let first: string | null = null;
+  for (const r of hourly) {
+    if (r.date > today || r.tokens <= 0) continue;
+    if (!first || r.date < first) first = r.date;
+    const key = `${r.date}|${r.hour}`;
+    const h = hours.get(key) ?? { claude: false, codex: false, other: false };
+    const vendor = vendorOf(r.model, r.source);
+    if (vendor === 'anthropic') h.claude = true;
+    else if (vendor === 'openai') h.codex = true;
+    else h.other = true;
+    hours.set(key, h);
+  }
+  for (const d of history) if (d.date <= today && n(d.deep_work_minutes) > 0 && (!first || d.date < first)) first = d.date;
+  if (!first) return [];
+
+  const weeks = weeksThrough(first, today).map((start) => {
+    const days = Math.min(7, daysBetween(start, today) + 1);
+    return { start, days, deep: 0, claudeOnly: 0, codexOnly: 0, both: 0, other: 0, running: 0, partial: days < 7 };
+  });
+  const index = new Map(weeks.map((w, i) => [w.start, i]));
+  for (const [key, h] of hours) {
+    const w = weeks[index.get(weekStart(key.slice(0, 10)))!]!;
+    if (h.claude && h.codex) w.both++;
+    else if (h.claude) w.claudeOnly++;
+    else if (h.codex) w.codexOnly++;
+    else w.other++;
+    w.running++;
+  }
+  for (const d of history) {
+    if (d.date > today) continue;
+    const i = index.get(weekStart(d.date));
+    if (i !== undefined) weeks[i]!.deep += n(d.deep_work_minutes) / 60;
+  }
+  return weeks.map((w) => {
+    const scale = w.running > 0 ? w.deep / w.running : 0;
+    return {
+      start: w.start,
+      days: w.days,
+      // A week with deep work but no hourly detail keeps its height as Claude
+      // (the only tool before hourly tracking began).
+      claudeOnly: w.running > 0 ? w.claudeOnly * scale : w.deep,
+      codexOnly: w.codexOnly * scale,
+      both: w.both * scale,
+      other: w.other * scale,
+      total: w.deep,
+      running: w.running,
+      partial: w.partial,
+    };
+  });
+}
+
+/** Short lane name: the last path segment, or the last two when that would
+ *  collide with another shown project. */
+function projectLabels(projects: string[]): Map<string, string> {
+  const base = (p: string, n: number) => {
+    if (p === '~') return 'home folder';
+    return p.split('/').filter(Boolean).slice(-n).join('/') || p;
+  };
+  const counts = new Map<string, number>();
+  for (const p of projects) counts.set(base(p, 1), (counts.get(base(p, 1)) ?? 0) + 1);
+  return new Map(projects.map((p) => [p, (counts.get(base(p, 1)) ?? 0) > 1 ? base(p, 2) : base(p, 1)]));
+}
+
+/** The biggest projects as weekly lanes, ordered by when each started, so the
+ *  chart reads as projects arriving, peaking, and fading. */
+export function buildProjectLanes(rows: ProjectModelDailyRow[], today: string, max = 14): ProjectLanes {
+  const known = new Set<string>();
+  for (const r of rows) if (!WORKTREE_RE.test(r.project) && !NESTED_WORKTREE_RE.test(r.project)) known.add(r.project);
+  type Acc = { total: number; first: string; last: string; weeks: Map<string, { claude: number; codex: number; other: number }> };
+  const acc = new Map<string, Acc>();
+  let firstDay: string | null = null;
+  for (const r of rows) {
+    const t = n(r.tokens_total);
+    if (r.date > today || t <= 0) continue;
+    if (!firstDay || r.date < firstDay) firstDay = r.date;
+    const project = canonicalProject(r.project, known);
+    const a = acc.get(project) ?? { total: 0, first: r.date, last: r.date, weeks: new Map() };
+    a.total += t;
+    if (r.date < a.first) a.first = r.date;
+    if (r.date > a.last) a.last = r.date;
+    const w = weekStart(r.date);
+    const cell = a.weeks.get(w) ?? { claude: 0, codex: 0, other: 0 };
+    const vendor = vendorOf(r.model, r.source);
+    if (vendor === 'anthropic') cell.claude += t;
+    else if (vendor === 'openai') cell.codex += t;
+    else cell.other += t;
+    a.weeks.set(w, cell);
+    acc.set(project, a);
+  }
+  if (!firstDay) return { weeks: [], lanes: [], maxCell: 0, rest: { count: 0, total: 0 } };
+
+  const weeks = weeksThrough(firstDay, today);
+  const ranked = [...acc.entries()].sort((a, b) => b[1].total - a[1].total || (a[0] < b[0] ? -1 : 1));
+  const shown = ranked.slice(0, max);
+  const labels = projectLabels(shown.map(([p]) => p));
+  let maxCell = 0;
+  const lanes: ProjectLane[] = shown
+    .map(([project, a]) => {
+      const cells = weeks.map((w) => a.weeks.get(w) ?? { claude: 0, codex: 0, other: 0 });
+      for (const c of cells) maxCell = Math.max(maxCell, c.claude + c.codex + c.other);
+      return { project, label: labels.get(project) ?? project, total: a.total, first: a.first, last: a.last, cells };
+    })
+    .sort((a, b) => (a.first < b.first ? -1 : a.first > b.first ? 1 : b.total - a.total));
+  const restRows = ranked.slice(max);
+  return {
+    weeks,
+    lanes,
+    maxCell,
+    rest: { count: restRows.length, total: restRows.reduce((sum, [, a]) => sum + a.total, 0) },
+  };
+}
+
+/** Average deep-work hours per day over a trailing window (null = since the
+ *  first tracked day). */
+export function deepWorkPerDay(history: HistoryDayRow[], today: string, days: number | null): number {
+  let minutes = 0;
+  let first: string | null = null;
+  for (const d of history) {
+    if (d.date > today) continue;
+    if (days !== null && !inWindow(d.date, today, days)) continue;
+    if (!first || d.date < first) first = d.date;
+    minutes += n(d.deep_work_minutes);
+  }
+  if (!first) return 0;
+  return minutes / 60 / (days ?? daysBetween(first, today) + 1);
 }

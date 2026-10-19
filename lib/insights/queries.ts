@@ -2,19 +2,22 @@ import type { DatabaseClient } from '@/lib/db/client';
 import { windowStart } from './compute';
 import type { HistoryDayRow, HourlyRow, ModelDailyRow, ProjectModelDailyRow, RepoShipsRow } from './types';
 
-// How far back each table is pulled. The page computes every window (7/30/90d)
-// client- and server-side from these bounded fetches. The weekly (90d) views
-// use 13 full weeks, so the model/project/ships pulls reach back 91 days.
-const MODEL_DAYS = 91;
-const PROJECT_DAYS = 91;
-const SHIPS_DAYS = 91;
-const HOURLY_DAYS = 30;
+// The station shows all-time views, so model, project, and hourly rows are read
+// in full (one person's history: hundreds to a few thousand rows each). Ships
+// only feed today's commit count.
+const SHIPS_DAYS = 7;
 
-// PostgREST caps result sets; request generously (30d hourly ≈ 24×N×models rows).
+// daily_stats is the multi-user leaderboard table; the station is one person's.
+// Its full-history read is pinned to this account so another user's days can
+// never land in the Lifetime board or the day rankings.
+export const STATION_HANDLE = 'holden-alt';
+
+// A safety cap, not a window: all-time hourly grows ~30 rows a day.
 const ROW_LIMIT = 50_000;
 
 export type InsightsBundle = {
   today: string;
+  /** FULL-history model rows. */
   modelDaily: ModelDailyRow[];
   projectModel: ProjectModelDailyRow[];
   hourly: HourlyRow[];
@@ -41,25 +44,29 @@ export async function getInsightsBundle(
   database: DatabaseClient,
   today: string,
 ): Promise<InsightsBundle> {
+  const { data: stationUser } = await database
+    .from('users')
+    .select('id')
+    .eq('github_handle', STATION_HANDLE)
+    .maybeSingle();
+  const stationUserId = (stationUser as { id?: string } | null)?.id ?? null;
+
   const [modelRes, projectRes, hourlyRes, shipsRes, historyRes] = await Promise.all([
     database
       .from('llm_model_daily')
       .select('*')
-      .gte('date', windowStart(today, MODEL_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
     database
       .from('llm_project_model_daily')
       .select('*')
-      .gte('date', windowStart(today, PROJECT_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
     database
       .from('llm_hourly')
       .select('*')
-      .gte('date', windowStart(today, HOURLY_DAYS))
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
@@ -70,12 +77,15 @@ export async function getInsightsBundle(
       .lte('date', today)
       .order('date', { ascending: true })
       .limit(ROW_LIMIT),
-    database
-      .from('daily_stats')
-      .select('date, tokens_total, sessions, deep_work_minutes, ships')
-      .lte('date', today)
-      .order('date', { ascending: true })
-      .limit(ROW_LIMIT),
+    stationUserId
+      ? database
+          .from('daily_stats')
+          .select('date, tokens_total, sessions, deep_work_minutes, ships')
+          .eq('user_id', stationUserId)
+          .lte('date', today)
+          .order('date', { ascending: true })
+          .limit(ROW_LIMIT)
+      : Promise.resolve({ data: [] as HistoryDayRow[] }),
   ]);
 
   const modelDaily = (modelRes.data ?? []) as ModelDailyRow[];

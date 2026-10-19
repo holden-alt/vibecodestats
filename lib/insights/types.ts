@@ -277,3 +277,118 @@ export type EfficiencyPoint = {
   tokensPerTurn: number | null; // all-classes tokens / turns
   toolCallsPerTurn: number | null;
 };
+
+// ── Overview: Claude vs. Codex, all-time (full-history llm_model_daily) ──────
+
+/** One calendar day split by tool. Claude = Anthropic models, Codex = OpenAI
+ *  models, other = everything else (Grok, Kimi). Zero-filled, so a day with no
+ *  usage is a real 0, not a gap. */
+export type VendorDay = { date: string; claude: number; codex: number; other: number };
+
+export type Grain = 'day' | 'week' | 'month';
+
+/** A day, Monday-start week, or calendar month of VendorDays, summed. */
+export type VendorPoint = {
+  /** First day of the bucket ('YYYY-MM-DD'). */
+  start: string;
+  /** Last day of the bucket that has happened yet. */
+  end: string;
+  claude: number;
+  codex: number;
+  other: number;
+  total: number;
+  /** Codex's share of Claude + Codex tokens, 0..1; null when neither ran. */
+  codexShare: number | null;
+  /** True for the bucket still in progress (this week / this month). */
+  partial: boolean;
+};
+
+export type ShareWindow = '7d' | '30d' | '90d' | 'all';
+
+/** "How much more am I using Codex than Claude?" for one window. */
+export type Showdown = {
+  claude: number;
+  codex: number;
+  /** Codex's share of Claude + Codex, 0..1; null when neither ran. */
+  codexShare: number | null;
+  leader: 'claude' | 'codex' | 'even' | null;
+  /** Leader's tokens ÷ the other's (≥ 1); null when only one tool ran. */
+  ratio: number | null;
+};
+
+/** One bar of the model ranking. */
+export type ModelRank = {
+  model: string;
+  label: string;
+  vendor: Vendor;
+  color: string;
+  tokens: number;
+  /** Share of all tokens in the window, 0..1. */
+  share: number;
+};
+
+// ── Detail: all-time views (models, hours, projects, time) ───────────────────
+
+/** One model line in the all-time models chart and its list. */
+export type ModelSeries = {
+  model: string;
+  label: string;
+  vendor: Vendor;
+  color: string;
+  total: number;
+  /** First and last day the model ran. */
+  first: string;
+  last: string;
+};
+
+/** Weekly tokens per stacked series (top models + 'other'), all time. */
+export type ModelWeeks = {
+  weeks: { start: string; partial: boolean; values: Record<string, number> }[];
+  /** Stack order, bottom to top: vendor, then the order models arrived. */
+  stack: ModelSeries[];
+  /** Every model ever used, biggest first — the all-time list. */
+  list: ModelSeries[];
+};
+
+/** Tokens per hour of the day for one week, per tool. Index 0 is the first
+ *  hour of the work day (WORKDAY_START_HOUR), so late nights stay attached to
+ *  the evening before instead of wrapping to the top. */
+export type ClockWeek = { start: string; claude: number[]; codex: number[]; other: number[] };
+
+/** One week of your time. `total` is deep-work hours (continuous activity,
+ *  breaks under 15 minutes keep a stretch going — the Lifetime board's
+ *  measure). It is split by which tools were running, in proportion to the
+ *  clock hours each combination ran that week. */
+export type ActiveWeek = {
+  start: string;
+  /** Calendar days the bucket covers so far (7 unless it is this week). */
+  days: number;
+  claudeOnly: number;
+  codexOnly: number;
+  both: number;
+  other: number;
+  total: number;
+  /** Clock hours with any AI running (scheduled runs included). */
+  running: number;
+  partial: boolean;
+};
+
+/** One project's weekly tokens, split by tool. */
+export type ProjectLane = {
+  project: string;
+  label: string;
+  total: number;
+  first: string;
+  last: string;
+  cells: { claude: number; codex: number; other: number }[];
+};
+
+export type ProjectLanes = {
+  /** Monday of every week, oldest first. */
+  weeks: string[];
+  lanes: ProjectLane[];
+  /** Largest single week of any shown project (dot-size scale). */
+  maxCell: number;
+  /** Everything not shown as a lane. */
+  rest: { count: number; total: number };
+};

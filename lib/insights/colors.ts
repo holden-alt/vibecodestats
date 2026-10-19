@@ -36,18 +36,26 @@ export const OTHER_COLOR = '#6b665f';
 // lightness so neighbours in a stack stay apart (OKLab ΔE ≥ ~9 for every pair
 // of models that carry real volume; the legend + tooltip carry the rest).
 const MODEL_COLORS: Record<string, string> = {
-  // anthropic — warm
-  'claude-fable-5': '#d97757', // hero orange
-  'claude-fable-5-1': '#f4a67e', // apricot — the successor glows lighter
-  'claude-opus-5': '#c0392b', // crimson
-  'claude-opus-4-8': '#9c5a1e', // burnt orange
-  'claude-opus-4-7': '#94493d', // rust
+  // anthropic — warm. The models that carry real volume stack in the order
+  // they arrived (approx → 4.7 → 4.8 → Fable 5 → Opus 5 → Opus 5.5) and
+  // alternate light/dark so every neighbour pair clears ΔE 18 for deutan
+  // viewers (dataviz validator, dark surface, 2026-10-18).
+  'approx-history': '#7a6a5e', // warm taupe — restored history, model unknown
+  'claude-opus-4-7': '#f5c08a', // pale apricot
+  'claude-opus-4-8': '#9e3a2c', // oxblood
+  'claude-fable-5': '#d97757', // hero orange (the Anthropic anchor)
+  'claude-opus-5': '#ffe0c2', // cream
+  'claude-opus-5-5': '#e0523a', // vermilion — the current flagship
+  'claude-fable-5-1': '#f4a67e', // apricot
   'claude-sonnet-5': '#e2739f', // rose — kept off the brand amber
   'claude-sonnet-4-6': '#9c4b6e', // deep rose
   'claude-haiku-4-5-20251001': '#f0d5b0', // sand
-  'approx-history': '#74604f', // muted brown — restored history, model unknown
-  // openai — cool
-  'gpt-5.6-sol': '#4f8ff7', // blue
+  // openai — cool (same rule: 5.6 Sol → 6 Astra → 6.1 Sol alternate)
+  'gpt-5.6-sol': '#4f8ff7', // blue (the OpenAI anchor)
+  'gpt-6-astra': '#8fe3ec', // ice cyan
+  'gpt-6.1-sol': '#6f5ce6', // indigo
+  'gpt-6-sol': '#2f5fd0', // cobalt
+  'gpt-6-luna': '#c3cdff', // pale periwinkle
   'gpt-5.6-terra': '#2fc4b2', // teal
   'gpt-5.6-luna': '#9fb3ff', // periwinkle
   'gpt-5.5': '#3468bf', // deep blue

@@ -1,8 +1,9 @@
 import { SOURCE_COLOR, SOURCE_LABEL, type TodaySummary } from '@/lib/insights/types';
-import { fmtCost, fmtDuration, fmtInt, fmtTokens } from '@/lib/insights/format';
+import { fmtCost, fmtDuration, fmtTokens } from '@/lib/insights/format';
 
 // Today strip — the current LOCAL day's usage: tokens (per source), active
-// time, cost, ships. Server-rendered. The hero number is the panel's one amber
+// time, cost. (Commit counts were dropped 2026-10-19: commits are routine
+// saves of work, not a measure of output.) Server-rendered. The hero number is the panel's one amber
 // moment.
 export function TodayStrip({ summary }: { summary: TodaySummary }) {
   const empty = summary.totalTokens === 0 && summary.totalActiveMinutes === 0;
@@ -52,7 +53,6 @@ export function TodayStrip({ summary }: { summary: TodaySummary }) {
         </div>
 
         <Stat label="active" value={fmtDuration(summary.totalActiveMinutes)} />
-        <Stat label="ships" value={summary.commits == null ? '—' : fmtInt(summary.commits)} dim={summary.commits == null} />
         <Stat label="cost" value={fmtCost(summary.cost)} dim={summary.cost == null} />
       </div>
 

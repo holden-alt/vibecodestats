@@ -5,24 +5,31 @@ import { todayLocal } from '@/lib/date';
 import { createClient } from '@/lib/db/server';
 import { getInsightsBundle } from '@/lib/insights/queries';
 import {
+  bucketVendorDays,
+  buildActiveHours,
   buildDayRankings,
-  buildEfficiency,
-  buildHourlyAgg,
-  buildProjectRows,
+  buildModelRanking,
+  buildModelWeeks,
+  buildProjectLanes,
   buildRecords,
-  buildShips,
+  buildShowdown,
   buildTodaySummary,
-  buildTrend,
+  buildVendorDays,
+  buildWorkClock,
+  deepWorkPerDay,
 } from '@/lib/insights/compute';
-import { SOURCES } from '@/lib/insights/types';
+import { StationTabs } from '@/components/insights/StationTabs';
+import { ShowdownPanel } from '@/components/insights/ShowdownPanel';
+import { TokenTimeline } from '@/components/insights/TokenTimeline';
+import { DayScatter } from '@/components/insights/DayScatter';
+import { ModelBars } from '@/components/insights/ModelBars';
 import { TodayStrip } from '@/components/insights/TodayStrip';
 import { RecordsBoard } from '@/components/insights/RecordsBoard';
 import { DayRankingsPanel } from '@/components/insights/DayRankingsPanel';
-import { ModelMixTrend } from '@/components/insights/ModelMixTrend';
-import { EfficiencyPanel } from '@/components/insights/EfficiencyPanel';
-import { HoursHeatmap } from '@/components/insights/HoursHeatmap';
-import { ProjectBreakdown } from '@/components/insights/ProjectBreakdown';
-import { ShipsPanel } from '@/components/insights/ShipsPanel';
+import { ModelEras } from '@/components/insights/ModelEras';
+import { WorkClock } from '@/components/insights/WorkClock';
+import { ProjectLanes } from '@/components/insights/ProjectLanes';
+import { ActiveHours } from '@/components/insights/ActiveHours';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.vibecodestats.dev';
 
@@ -32,7 +39,7 @@ const TAGLINE = 'Applied AI that makes an organization more capable — and more
 export const metadata: Metadata = {
   title: 'Usage station · Richardson Applied AI',
   description:
-    'Richardson Applied AI usage station: how much, when, which models, which projects, and what shipped — across Claude Code, Codex, Grok, and Kimi.',
+    'Richardson Applied AI usage station: Claude vs. Codex over time, which models did the work, when, and on which projects.',
   alternates: { canonical: '/' },
 };
 
@@ -41,7 +48,7 @@ const WEBSITE_JSONLD = {
   '@type': 'WebSite',
   name: 'Richardson Applied AI · usage station',
   url: SITE_URL,
-  description: 'Personal LLM usage station: tokens, models, hours, projects, and ships.',
+  description: 'Personal LLM usage station: tokens, models, hours, and projects over time.',
 };
 
 export default async function HomePage() {
@@ -53,26 +60,34 @@ export default async function HomePage() {
   const todaySummary = buildTodaySummary(bundle.modelDaily, [], today, bundle.ships);
   const records = buildRecords(bundle.history, today);
   const dayRankings = buildDayRankings(bundle.history);
-  const efficiency = buildEfficiency(bundle.modelDaily, today, 90);
 
-  const { points, models } = buildTrend(bundle.modelDaily);
-  const hourlyAgg = buildHourlyAgg(bundle.hourly);
-
-  const projByWindow = {
-    '7d': buildProjectRows(bundle.projectModel, [], today, 7),
-    '30d': buildProjectRows(bundle.projectModel, [], today, 30),
-    '90d': buildProjectRows(bundle.projectModel, [], today, 91),
+  // ── Overview: Claude vs. Codex across the full history ─────────────────────
+  const vendorDays = buildVendorDays(bundle.modelDaily, today);
+  const showdowns = {
+    '7d': buildShowdown(vendorDays, today, '7d'),
+    '30d': buildShowdown(vendorDays, today, '30d'),
+    '90d': buildShowdown(vendorDays, today, '90d'),
+    all: buildShowdown(vendorDays, today, 'all'),
   };
-  const shipsByWindow = {
-    '7d': buildShips(bundle.ships, today, 7, false),
-    '30d': buildShips(bundle.ships, today, 30, false),
-    '90d': buildShips(bundle.ships, today, 91, true),
+  const timeline = {
+    day: bucketVendorDays(vendorDays, 'day'),
+    week: bucketVendorDays(vendorDays, 'week'),
+    month: bucketVendorDays(vendorDays, 'month'),
+  };
+  const lifetimeTokens = vendorDays.reduce((sum, d) => sum + d.claude + d.codex + d.other, 0);
+  const modelRanks = {
+    '30d': buildModelRanking(bundle.modelDaily, today, 30),
+    '90d': buildModelRanking(bundle.modelDaily, today, 90),
+    all: buildModelRanking(bundle.modelDaily, today, null),
   };
 
-  const present = new Set<string>();
-  for (const r of bundle.modelDaily) present.add(r.source);
-  for (const r of bundle.hourly) present.add(r.source);
-  const availableSources = SOURCES.filter((s) => present.has(s));
+  // ── Detail: all-time models, hours, projects, and time ─────────────────────
+  const modelWeeks = buildModelWeeks(bundle.modelDaily, today);
+  const workClock = buildWorkClock(bundle.hourly, today);
+  const projectLanes = buildProjectLanes(bundle.projectModel, today);
+  const activeWeeks = buildActiveHours(bundle.hourly, bundle.history, today);
+  const perDay30 = deepWorkPerDay(bundle.history, today, 30);
+  const perDayAll = deepWorkPerDay(bundle.history, today, null);
 
   return (
     <main
@@ -119,8 +134,8 @@ export default async function HomePage() {
             maxWidth: 680,
           }}
         >
-          How much, when, which models, which projects, what shipped — across Claude Code, Codex, Grok
-          &amp; Kimi.
+          How much you use Claude and Codex, how that has changed over time, and which models did the
+          work.
         </p>
       </header>
 
@@ -137,22 +152,28 @@ export default async function HomePage() {
 
       <TodayStrip summary={todaySummary} />
 
-      <RecordsBoard records={records} today={today} />
-
-      <DayRankingsPanel days={dayRankings} today={today} />
-
-      <DayRankingsPanel days={dayRankings} today={today} />
-
-      <ModelMixTrend points={points} models={models} today={today} availableSources={availableSources} />
-
-      <div className="insights-two-col">
-        <HoursHeatmap agg={hourlyAgg} today={today} availableSources={availableSources} />
-        <ProjectBreakdown byWindow={projByWindow} />
-      </div>
-
-      <ShipsPanel byWindow={shipsByWindow} />
-
-      <EfficiencyPanel points={efficiency} />
+      <StationTabs
+        overview={
+          <>
+            <ShowdownPanel showdowns={showdowns} weekly={timeline.week} />
+            <TokenTimeline byGrain={timeline} lifetime={lifetimeTokens} since={vendorDays[0]?.date ?? null} />
+            <div className="insights-two-col" style={{ alignItems: 'stretch' }}>
+              <DayScatter days={vendorDays} today={today} />
+              <ModelBars byWindow={modelRanks} />
+            </div>
+            <DayRankingsPanel days={dayRankings} today={today} />
+          </>
+        }
+        detail={
+          <>
+            <RecordsBoard records={records} today={today} />
+            <ModelEras data={modelWeeks} />
+            <WorkClock weeks={workClock} />
+            <ProjectLanes data={projectLanes} />
+            <ActiveHours weeks={activeWeeks} perDay30={perDay30} perDayAll={perDayAll} />
+          </>
+        }
+      />
 
       {/* ── Footer (demoted routes live here, off the primary surface) ─────── */}
       <footer
